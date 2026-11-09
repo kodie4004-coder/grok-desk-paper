@@ -13,14 +13,15 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<a class="skip-link" href="#view">Skip to content</a>
 <header class="top">
-  <div class="brand">Grok Desk</div>
+  <h1 class="brand">Grok Desk</h1>
   <div id="modeBadge" class="badge paper">PAPER MODE · fake money</div>
 </header>
 <div id="replayBanner" class="replay hidden"></div>
-<main id="view"></main>
+<main id="view" tabindex="-1"></main>
 <div id="toasts"></div>
-<nav class="tabs">
+<nav class="tabs" aria-label="Primary">
   <button data-tab="home" class="on"><span>◉</span>Home</button>
   <button data-tab="agents"><span>⛓</span>Agents</button>
   <button data-tab="activity"><span>≡</span>Activity</button>

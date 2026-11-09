@@ -1,7 +1,7 @@
 // Grok Desk UI. PAPER ONLY: the engine below moves numbers, never money.
-import { DEFAULT_SETTINGS, calibration, settingsLocked, updateSettings } from './engine/core.js';
+import { DEFAULT_SETTINGS, RESEARCH_PRIOR, calibration, settingsLocked, updateSettings, strategyHealth, participationDecision, equityDrawdown } from './engine/core.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
-import { newState, startSession, endSession, tick, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
+import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -43,8 +43,20 @@ async function liveTick() {
   try { await tick(live, src, Date.now(), toast); await persist(); } finally { ui.busy = false; }
   render();
 }
+async function liveMark() {
+  if (!live?.running || ui.busy || ui.replay || !live.open.length) return;
+  const markSec = live.settings.markSec || 0;
+  if (!(markSec > 0)) return;
+  if (Date.now() - Math.max(live.lastMarkAt || 0, live.lastTickAt || 0) < markSec * 1000) return;
+  ui.busy = true;
+  try { await mark(live, src, Date.now(), toast); await persist(); } finally { ui.busy = false; }
+  render();
+}
 setInterval(() => {
-  if (live && live.running && !ui.replay && Date.now() - (live.lastTickAt || 0) >= live.settings.tickSec * 1000) liveTick();
+  if (live?.running && !ui.replay) {
+    const due = Date.now() - (live.lastTickAt || 0) >= (live.settings.tickSec || 60) * 1000;
+    if (due) liveTick(); else liveMark();
+  }
   if (ui.tab === 'home') updateTimer();
 }, 1000);
 
@@ -73,7 +85,8 @@ async function startReplay() {
     const tk = tape.ticks[ui.replay.i++];
     if (!tk) { endSession(state, tape.ticks.at(-1).t); render(); return; }
     await tick(state, rs, tk.t, toast); render();
-    ui.replay.timer = setTimeout(step, 350);
+    const delay = new URLSearchParams(location.search).get('fast') === '1' ? 0 : 350;
+    ui.replay.timer = setTimeout(step, delay);
   };
   render(); step();
 }
@@ -125,6 +138,47 @@ function updateTimer() {
   }
 }
 
+function fmtPf(h) {
+  if (!h.n) return '–';
+  if (h.profitFactorInfinite) return 'no losing trades';
+  if (h.profitFactor == null) return '–';
+  return h.profitFactor.toFixed(2);
+}
+function sampleTrades(st) {
+  if (Array.isArray(st.edgeBook) && st.edgeBook.length) return st.edgeBook;
+  return st.closed || [];
+}
+function healthCard(st) {
+  const trades = sampleTrades(st);
+  const h = strategyHealth(trades);
+  const part = participationDecision(h, st.settings);
+  const label = { full: 'FULL SIZE', reduced: 'HALF SIZE', explore: 'HALF SIZE · EXPLORING', flat: 'FLAT · ENTRIES OFF', off: 'EDGE GATE OFF · FULL SIZE' }[part.mode] || part.mode;
+  const sess = st.equity && st.equity.length > 1 ? equityDrawdown(st.equity, st.startBank) : null;
+  const drag = h.costDrag == null ? (h.n ? 'no gross profit' : '–') : `${Math.round(h.costDrag * 100)}% of gross`;
+  const ci = h.ci80 ? `${money(h.ci80[0], true)} to ${money(h.ci80[1], true)}` : (h.n ? `need 8 closed trades (have ${h.n})` : '–');
+  const exp = h.expectancyPct == null || !h.n ? '' : ` (${(h.expectancyPct * 100).toFixed(2)}% of size)`;
+  const strategies = RESEARCH_PRIOR.strategies || [];
+  return `<div class="card health ${part.mode}">
+    <h2>Strategy health</h2>
+    <p class="health-status" role="status">${esc(label)}</p>
+    <p class="note">${esc(part.reason)}</p>
+    <dl class="metrics">
+      <div><dt>Expectancy</dt><dd class="${h.n && h.expectancy > 0 ? 'g' : h.n && h.expectancy < 0 ? 'r' : ''}">${h.n ? money(h.expectancy, true) + exp : '–'}</dd></div>
+      <div class="wide"><dt>80% interval</dt><dd>${esc(ci)}</dd></div>
+      <div><dt>Profit factor</dt><dd>${fmtPf(h)}</dd></div>
+      <div><dt>Realized drawdown</dt><dd>${h.n ? money(h.maxDrawdown) : '–'}</dd></div>
+      <div><dt>Sample size</dt><dd>${h.n}<span class="note"> / ${st.settings.edgeMinN || 30}</span></dd></div>
+      <div><dt>Cost drag</dt><dd>${esc(drag)}</dd></div>
+      <div><dt>Win rate</dt><dd>${h.n ? Math.round(h.winRate * 100) + '%' : '–'}</dd></div>
+    </dl>
+    ${sess ? `<p class="note" style="margin-top:8px">This session's equity drawdown is ${money(sess.maxDrawdown)} from the peak.</p>` : ''}
+    <p class="note" style="margin-top:8px">The 80% interval treats trades as independent, so clustered losses make it look too sure. Size is 0, half, or the full amount you set. A loss never increases it. One lead's confidence does not change it.</p>
+    <h3 class="subh">Holdout study</h3>
+    <p class="note">${esc(RESEARCH_PRIOR.summary || '')}</p>
+    ${strategies.length ? `<ul class="study">${strategies.map((s) => `<li><span class="study-name">${esc(s.name)}</span><span>n ${s.n} · ${s.nPools} pools</span><span>expectancy ${money(s.mean, true)}</span><span>90% ${money(s.lo, true)} to ${money(s.hi, true)}</span>${s.note ? `<span class="note">${esc(s.note)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="note">No study table in this build yet.</p>'}
+  </div>`;
+}
+
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -135,7 +189,7 @@ function home(st) {
   return `
   ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card">
-    <div class="row"><h3 style="margin:0">${isReplay ? 'Replay balance' : 'Paper balance'}</h3><span class="note" id="timer"></span></div>
+    <div class="row"><h2 style="margin:0">${isReplay ? 'Replay balance' : 'Paper balance'}</h2><span class="note" id="timer"></span></div>
     <div class="big ${net >= 0 ? '' : 'r'}">${money(eq)}</div>
     <div class="row"><span class="${net >= 0 ? 'g' : 'r'}">${money(net, true)} (${((eq / st.startBank - 1) * 100).toFixed(2)}%)</span><span class="note">${(eq / st.startBank).toFixed(3)}× of ${money(st.startBank)}</span></div>
     <div class="grid" style="margin-top:10px">
@@ -145,8 +199,9 @@ function home(st) {
     </div>
     <div class="note" id="lastTick" style="margin-top:8px"></div>
   </div>
+  ${healthCard(st)}
   <div class="card">
-    <div class="row" style="margin-bottom:8px"><h3 style="margin:0">Equity</h3>
+    <div class="row" style="margin-bottom:8px"><h2 style="margin:0">Equity</h2>
       <div class="seg" style="width:170px">${['15m', '1h', 'all'].map((k) => `<button data-tf="${k}" class="${ui.tf === k ? 'on' : ''}">${k === 'all' ? 'All' : k}</button>`).join('')}</div></div>
     <canvas id="chart"></canvas>
     <div class="note" style="margin-top:6px"><span class="b">●</span> buy <span class="g">●</span> take profit <span class="r">✕</span> stop <span class="y">●</span> other exit · dashed = start</div>
@@ -157,27 +212,27 @@ function home(st) {
        <button class="btn wide" id="replayBtn" style="margin-top:8px">Watch replay of a recorded session</button>
        <div class="note" style="margin-top:8px">Uses live Solana market data and fake money. Bank ${money(st.settings.bank)} · change it in Settings.</div>`}</div>`}
   ${st.recap ? recapCard(st.recap, isReplay) : ''}
-  <div class="card"><h3>Honesty panel</h3>
+  <div class="card"><h2>Honesty panel</h2>
     <table>
       <tr><td>Realized P&L (after fees)</td><td class="${realized >= 0 ? 'g' : 'r'}">${money(realized, true)}</td></tr>
       <tr><td>Before fees/slippage</td><td>${money(realized + fees, true)}</td></tr>
-      <tr><td>Fees + slippage paid (${st.settings.feePct}% round trip)</td><td class="r">${money(-fees)}</td></tr>
+      <tr><td>Fees + slippage paid (${st.settings.feePct}% round trip${st.settings.impactModel ? ' plus size/liquidity impact' : ''})</td><td class="r">${money(-fees)}</td></tr>
       <tr><td>Unrealized (open, marked to live price, exit fee included)</td><td class="${unreal >= 0 ? 'g' : 'r'}">${money(unreal, true)}</td></tr>
       <tr><td>Win rate</td><td>${st.closed.length ? `${wins}/${st.closed.length} (${Math.round((100 * wins) / st.closed.length)}%)` : 'no closed trades'}</td></tr>
       <tr><td>Data errors this session</td><td>${st.errors}</td></tr>
     </table>
-    <div class="note" style="margin-top:6px">Paper fills use the live mid price when the engine checks (every ${st.settings.tickSec}s), plus the fee assumption. Real fills on thin meme pools are usually worse.</div>
+    <div class="note" style="margin-top:6px">Paper fills use the polled price. Open positions reprice every ${st.settings.markSec || st.settings.tickSec}s; pool discovery stays on ${st.settings.tickSec}s. A stop can still fill worse than its level between checks. The walk-forward study fills stops at the minute low, which is harsher than this desk.</div>
   </div>
-  <div class="card"><h3>Open positions (${st.open.length})</h3>
+  <div class="card"><h2>Open positions (${st.open.length})</h2>
     ${st.open.length ? st.open.map((p) => { const ch = ((p.lastPrice ?? p.entryMid) / p.entryMid - 1) * 100; return `<div class="pos"><div><b>${esc(p.symbol)}</b> <span class="chip">${p.source}</span><br><span class="note">${money(p.sizeUsd)} @ ${fmtP(p.entryMid)} · stop ${fmtP(p.stop)} · tp ${fmtP(p.tp)}</span></div><div style="text-align:right"><b class="${ch >= 0 ? 'g' : 'r'}">${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%</b><br><span class="note">${fmtP(p.lastPrice)}</span></div></div>`; }).join('') : '<div class="note">None.</div>'}
   </div>
-  <div class="card"><h3>Closed trades (${st.closed.length})</h3>
+  <div class="card"><h2>Closed trades (${st.closed.length})</h2>
     ${st.closed.slice().reverse().slice(0, 25).map((t) => `<div class="pos"><div><b>${esc(t.symbol)}</b> <span class="chip">${t.source}</span><br><span class="note">${esc(t.exitReason)} · ${tm(t.closedAt)}</span></div><div style="text-align:right"><b class="${t.pnl >= 0 ? 'g' : 'r'}">${money(t.pnl, true)}</b><br><span class="note">${t.retPct}%</span></div></div>`).join('') || '<div class="note">None yet.</div>'}
   </div>`;
 }
 
 function recapCard(r, isReplay) {
-  return `<div class="card recap"><h3>${isReplay ? 'Replay recap' : 'Session recap'} · ${esc(r.sessionId)}</h3>
+  return `<div class="card recap"><h2>${isReplay ? 'Replay recap' : 'Session recap'} · ${esc(r.sessionId)}</h2>
   <div class="grid">
     <div class="stat"><small>Duration</small><b>${r.durationMin}m</b></div>
     <div class="stat"><small>Trades</small><b>${r.trades}</b></div>
@@ -204,24 +259,24 @@ function agents(st) {
   const cal = calibration(st.verdicts, [...st.closed, ...st.open], st.passChecks);
   const ver = st.verdicts.slice().reverse().slice(0, 30);
   return `
-  <div class="card funnel"><h3>Pipeline</h3>
+  <div class="card funnel"><h2>Pipeline</h2>
     <div class="note" style="margin-bottom:6px">${c.signals.toLocaleString()} signals → ${c.filtered} filtered → ${c.copied} copied → ${c.own} own</div>
     ${stages.map(([ic, nm, sub, n, unit]) => `<div class="st"><div class="ic">${ic}</div><div class="nm"><b>${nm}</b><small>${esc(sub)}</small><div class="bar"><i style="width:${Math.max(2, (100 * Math.log10(1 + n)) / Math.log10(1 + mx))}%"></i></div></div><div class="ct">${n.toLocaleString()}<div class="note" style="font-weight:400;text-align:right">${unit}</div></div></div>`).join('')}
   </div>
   ${st.firedCards.slice().reverse().map((f) => `<div class="fired"><b>UNFOLLOWED</b> <span class="note">${tm(f.t)}</span><div style="font-family:var(--mono);margin-top:4px">${short(f.wallet)} · ${esc(f.reason)} · last loss ${esc(f.last)}</div></div>`).join('')}
-  <div class="card"><h3>JUDGE · last ${ver.length} verdicts</h3>
+  <div class="card"><h2>JUDGE · last ${ver.length} verdicts</h2>
     <div class="note">Gate: buy only if action=buy p≥${s.judgeBuyP}, organic=yes p≥${s.judgeOrganicP}, late=no, exit_risk≤${s.judgeMaxExitRisk}. Watch → re-ask once in ${s.watchRecheckMin}m. Missing data = pass. Confidence never changes size.</div>
     ${ver.map((v) => `<div class="verdict"><div class="row"><b>${esc(v.symbol)} <span class="note">${esc(v.leadId)}</span></b><span class="chip ${v.decision}">${v.decision.toUpperCase()}</span></div>
       <span class="chip">organic ${esc(v.organic ?? 'missing')}</span><span class="chip">late ${esc(v.late ?? 'missing')}</span><span class="chip">exit_risk ${esc(v.exitRisk ?? 'missing')}</span><span class="chip">action ${esc(v.action)}</span>
       ${v.killedBy ? `<div class="note" style="margin-top:3px">killed by: ${esc(v.killedBy)}</div>` : ''}
       <div class="note">top10 ${esc(fmtN(v.dossier.top10))}% · dev ${esc(fmtN(v.dossier.dev))}% · liq $${Math.round(v.dossier.liq || 0).toLocaleString()} · 5m b/s ${v.dossier.b5}/${v.dossier.s5} prev ${v.dossier.b5p}/${v.dossier.s5p} · holders ${v.dossier.holders} (1h ago ${v.dossier.holders1h}) · uniq buyers ${v.dossier.buyersRatio} · LP ${v.dossier.lp}</div></div>`).join('') || '<div class="note">No verdicts yet.</div>'}
   </div>
-  <div class="card"><h3>Calibration (Sunday check)</h3>
+  <div class="card"><h2>Calibration (Sunday check)</h2>
     <table><tr><th>JUDGE buy p</th><th>Buys</th><th>Closed</th><th>Green</th></tr>
     ${cal.buckets.map((b) => `<tr><td>${b.label}</td><td>${b.buys}</td><td>${b.closed}</td><td>${b.closed ? `${b.green} (${Math.round((100 * b.green) / b.closed)}%)` : '–'}</td></tr>`).join('')}</table>
     <div class="note" style="margin-top:6px">Passes: ${cal.passes.total} logged · ${cal.passes.checked} checked after 24h · ${cal.passes.wouldBeGreen} would have been green after fees. ${cal.passes.total > cal.passes.checked ? 'Unchecked passes get checked once they are 24h old and the desk is running.' : ''}</div>
   </div>
-  <div class="card"><h3>Wallet board (observed)</h3>
+  <div class="card"><h2>Wallet board (observed)</h2>
     <div class="note">Stats come only from trades this desk has seen (GeckoTerminal pool trades ≥ $20). Free APIs have no 30-day wallet history, so these are approximate. Follow rule: win rate ≥ ${s.walletMinWinRate}%, ≥ ${s.walletMinRoundTrips} round trips, avg hold > ${s.walletMinHoldMin}m, P&L > 0. Fired after ${s.strikesToFire} losses in a row.</div>
     <table><tr><th>Wallet</th><th>RT</th><th>Win</th><th>Hold</th><th>P&L</th><th>Strikes</th></tr>
     ${(st.walletBoard || []).slice(0, 15).map((w) => `<tr><td style="font-family:var(--mono)">${short(w.wallet)} ${w.followed ? '<span class="g">●</span>' : ''}${w.fired ? '<span class="r">✕</span>' : ''}</td><td>${w.roundTrips}</td><td>${Math.round(w.winRate)}%</td><td>${Math.round(w.avgHoldMin)}m</td><td class="${w.pnl >= 0 ? 'g' : 'r'}">${money(w.pnl)}</td><td>${w.strikes}/${s.strikesToFire}</td></tr>`).join('') || '<tr><td colspan="6" class="note">No round trips observed yet.</td></tr>'}</table>
@@ -246,21 +301,24 @@ const FIELDS = [
   ['JUDGE: min buy p', 'judgeBuyP'], ['JUDGE: min organic p', 'judgeOrganicP'], ['JUDGE: max exit_risk', 'judgeMaxExitRisk'], ['JUDGE: watch re-ask (min)', 'watchRecheckMin'],
   ['Copy trading on', 'copyEnabled', 'bool'], ['Copy: min wallets', 'copyMinWallets'], ['Copy: window (min)', 'copyWindowMin'], ['Copy: max run-up since wallet entry (%)', 'copyMaxRunupPct'], ['Copy size ratio (×)', 'copyRatio'],
   ['Fire trader after N losses in a row', 'strikesToFire'], ['Wallet: min win rate (%)', 'walletMinWinRate'], ['Wallet: min observed round trips', 'walletMinRoundTrips'], ['Wallet: min avg hold (min)', 'walletMinHoldMin'],
-  ['Market check every (s, ≥30)', 'tickSec'],
+  ['Market check every (s, ≥30)', 'tickSec'], ['Reprice open positions every (s, 0 = off)', 'markSec'],
+  ['Edge gate', 'edgeGate', 'bool'], ['Allow exploratory entries at half size', 'allowExplore', 'bool'], ['Closed trades before full size', 'edgeMinN'],
+  ['Skip entries when 5m range eats the stop', 'volGate', 'bool'], ['Range limit, as a fraction of the stop', 'volRangeFrac'],
+  ['Add liquidity impact on top of the flat fee', 'impactModel', 'bool'],
 ];
 function settingsView(st) {
   const locked = settingsLocked(live) || st.mode === 'replay';
   const s = live.settings;
   return `${locked ? `<div class="lock">🔒 Locked while a session runs${st.mode === 'replay' ? ' or a replay plays' : ''}. End it on Home to change rules.</div>` : ''}
-  <div class="card"><h3>Rules</h3>
+  <div class="card"><h2>Rules</h2>
   <form id="sform">${FIELDS.map(([lab, k, type]) => `<label class="f">${lab}${type === 'bool' ? `<input type="checkbox" name="${k}" ${s[k] ? 'checked' : ''} ${locked ? 'disabled' : ''}>` : `<input type="number" step="any" inputmode="decimal" name="${k}" value="${s[k]}" ${locked ? 'disabled' : ''}>`}</label>`).join('')}
   <button class="btn pri wide" style="margin-top:10px" ${locked ? 'disabled' : ''}>Save rules</button>
   <button type="button" class="btn wide" id="defaults" style="margin-top:8px" ${locked ? 'disabled' : ''}>Reset to defaults</button></form>
-  <div class="note" style="margin-top:8px">There is no "make it back" setting on purpose. Raising size or loosening rules after a loss is loss-chasing and drains accounts; the loss cap stops new entries instead.</div></div>
-  <div class="card"><h3>Notifications</h3><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Nothing is sent outside this device.</div></div>
-  <div class="card"><h3>Live execution</h3><label class="f">live_execution<input type="checkbox" disabled></label>
+  <div class="note" style="margin-top:8px">There is no "make it back" setting on purpose. Raising size or loosening rules after a loss is loss-chasing and drains accounts; the loss cap stops new entries instead. The edge gate only shrinks or stops. It never sizes above the position you set, and a loss never increases size.</div></div>
+  <div class="card"><h2>Notifications</h2><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Nothing is sent outside this device.</div></div>
+  <div class="card"><h2>Live execution</h2><label class="f">live_execution<input type="checkbox" disabled></label>
     <div class="note">Disabled and not built. This app has no wallet connection, no private keys and no order code. Going live would need a separate build (wallet signing, a swap router such as Jupiter, priority fees, real slippage handling, kill switch) and Kodie's explicit approval. See <code>LIVE_EXECUTION.md</code>.</div></div>
-  <div class="card"><h3>Data</h3><div class="note">Sources (free, no keys): GeckoTerminal (pools, trades, holders), DexScreener (prices), Jupiter lite price API (fallback). State lives only in this browser.</div>
+  <div class="card"><h2>Data</h2><div class="note">Sources (free, no keys): GeckoTerminal (pools, trades, holders), DexScreener (prices), Jupiter lite price API (fallback). State lives only in this browser.</div>
     <button class="btn dng wide" id="wipe" style="margin-top:10px" ${live.running ? 'disabled' : ''}>Erase local data</button></div>
   <div class="note" style="text-align:center;margin-bottom:10px">Grok Desk paper v1 · not financial advice</div>`;
 }
@@ -276,7 +334,14 @@ function render() {
 function bind() {
   document.querySelectorAll('[data-tf]').forEach((b) => (b.onclick = () => { ui.tf = b.dataset.tf; render(); }));
   document.querySelectorAll('[data-lf]').forEach((b) => (b.onclick = () => { ui.logFilter = b.dataset.lf; render(); }));
-  const sb = $('#startBtn'); if (sb) sb.onclick = async () => { live = newState(live.settings, Date.now()); startSession(live, Date.now()); state = live; await persist(); render(); liveTick(); };
+  const sb = $('#startBtn'); if (sb) sb.onclick = async () => {
+    const book = live.edgeBook?.length ? live.edgeBook : (live.closed || []);
+    const settings = live.settings;
+    live = newState(settings, Date.now());
+    live.edgeBook = book.slice(-500);
+    startSession(live, Date.now());
+    state = live; await persist(); render(); liveTick();
+  };
   const eb = $('#endBtn'); if (eb) eb.onclick = async () => { if (!confirm('End this paper session? Open positions close at the last live price.')) return; endSession(live, Date.now()); await persist(); render(); };
   const rb = $('#replayBtn'); if (rb) rb.onclick = startReplay;
   const f = $('#sform'); if (f) f.onsubmit = (e) => {
@@ -284,6 +349,9 @@ function bind() {
     const patch = {};
     for (const [, k, type] of FIELDS) { const el = f.elements[k]; patch[k] = type === 'bool' ? el.checked : Number(el.value); }
     patch.tickSec = Math.max(30, patch.tickSec || 60);
+    patch.markSec = patch.markSec ? Math.max(10, patch.markSec) : 0;
+    patch.edgeMinN = Math.max(8, patch.edgeMinN || 30);
+    patch.volRangeFrac = Math.min(2, Math.max(0.1, patch.volRangeFrac || 0.75));
     const r = updateSettings(live, live.settings, patch);
     if (!r.ok) return toast({ text: r.reason });
     live.settings = r.settings; saveSettings(r.settings); persist(); toast({ text: 'Rules saved. They apply to the next session.' }); render();

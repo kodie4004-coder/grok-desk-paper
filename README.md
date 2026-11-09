@@ -17,9 +17,9 @@ not real results. This app copies the features and ignores the numbers.
 
 | Part | Real or simulated |
 |---|---|
-| Market data (pools, prices, trades, holders) | **Real**: live public APIs, fetched every 60 s |
+| Market data (pools, prices, trades, holders) | **Real**: live public APIs. Discovery about every 60 s. Open positions reprice about every 15 s |
 | Money, balance, positions, P&L | **Simulated** (paper). Fills use the live mid price ± your fee/slippage assumption |
-| Fees/slippage | Assumed, 1% round trip by default (adjustable). Real fills on thin pools are usually worse |
+| Fees/slippage | Assumed, 1% round trip by default, plus a size/liquidity impact capped at 3 percentage points. Real fills on thin pools can still be worse |
 | JUDGE probabilities | Deterministic rule-based scores from real data. **Not calibrated**: that's what the calibration table is for |
 | Wallet stats for copy trading | **Approximate**, built only from trades this desk has observed (see limits) |
 | Replay | A recording of a real paper session's API responses, replayed through the same engine. Labelled REPLAY everywhere |
@@ -51,6 +51,8 @@ not real results. This app copies the features and ignores the numbers.
    - the token is already held
    - there isn't enough cash
    - the loss cap was hit
+   - the edge gate is flat (the holdout study and this desk's own sample do not show a positive expectancy). Exploratory mode, off by default when the study says no edge, allows half size so a sample can be collected. Full size requires 30 closed trades whose 80% lower bound is above zero. The scale is only 0, ½, or 1. A loss never increases it. One lead's confidence never changes it.
+   - the 5-minute trade range is at least ¾ of the stop, when that filter is on. It ships on only if the study's adoption rule says so. See `EVAL_PROTOCOL.md` and `EVAL_REPORT.md`.
 6. **Banker** marks positions to the live price and exits on stop (−4%), take profit (+12%), the optional trailing exit, max hold time (120 min) or the copied wallet exiting. It then records the trade and applies the firing rule.
 
 **Firing rule:** each copied loss adds a strike to the wallets behind it (0/2 → 1/2), and a win resets the count. Two losses in a row unfollows the wallet and shows an UNFOLLOWED card.
@@ -77,6 +79,8 @@ Browser tabs sleep, so the app only trades while it is open. The same engine run
 node runner/headless.mjs --minutes 60 --out runner/state.json                          # paper session
 node runner/headless.mjs --minutes 60 --out runner/session-state.json --tape replay/tape.json   # + record a replay tape
 node runner/replay-check.mjs replay/tape.json                                           # replay in Node, prints the recap
+node runner/collect-ohlcv.mjs                                                           # refresh the public minute-bar sample
+node runner/walkforward.mjs                                                             # rerun the frozen study
 ```
 
 The runner writes a JSON state file. The phone app doesn't read that file, because they are separate sessions.
@@ -95,6 +99,9 @@ The runner writes a JSON state file. The phone app doesn't read that file, becau
 - copy signal filters
 - calibration buckets
 - an end-to-end engine tick with a fake source
+- strategy health, the edge gate (flat / half / full), the range gate, liquidity impact
+- the walk-forward decision rule on synthetic bars, including a gapped stop filling at the low
+- the recorded tape still replays to net +$1.76
 
 ## Known limits (read these)
 
@@ -102,7 +109,8 @@ The runner writes a JSON state file. The phone app doesn't read that file, becau
 - **LP lock/burn status isn't in the free data.** It's shown as "missing" and doesn't block, because the spec says "if known".
 - **Holders now vs 1 hour ago** comes from the desk's own snapshots. GeckoTerminal refreshes holder counts slowly, so this is often "missing". It's an optional input.
 - **Social/mention proxy** is weak: it only checks whether the token lists a Twitter, Telegram or website.
-- **Fills** happen at the mid price seen at each check (every 60 s), so a −4% stop can fill much lower after a fast dump. That's kept, not hidden.
+- **Fills** happen at the polled price. Open positions are checked about every 15 s, and discovery stays slower because GeckoTerminal's free tier is about 30 calls a minute. A −4% stop can still fill much lower if the price gaps between checks. The walk-forward study is harsher: it fills those stops at the minute bar's low. See `EVAL_REPORT.md`.
+- **No demonstrated edge means no new trades.** Home shows expectancy, an 80% interval, profit factor, realized drawdown, sample size, and cost drag. If the study and the local sample don't support an entry, the desk stays flat instead of forcing trades. Turning on "Allow exploratory entries" is an explicit choice and still uses half size.
 - **Rate limits:** if GeckoTerminal returns 429, the engine backs off and logs an ERR line. Two copies running at once from one IP share the limit.
 - **Data and timing:** all data stays in this browser (IndexedDB), with no account and no sync. The app runs only while the page is open.
 - The JUDGE weights are hand-set heuristics, not trained. Treat its p values as scores until the calibration table says otherwise.

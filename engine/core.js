@@ -1,5 +1,8 @@
 // Pure, deterministic trading-desk logic. No network, no clock, no wallet.
 // Shared by the browser app, the headless runner and the unit tests.
+import { RESEARCH_PRIOR, VOL_GATE_ADOPTED } from './prior.js';
+
+export { RESEARCH_PRIOR };
 
 export const DEFAULT_SETTINGS = Object.freeze({
   bank: 500,             // starting paper bank, USD
@@ -31,6 +34,17 @@ export const DEFAULT_SETTINGS = Object.freeze({
   walletMinRoundTrips: 5,  // observed round trips (30-day history is not available from free APIs)
   walletMinHoldMin: 10,
   tickSec: 60,
+  // Open positions are repriced on this cadence. Scout stays on tickSec (rate limit).
+  markSec: 15,
+  // Edge gate: 0 / 0.5 / 1 times the configured size. Never above 1. Never raised after a loss.
+  edgeGate: true,
+  allowExplore: false,
+  edgeMinN: 30,
+  // Skip entries when the recent range already swallows the stop. Default follows the study.
+  volGate: VOL_GATE_ADOPTED,
+  volRangeFrac: 0.75,
+  // Add a size/liquidity impact on top of feePct. The flat fee already includes a slippage cushion.
+  impactModel: true,
 });
 
 export const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -254,6 +268,115 @@ export function applyStrike(strikes, wallet, pnl, s) {
   const cur = strikes[wallet] || 0;
   const next = pnl > 0 ? 0 : cur + 1;
   return { strikes: { ...strikes, [wallet]: next }, fired: next >= s.strikesToFire, count: next };
+}
+
+// Recent high-low range vs the stop. Missing range does not block (we don't invent it).
+export function rangeAllowsEntry(rangePct, stopPct, frac = 0.75) {
+  if (!isNum(rangePct)) return { ok: true, rangePct: null, reason: null };
+  const limit = stopPct * frac;
+  if (rangePct >= limit) {
+    const pct = (x) => Math.round(x * 10) / 10;
+    return { ok: false, rangePct, reason: `5m range ${pct(rangePct)}% ≥ ${pct(limit)}% (stop is inside the noise)` };
+  }
+  return { ok: true, rangePct, reason: null };
+}
+
+// Constant-product sketch, in percentage points added to the round-trip fee.
+// Reserve on one side ≈ liquidity/2, one-way impact ≈ size/reserve, round trip ≈ 4*size/liquidity.
+// 400 * size / liquidity is that quantity in percent. Capped so a thin print can't invent a huge fee.
+export function roundTripImpactPct(sizeUsd, liqUsd) {
+  if (!(sizeUsd > 0) || !(liqUsd > 0)) return 0;
+  return Math.min(3, (400 * sizeUsd) / liqUsd);
+}
+
+// Closed-trade health. ci80 is a normal interval and treats trades as independent, so it is too narrow
+// when trades cluster. The study uses a pool bootstrap; this one is what the live gate can compute.
+export function strategyHealth(trades) {
+  const rows = (trades || []).filter((t) => t && isNum(t.pnl));
+  const n = rows.length;
+  const pnls = rows.map((t) => t.pnl);
+  const net = pnls.reduce((a, b) => a + b, 0);
+  const fees = rows.reduce((a, t) => a + (isNum(t.fees) ? t.fees : 0), 0);
+  const gross = net + fees;
+  const wins = pnls.filter((p) => p > 0);
+  const losses = pnls.filter((p) => p < 0);
+  const grossWin = wins.reduce((a, b) => a + b, 0);
+  const grossLoss = Math.abs(losses.reduce((a, b) => a + b, 0));
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0);
+  const expectancy = n ? net / n : 0;
+  let varSum = 0;
+  for (const p of pnls) varSum += (p - expectancy) ** 2;
+  const se = n > 1 ? Math.sqrt(varSum / (n - 1) / n) : null;
+  const z80 = 1.2815515655446004;
+  const ci80 = se != null && n >= 8 ? [expectancy - z80 * se, expectancy + z80 * se] : null;
+  let peak = 0, equity = 0, maxDrawdown = 0;
+  for (const p of pnls) {
+    equity += p;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.max(maxDrawdown, peak - equity);
+  }
+  const sizeSum = rows.reduce((a, t) => a + (isNum(t.sizeUsd) ? t.sizeUsd : 0), 0);
+  return {
+    n,
+    net,
+    fees,
+    gross,
+    expectancy,
+    expectancyPct: sizeSum > 0 ? expectancy / (sizeSum / n) : null,
+    profitFactor: Number.isFinite(profitFactor) ? profitFactor : null,
+    profitFactorInfinite: profitFactor === Infinity,
+    maxDrawdown,
+    winRate: n ? wins.length / n : 0,
+    wins: wins.length,
+    losses: losses.length,
+    costDrag: gross > 0 ? fees / gross : null,
+    ci80,
+    se,
+  };
+}
+
+export function equityDrawdown(points, startBank) {
+  let peak = isNum(startBank) ? startBank : 0, maxDrawdown = 0;
+  for (const p of points || []) {
+    if (!p || !isNum(p.v)) continue;
+    peak = Math.max(peak, p.v);
+    maxDrawdown = Math.max(maxDrawdown, peak - p.v);
+  }
+  return { maxDrawdown, peak };
+}
+
+const dollars = (x) => `${x < 0 ? '-' : ''}$${Math.abs(x).toFixed(2)}`;
+
+// Scale is only 0, 0.5, or 1. Losses never increase it. Confidence of a single lead never changes it.
+export function participationDecision(health, settings, prior) {
+  const p = prior || settings?.edgePrior || RESEARCH_PRIOR;
+  if (!settings || !settings.edgeGate) {
+    return { mode: 'off', scale: 1, reason: 'Edge gate is off, so entries use the full configured size.' };
+  }
+  const minN = settings.edgeMinN || 30;
+  const n = health?.n || 0;
+  const mean = health?.expectancy || 0;
+  const lo = health?.ci80 ? health.ci80[0] : null;
+  if (n >= minN && lo != null && lo > 0) {
+    return { mode: 'full', scale: 1, reason: `Local sample of ${n} closed trades has an 80% lower bound above zero (${dollars(lo)}). Full configured size. The size cap still applies.` };
+  }
+  if (n >= minN && !(mean > 0)) {
+    return { mode: 'flat', scale: 0, reason: `Local sample of ${n} has expectancy ${dollars(mean)}, which is not positive. New entries stop. Size is not increased to get it back.` };
+  }
+  if (n >= minN && mean > 0) {
+    return { mode: 'reduced', scale: 0.5, reason: `Local expectancy is ${dollars(mean)} but the 80% interval still includes losses. Size stays at half.` };
+  }
+  const verdict = p?.verdict || 'no-edge';
+  if (verdict === 'no-edge' && !settings.allowExplore) {
+    return { mode: 'flat', scale: 0, reason: p?.summary || 'The holdout study did not show an edge after costs. Exploratory entries are off.' };
+  }
+  if (verdict === 'edge') {
+    return { mode: 'explore', scale: 0.5, reason: `A study flagged an edge, but this desk has ${n} closed trades (need ${minN}) so size stays at half.` };
+  }
+  if (verdict === 'inconclusive') {
+    return { mode: 'explore', scale: 0.5, reason: `No demonstrated edge yet, and this desk has ${n} closed trades (need ${minN}). Size stays at half.` };
+  }
+  return { mode: 'explore', scale: 0.5, reason: `Exploratory entries are on at half size until ${minN} closed trades. The holdout study did not show an edge.` };
 }
 
 export function settingsLocked(state) { return !!(state && state.running); }

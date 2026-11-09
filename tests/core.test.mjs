@@ -154,7 +154,7 @@ test('engine tick end to end with a fake source: own buy, stop out, loss cap', a
     poolTrades: async () => Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i + t, t: t - i * 20000, wallet: 'w' + (i % 7), kind: i % 3 ? 'buy' : 'sell', usd: 50, price: 1, token: 'TK', pool: 'P1' })),
     prices: async (toks) => Object.fromEntries(toks.map((k) => [k, price])),
   };
-  const st = newState({ ...S, bank: 1000, lossCapPct: 0.1 }, t);
+  const st = newState({ ...S, bank: 1000, lossCapPct: 0.1, edgeGate: false, impactModel: false }, t);
   startSession(st, t);
   await tick(st, src, t);
   assert.equal(st.open.length, 1, JSON.stringify(st.log.slice(-3)));
@@ -168,4 +168,98 @@ test('engine tick end to end with a fake source: own buy, stop out, loss cap', a
   assert.match(st.haltReason, /No "make it back"/);
   const rc = endSession(st, t);
   assert.equal(rc.trades, 1);
+});
+
+test('strategy health: expectancy, profit factor, cost drag, drawdown', () => {
+  const h = C.strategyHealth([
+    { pnl: 3, fees: 1, sizeUsd: 25 },
+    { pnl: -1, fees: 1, sizeUsd: 25 },
+  ]);
+  assert.equal(h.n, 2);
+  assert.ok(Math.abs(h.expectancy - 1) < 1e-9);
+  assert.ok(Math.abs(h.profitFactor - 3) < 1e-9);
+  assert.ok(Math.abs(h.costDrag - 0.5) < 1e-9);
+  assert.equal(h.ci80, null);
+  assert.ok(Math.abs(h.maxDrawdown - 1) < 1e-9);
+  assert.equal(C.strategyHealth([]).n, 0);
+});
+
+test('participation scale is only 0, 0.5, or 1 and losses do not raise it', () => {
+  const flat = C.participationDecision(C.strategyHealth([]), { edgeGate: true, allowExplore: false, edgeMinN: 30 }, { verdict: 'no-edge', summary: 'none' });
+  assert.equal(flat.scale, 0);
+  assert.equal(flat.mode, 'flat');
+  const explore = C.participationDecision(C.strategyHealth([]), { edgeGate: true, allowExplore: true, edgeMinN: 30 }, { verdict: 'no-edge', summary: 'none' });
+  assert.equal(explore.scale, 0.5);
+  const wins = C.strategyHealth(Array.from({ length: 30 }, () => ({ pnl: 1, fees: 0.2, sizeUsd: 25 })));
+  assert.ok(wins.ci80[0] > 0);
+  assert.equal(C.participationDecision(wins, { edgeGate: true, allowExplore: false, edgeMinN: 30 }, { verdict: 'no-edge' }).scale, 1);
+  const losses = C.strategyHealth(Array.from({ length: 30 }, () => ({ pnl: -1, fees: 0.2, sizeUsd: 25 })));
+  assert.equal(C.participationDecision(losses, { edgeGate: true, allowExplore: true, edgeMinN: 30 }, { verdict: 'edge' }).scale, 0);
+  assert.equal(C.participationDecision(C.strategyHealth([]), { edgeGate: false }, { verdict: 'no-edge' }).scale, 1);
+});
+
+test('range gate blocks when the 5m range swallows the stop, missing range does not', () => {
+  assert.equal(C.rangeAllowsEntry(null, 4, 0.75).ok, true);
+  assert.equal(C.rangeAllowsEntry(2.9, 4, 0.75).ok, true);
+  assert.equal(C.rangeAllowsEntry(3, 4, 0.75).ok, false);
+});
+
+test('liquidity impact grows as the pool thins and stays capped', () => {
+  assert.ok(Math.abs(C.roundTripImpactPct(25, 40000) - 0.25) < 1e-9);
+  assert.ok(C.roundTripImpactPct(25, 10000) > C.roundTripImpactPct(25, 40000));
+  assert.equal(C.roundTripImpactPct(25, 0), 0);
+  assert.equal(C.roundTripImpactPct(100000, 1000), 3);
+});
+
+test('edge gate stays flat when the prior says no edge', async () => {
+  let t = 1_000_000_000_000;
+  const pool = { pool: 'P1', token: 'TK', symbol: 'TEST', dex: 'x', createdAt: t - 3600e3, priceUsd: 1, liq: 300000, fdv: 1e6, pc: { m5: 1, h1: 5, h6: 10, h24: 20 }, tx: { m5: { b: 20, s: 8 }, h1: { b: 100, s: 60, buyers: 95, sellers: 50 } }, vol: { m5: 1e3, h1: 5e4, h24: 1e6 } };
+  const src = {
+    newPools: async () => [pool], trendingPools: async () => [],
+    tokenInfo: async () => ({ holders: 5000, top10: 15, dev: 1, mintAuthority: false, freezeAuthority: false, honeypot: false, social: true }),
+    poolTrades: async () => Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i + t, t: t - i * 20000, wallet: 'w' + (i % 7), kind: i % 3 ? 'buy' : 'sell', usd: 50, price: 1, token: 'TK', pool: 'P1' })),
+    prices: async (toks) => Object.fromEntries(toks.map((k) => [k, 1])),
+  };
+  const st = newState({ ...S, edgeGate: true, allowExplore: false, impactModel: false, edgePrior: { verdict: 'no-edge', summary: 'study: no edge' } }, t);
+  startSession(st, t);
+  await tick(st, src, t);
+  assert.equal(st.open.length, 0);
+  assert.ok(st.counts.edgeFlat >= 1);
+  assert.match(st.log.map((l) => l.text).join('\n'), /flat TEST/);
+});
+
+test('exploratory mode buys at half size, a proven book buys full size', async () => {
+  let t = 1_000_000_000_000;
+  const pool = { pool: 'P1', token: 'TK', symbol: 'TEST', dex: 'x', createdAt: t - 3600e3, priceUsd: 1, liq: 300000, fdv: 1e6, pc: { m5: 1, h1: 5, h6: 10, h24: 20 }, tx: { m5: { b: 20, s: 8 }, h1: { b: 100, s: 60, buyers: 95, sellers: 50 } }, vol: { m5: 1e3, h1: 5e4, h24: 1e6 } };
+  const src = {
+    newPools: async () => [pool], trendingPools: async () => [],
+    tokenInfo: async () => ({ holders: 5000, top10: 15, dev: 1, mintAuthority: false, freezeAuthority: false, honeypot: false, social: true }),
+    poolTrades: async () => Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i + t, t: t - i * 20000, wallet: 'w' + (i % 7), kind: i % 3 ? 'buy' : 'sell', usd: 50, price: 1, token: 'TK', pool: 'P1' })),
+    prices: async (toks) => Object.fromEntries(toks.map((k) => [k, 1])),
+  };
+  const half = newState({ ...S, bank: 1000, edgeGate: true, allowExplore: true, impactModel: false, volGate: false, edgePrior: { verdict: 'no-edge', summary: 'x' } }, t);
+  startSession(half, t);
+  await tick(half, src, t);
+  assert.equal(half.open[0].sizeUsd, 25);
+  const full = newState({ ...S, bank: 1000, edgeGate: true, allowExplore: false, impactModel: false, volGate: false, edgePrior: { verdict: 'no-edge', summary: 'x' } }, t);
+  full.edgeBook = Array.from({ length: 30 }, () => ({ pnl: 1, fees: 0.1, sizeUsd: 25 }));
+  startSession(full, t);
+  await tick(full, src, t);
+  assert.equal(full.open[0].sizeUsd, 50);
+});
+
+test('vol gate passes a lead whose 5m range is wider than the stop', async () => {
+  let t = 1_000_000_000_000;
+  const pool = { pool: 'P9', token: 'TK', symbol: 'WIDE', dex: 'x', createdAt: t - 3600e3, priceUsd: 1, liq: 300000, fdv: 1e6, pc: { m5: 1, h1: 5, h6: 10, h24: 20 }, tx: { m5: { b: 20, s: 8 }, h1: { b: 100, s: 60, buyers: 95, sellers: 50 } }, vol: { m5: 1e3, h1: 5e4, h24: 1e6 } };
+  const src = {
+    newPools: async () => [pool], trendingPools: async () => [],
+    tokenInfo: async () => ({ holders: 5000, top10: 15, dev: 1, mintAuthority: false, freezeAuthority: false, honeypot: false, social: true }),
+    poolTrades: async () => Array.from({ length: 12 }, (_, i) => ({ id: 'r' + i, t: t - i * 10000, wallet: 'w' + i, kind: i % 3 ? 'buy' : 'sell', usd: 50, price: i % 2 ? 1 : 1.2, token: 'TK', pool: 'P9' })),
+    prices: async (toks) => Object.fromEntries(toks.map((k) => [k, 1])),
+  };
+  const st = newState({ ...S, edgeGate: false, impactModel: false, volGate: true, volRangeFrac: 0.75 }, t);
+  startSession(st, t);
+  await tick(st, src, t);
+  assert.equal(st.open.length, 0);
+  assert.match(st.verdicts.at(-1).killedBy, /range/);
 });
