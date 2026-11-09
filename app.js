@@ -6,6 +6,17 @@ import { newState, startSession, endSession, tick, mark, recap, equityNow, seria
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const money = (x, sign) => (x == null ? '–' : (sign && x > 0 ? '+' : x < 0 ? '−' : '') + '$' + Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+function eqHtml(x) {
+  const parts = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).formatToParts(Math.abs(x));
+  let head = '', cents = '';
+  let seen = false;
+  for (const p of parts) {
+    if (p.type === 'decimal') { seen = true; cents += p.value; continue; }
+    if (seen && p.type === 'fraction') cents += p.value;
+    else head += p.value;
+  }
+  return `<span class="eq ${x < 0 ? 'r' : ''}">${x < 0 ? '−' : ''}$${head}<small>${cents}</small></span>`;
+}
 const tm = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const dur = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m ${String(s % 60).padStart(2, '0')}s`; };
 
@@ -104,16 +115,27 @@ function drawChart(cv, st) {
   const nowT = st.running ? (st.lastTickAt || Date.now()) : (st.endedAt || st.lastTickAt || Date.now());
   const span = { '15m': 15 * 60000, '1h': 3600000, all: Infinity }[ui.tf];
   const pts = st.equity.filter((p) => nowT - p.t <= span);
-  c.fillStyle = '#0f1317'; c.fillRect(0, 0, W, H);
+  c.fillStyle = '#07090c'; c.fillRect(0, 0, W, H);
   if (pts.length < 2) { c.fillStyle = '#8a96a3'; c.font = '12px sans-serif'; c.fillText('Equity line appears after the first ticks', 12, H / 2); return; }
   const t0 = pts[0].t, t1 = pts.at(-1).t || t0 + 1;
   let lo = Math.min(...pts.map((p) => p.v), st.startBank), hi = Math.max(...pts.map((p) => p.v), st.startBank);
   const pad = Math.max(1, (hi - lo) * 0.15); lo -= pad; hi += pad;
   const X = (t) => 8 + ((t - t0) / Math.max(1, t1 - t0)) * (W - 16), Y = (v) => H - 14 - ((v - lo) / (hi - lo)) * (H - 28);
-  c.strokeStyle = '#3b4652'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(0, Y(st.startBank)); c.lineTo(W, Y(st.startBank)); c.stroke(); c.setLineDash([]);
+  c.strokeStyle = '#243040'; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(0, Y(st.startBank)); c.lineTo(W, Y(st.startBank)); c.stroke(); c.setLineDash([]);
   const up = pts.at(-1).v >= st.startBank;
-  c.strokeStyle = up ? '#2fd27a' : '#ff5468'; c.lineWidth = 2; c.beginPath();
-  pts.forEach((p, i) => (i ? c.lineTo(X(p.t), Y(p.v)) : c.moveTo(X(p.t), Y(p.v)))); c.stroke();
+  const stroke = up ? '#3dff9a' : '#ff5d73';
+  c.beginPath();
+  pts.forEach((p, i) => (i ? c.lineTo(X(p.t), Y(p.v)) : c.moveTo(X(p.t), Y(p.v))));
+  c.lineTo(X(pts.at(-1).t), H); c.lineTo(X(pts[0].t), H); c.closePath();
+  const grad = c.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, up ? 'rgba(61,255,154,.28)' : 'rgba(255,93,115,.22)');
+  grad.addColorStop(1, 'rgba(7,9,12,0)');
+  c.fillStyle = grad; c.fill();
+  c.beginPath();
+  pts.forEach((p, i) => (i ? c.lineTo(X(p.t), Y(p.v)) : c.moveTo(X(p.t), Y(p.v))));
+  c.strokeStyle = stroke; c.lineWidth = 2; c.stroke();
+  const end = pts.at(-1);
+  c.fillStyle = stroke; c.beginPath(); c.arc(X(end.t), Y(end.v), 3.5, 0, 7); c.fill();
   for (const m of st.markers.filter((m) => m.t >= t0)) {
     const x = X(m.t), y = Y(m.v);
     c.fillStyle = m.kind === 'buy' ? '#5aa8ff' : m.kind === 'tp' ? '#2fd27a' : m.kind === 'stop' ? '#ff5468' : '#ffc94d';
@@ -172,10 +194,9 @@ function healthCard(st) {
       <div><dt>Win rate</dt><dd>${h.n ? Math.round(h.winRate * 100) + '%' : '–'}</dd></div>
     </dl>
     ${sess ? `<p class="note" style="margin-top:8px">This session's equity drawdown is ${money(sess.maxDrawdown)} from the peak.</p>` : ''}
-    <p class="note" style="margin-top:8px">The 80% interval treats trades as independent, so clustered losses make it look too sure. Size is 0, half, or the full amount you set. A loss never increases it. One lead's confidence does not change it.</p>
     <h3 class="subh">Holdout study</h3>
-    <p class="note">${esc(RESEARCH_PRIOR.summary || '')}</p>
     ${strategies.length ? `<ul class="study">${strategies.map((s) => `<li><span class="study-name">${esc(s.name)}</span><span>n ${s.n} · ${s.nPools} pools</span><span>expectancy ${money(s.mean, true)}</span><span>90% ${money(s.lo, true)} to ${money(s.hi, true)}</span>${s.note ? `<span class="note">${esc(s.note)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="note">No study table in this build yet.</p>'}
+    <p class="note" style="margin-top:8px">The 80% interval treats trades as independent, so clustered losses make it look too sure. Size is 0, half, or the full amount you set. A loss never increases it. One lead's confidence does not change it.</p>
   </div>`;
 }
 
@@ -188,12 +209,12 @@ function home(st) {
   const isReplay = st.mode === 'replay';
   return `
   ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
-  <div class="card">
+  <div class="card hero ${net < 0 ? 'down' : ''}">
     <div class="row"><h2 style="margin:0">${isReplay ? 'Replay balance' : 'Paper balance'}</h2><span class="note" id="timer"></span></div>
-    <div class="big ${net >= 0 ? '' : 'r'}">${money(eq)}</div>
-    <div class="row"><span class="${net >= 0 ? 'g' : 'r'}">${money(net, true)} (${((eq / st.startBank - 1) * 100).toFixed(2)}%)</span><span class="note">${(eq / st.startBank).toFixed(3)}× of ${money(st.startBank)}</span></div>
+    ${eqHtml(eq)}
+    <div class="row" style="margin-top:8px"><span class="pnlchip ${net < 0 ? 'dn' : 'up'}">${money(net, true)} · ${((eq / st.startBank - 1) * 100).toFixed(2)}%</span><span class="note">${(eq / st.startBank).toFixed(3)}× of ${money(st.startBank)} paper</span></div>
     <div class="grid" style="margin-top:10px">
-      <div class="stat"><small>Trades</small><b>${st.closed.length}<span class="m" style="font-size:12px"> +${st.open.length} open</span></b></div>
+      <div class="stat"><small>Closed trades</small><b>${st.closed.length}</b><span class="note">${st.open.length} open</span></div>
       <div class="stat"><small>Green / red</small><b><span class="g">${wins}</span> / <span class="r">${losses}</span></b></div>
       <div class="stat"><small>Win rate</small><b>${st.closed.length ? Math.round((100 * wins) / st.closed.length) + '%' : '–'}</b></div>
     </div>
@@ -248,12 +269,12 @@ function recapCard(r, isReplay) {
 function agents(st) {
   const c = st.counts, s = st.settings;
   const stages = [
-    ['🛰', 'Scout', 'new + trending Solana pools, pool trades (GeckoTerminal)', c.signals, 'signals'],
-    ['🧹', 'Filter', `liq ≥ $${s.minLiquidity / 1000}k, alive in 5m, 1h vol ≥ $${s.minVolH1 / 1000}k`, c.filtered, 'passed'],
-    ['👥', 'Copy', `${st.followed.length} wallets followed · ${c.copySignals} signals`, c.copied, 'copied'],
-    ['⚖️', 'Own · JUDGE', `${c.judged} leads judged · ${c.judgeBuy} passed the gate`, c.own, 'own buys'],
-    ['🛡', 'Risk', `stop -${s.stopPct}% set before buy · max ${s.maxPositionPct}%/position · loss cap ${s.lossCapPct}%`, c.riskBlocked, 'blocked'],
-    ['🏦', 'Banker', 'marks positions to live price, closes, records', c.closed, 'closed'],
+    ['S', 's', 'Scout', 'new + trending Solana pools, pool trades (GeckoTerminal)', c.signals, 'signals'],
+    ['F', 'f', 'Filter', `liq ≥ $${s.minLiquidity / 1000}k, alive in 5m, 1h vol ≥ $${s.minVolH1 / 1000}k`, c.filtered, 'passed'],
+    ['C', 'c', 'Copy', `${st.followed.length} wallets followed · ${c.copySignals} signals`, c.copied, 'copied'],
+    ['O', 'o', 'Own · JUDGE', `${c.judged} leads judged · ${c.judgeBuy} passed the gate`, c.own, 'own buys'],
+    ['R', 'r', 'Risk', `stop -${s.stopPct}% set before buy · max ${s.maxPositionPct}%/position · loss cap ${s.lossCapPct}%`, c.riskBlocked, 'blocked'],
+    ['B', 'b', 'Banker', 'marks positions to live price, closes, records', c.closed, 'closed'],
   ];
   const mx = Math.max(1, ...stages.map((x) => x[3]));
   const cal = calibration(st.verdicts, [...st.closed, ...st.open], st.passChecks);
@@ -261,7 +282,7 @@ function agents(st) {
   return `
   <div class="card funnel"><h2>Pipeline</h2>
     <div class="note" style="margin-bottom:6px">${c.signals.toLocaleString()} signals → ${c.filtered} filtered → ${c.copied} copied → ${c.own} own</div>
-    ${stages.map(([ic, nm, sub, n, unit]) => `<div class="st"><div class="ic">${ic}</div><div class="nm"><b>${nm}</b><small>${esc(sub)}</small><div class="bar"><i style="width:${Math.max(2, (100 * Math.log10(1 + n)) / Math.log10(1 + mx))}%"></i></div></div><div class="ct">${n.toLocaleString()}<div class="note" style="font-weight:400;text-align:right">${unit}</div></div></div>`).join('')}
+    ${stages.map(([letter, tone, nm, sub, n, unit]) => `<div class="st"><div class="ic ${tone}" aria-hidden="true">${letter}</div><div class="nm"><b>${nm}</b><small>${esc(sub)}</small><div class="bar"><i style="width:${Math.max(2, (100 * Math.log10(1 + n)) / Math.log10(1 + mx))}%"></i></div></div><div class="ct">${n.toLocaleString()}<div class="note" style="font-weight:400;text-align:right">${unit}</div></div></div>`).join('')}
   </div>
   ${st.firedCards.slice().reverse().map((f) => `<div class="fired"><b>UNFOLLOWED</b> <span class="note">${tm(f.t)}</span><div style="font-family:var(--mono);margin-top:4px">${short(f.wallet)} · ${esc(f.reason)} · last loss ${esc(f.last)}</div></div>`).join('')}
   <div class="card"><h2>JUDGE · last ${ver.length} verdicts</h2>
@@ -289,7 +310,8 @@ function activity(st) {
   const f = ui.logFilter;
   const keep = { all: () => true, trades: (l) => l.type === 'BUY' || l.type === 'SELL', judge: (l) => ['JUDGE', 'PASS', 'WATCH'].includes(l.type), risk: (l) => ['RISK', 'HALT', 'FIRE', 'COPY', 'ERR'].includes(l.type) }[f];
   const lines = st.log.filter(keep).slice().reverse().slice(0, 300);
-  return `<div class="seg" style="margin-bottom:10px">${['all', 'trades', 'judge', 'risk'].map((k) => `<button data-lf="${k}" class="${f === k ? 'on' : ''}">${k.toUpperCase()}</button>`).join('')}</div>
+  return `<div class="row" style="margin-bottom:8px"><h2 style="margin:0">Paper log</h2>${st.running ? '<span class="stream">checking</span>' : '<span class="note">idle</span>'}</div>
+  <div class="seg" style="margin-bottom:10px">${['all', 'trades', 'judge', 'risk'].map((k) => `<button data-lf="${k}" class="${f === k ? 'on' : ''}">${k.toUpperCase()}</button>`).join('')}</div>
   <div class="term">${lines.map((l) => `<div class="${l.type} ${l.pnl > 0 ? 'win' : l.pnl < 0 ? 'loss' : ''}">${tm(l.t)} ${l.type.padEnd(5)} ${esc(l.text)}</div>`).join('') || 'No activity yet. Start a paper session on Home.'}</div>`;
 }
 
@@ -327,6 +349,8 @@ function render() {
   if (!state) return;
   const v = $('#view');
   v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  const badge = $('#modeBadge');
+  if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   if (ui.tab === 'home') { drawChart($('#chart'), state); updateTimer(); }
   bind();
 }

@@ -1,7 +1,9 @@
 # Grok Desk (paper)
 
 A phone-first Solana memecoin trading desk that trades **fake money on live market data**.
-It has no wallet, keys or order code, so it can't move real funds.
+It has no wallet, keys or order code, so it can't move real funds. The screen is a dark trading
+desk in the shape of those promo videos. The numbers on it are this desk's paper results, not the
+videos' returns.
 
 It copies the features shown in five X promo videos (@0xboan, @veyro_xbt, @nazik2053, @0xtenzo,
 @0xnevsky). Those videos are motion-graphics mockups, and their returns ($100 → $7,533, etc.) are
