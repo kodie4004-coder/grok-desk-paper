@@ -34,3 +34,24 @@ Copy path: 0 wallets met the follow rule (≥5 observed round trips etc.) in 50 
 `node runner/replay-check.mjs` reproduces this recap exactly (net +$1.76, 7 trades), which shows the replay runs the same engine on the same data.
 
 This is one 50-minute sample with 7 trades. It says nothing about whether the strategy has an edge.
+
+## Walk-forward study, 9 Nov 2026 (not a live session)
+
+`EVAL_REPORT.md` is the holdout test. It is not another paper session. Same costs as this desk's 1% round trip, stops filled at the minute low, rules frozen in `EVAL_PROTOCOL.md` before the run.
+
+On the last 8 hours of 23 pools (35,717 minute bars), which the rules had not been fit to:
+
+| Rule | Trades | Net on a $500 bank | Expectancy | 90% interval |
+|---|---:|---:|---:|---|
+| No trade | 0 | $0.00 | $0.00 | $0 to $0 |
+| Random entries, same exits | 30 | -$26.63 | -$0.89 | -$1.32 to -$0.38 |
+| Momentum (the candle proxy for "not late") | 22 | -$18.29 | -$0.83 | -$1.19 to -$0.38 |
+| Momentum plus a 5-minute range filter | 25 | -$8.15 | -$0.33 | -$0.63 to +$0.05 |
+
+The same ordering shows up on the earlier bars: random -$36.70, momentum -$23.60, range filter -$49.10. The range filter looked less bad on the holdout and worse on the train, so it was not turned on.
+
+Filling stops at the stop price instead of the low still left the random and momentum intervals below zero. The recorded −10.6% stop is a real gap. It is not the whole reason these rules lose.
+
+Buy-and-hold of the same survivor list prints a huge dollar gain. 99.7% of it is one new pool (`XTruth Oil`) going from its first tiny print to the last. That is not a trading rule and it is not in the verdict.
+
+Verdict used by the desk: **no edge**. New paper entries stay off unless exploratory mode is turned on, and that mode is half size. JUDGE's weights were not changed. This does not prove the next live hour loses. It is evidence that forcing these entries, after costs, lost on data they were not tuned on, including an optimistic survivor sample.

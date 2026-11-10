@@ -11,7 +11,8 @@ export function newState(settings, now, mode = 'live') {
     settings: { ...settings }, startBank: settings.bank, cash: settings.bank,
     open: [], closed: [], equity: [], markers: [], log: [], verdicts: [], passChecks: [],
     watch: {}, judged: {}, infoCache: {}, holderSnaps: {}, lastPrices: {},
-    counts: { signals: 0, pools: 0, tradesScanned: 0, filtered: 0, judged: 0, judgeBuy: 0, copySignals: 0, copied: 0, own: 0, riskBlocked: 0, closed: 0 },
+    counts: { signals: 0, pools: 0, tradesScanned: 0, filtered: 0, judged: 0, judgeBuy: 0, copySignals: 0, copied: 0, own: 0, riskBlocked: 0, edgeFlat: 0, closed: 0 },
+    edgeBook: [],
     walletTrades: [], followed: [], walletBoard: [], strikes: {}, fired: [], firedCards: [],
     halted: false, haltReason: null, tick: 0, lastTickAt: null, errors: 0, recap: null, createdAt: now,
   };
@@ -24,7 +25,8 @@ export function startSession(state, now) {
     open: [], closed: [], equity: [{ t: now, v: s.bank }], markers: [], halted: false, haltReason: null, recap: null, tick: 0,
     counts: Object.fromEntries(Object.keys(state.counts).map((k) => [k, 0])), firedCards: [], strikes: {}, fired: [], watch: {},
   });
-  log(state, now, 'INFO', `session ${state.sessionId} started · bank $${s.bank} · stop -${s.stopPct}% · TP +${s.takeProfitPct}% · loss cap ${s.lossCapPct}% · fees ${s.feePct}% RT`);
+  const part = C.participationDecision(C.strategyHealth(state.edgeBook || []), s);
+  log(state, now, 'INFO', `session ${state.sessionId} started · bank $${s.bank} · stop -${s.stopPct}% · TP +${s.takeProfitPct}% · loss cap ${s.lossCapPct}% · fees ${s.feePct}% RT · entries ${part.mode}`);
   return state;
 }
 
@@ -53,8 +55,7 @@ export function recap(state, now) {
 }
 
 export function equityNow(state) {
-  const f = state.settings.feePct;
-  return state.cash + state.open.reduce((a, p) => a + p.qty * C.fillPrice(p.lastPrice ?? p.entryMid, 'sell', f), 0);
+  return state.cash + state.open.reduce((a, p) => a + p.qty * C.fillPrice(p.lastPrice ?? p.entryMid, 'sell', p.feePct ?? state.settings.feePct), 0);
 }
 
 function log(state, t, type, text, extra) {
@@ -64,11 +65,13 @@ function log(state, t, type, text, extra) {
 
 function closePosition(state, p, price, now, reason, kind, emit) {
   const s = state.settings;
-  const r = C.tradePnl({ entryMid: p.entryMid, exitMid: price, sizeUsd: p.sizeUsd, feePct: s.feePct });
+  const r = C.tradePnl({ entryMid: p.entryMid, exitMid: price, sizeUsd: p.sizeUsd, feePct: p.feePct ?? s.feePct });
   state.cash += r.proceeds;
   state.open = state.open.filter((x) => x !== p);
   const t = { ...p, exitMid: price, closedAt: now, pnl: r2(r.pnl), fees: r2(r.fees), retPct: r2((r.pnl / p.sizeUsd) * 100), exitReason: reason, exitKind: kind };
   state.closed.push(t); state.counts.closed++;
+  (state.edgeBook ||= []).push({ pnl: t.pnl, fees: t.fees, sizeUsd: t.sizeUsd, retPct: t.retPct, closedAt: now, pool: t.pool, symbol: t.symbol });
+  if (state.edgeBook.length > 500) state.edgeBook.splice(0, state.edgeBook.length - 500);
   state.markers.push({ t: now, v: r2(equityNow(state)), kind, label: `${t.symbol} ${t.retPct}%` });
   const line = `SELL ${t.symbol} @ ${fmtP(price)} · ${reason} · ${t.pnl >= 0 ? '+' : ''}$${t.pnl} (${t.retPct}% after fees)`;
   log(state, now, 'SELL', line, { pnl: t.pnl });
@@ -119,6 +122,12 @@ function buildDossier(leadId, p, info, trades, snaps, now) {
   const covered = (min) => trades.length > 0 && now - oldest >= min * 60000;
   const w1 = win(0, 5), w2 = win(5, 10);
   const h1 = p.tx.h1;
+  const recentPx = trades.filter((x) => x.price > 0 && now - x.t <= 5 * 60000).map((x) => x.price);
+  let rangePct = null;
+  if (recentPx.length >= 4) {
+    const hi = Math.max(...recentPx), lo = Math.min(...recentPx), mid = (hi + lo) / 2;
+    if (mid > 0) rangePct = ((hi - lo) / mid) * 100;
+  }
   // holders now vs ~1h ago from our own snapshots (GT updates holder counts slowly)
   let growth = null, holders1h = null;
   const old = (snaps || []).filter((x) => now - x.t >= 50 * 60000).pop();
@@ -133,7 +142,7 @@ function buildDossier(leadId, p, info, trades, snaps, now) {
     buys5a: covered(5) || trades.length >= 3 ? w1.b : null, sells5a: covered(5) || trades.length >= 3 ? w1.s : null,
     buys5b: covered(10) ? w2.b : null, sells5b: covered(10) ? w2.s : null,
     top10: info.top10, dev: info.dev, mintAuthority: info.mintAuthority, freezeAuthority: info.freezeAuthority,
-    honeypot: info.honeypot, social: info.social, lp: 'missing',
+    honeypot: info.honeypot,     social: info.social, lp: 'missing', rangePct,
   };
 }
 
@@ -163,28 +172,70 @@ async function getInfo(state, src, token, now) {
   return info;
 }
 
-async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null }) {
+async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null }) {
   const s = state.settings;
-  const rc = C.riskCheck(state, s, { token, sizeUsd });
+  const part = C.participationDecision(C.strategyHealth(state.edgeBook || []), s);
+  if (!(part.scale > 0)) {
+    state.counts.edgeFlat = (state.counts.edgeFlat || 0) + 1;
+    log(state, now, 'RISK', `flat ${symbol} (${source}): ${part.reason}`);
+    return null;
+  }
+  const rc = C.riskCheck(state, s, { token, sizeUsd: sizeUsd * part.scale });
   if (!rc.ok) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol} (${source}): ${rc.reason}`); return null; }
   const px = (await src.prices([token]))[token];
   if (!px) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol}: no live price`); return null; }
+  const feePct = s.impactModel ? s.feePct + C.roundTripImpactPct(rc.sizeUsd, liq) : s.feePct;
   const lv = C.stopLevels(px, s);
-  const fill = C.fillPrice(px, 'buy', s.feePct);
+  const fill = C.fillPrice(px, 'buy', feePct);
+  const why = part.scale === 1 ? reason : `${reason} · ${part.mode} ×${part.scale}`;
   const p = {
     id: 'T' + now.toString(36) + state.counts.copied + state.counts.own, pool, token, symbol, source, wallets, leadId,
-    entryMid: px, entryFill: fill, qty: rc.sizeUsd / fill, sizeUsd: rc.sizeUsd, stop: lv.stop, tp: lv.tp, peak: px, lastPrice: px, openedAt: now, reason,
+    entryMid: px, entryFill: fill, qty: rc.sizeUsd / fill, sizeUsd: rc.sizeUsd, feePct, stop: lv.stop, tp: lv.tp, peak: px, lastPrice: px, openedAt: now, reason: why,
   };
   state.cash -= rc.sizeUsd; state.open.push(p);
   state.counts[source === 'copy' ? 'copied' : 'own']++;
   state.markers.push({ t: now, v: r2(equityNow(state)), kind: 'buy', label: symbol });
-  const line = `BUY ${symbol} $${rc.sizeUsd} @ ${fmtP(px)} · ${source.toUpperCase()} · ${reason} · stop ${fmtP(lv.stop)} tp ${fmtP(lv.tp)}`;
+  const line = `BUY ${symbol} $${rc.sizeUsd} @ ${fmtP(px)} · ${source.toUpperCase()} · ${why} · stop ${fmtP(lv.stop)} tp ${fmtP(lv.tp)}`;
   log(state, now, 'BUY', line);
   emit && emit({ type: 'trade', side: 'buy', text: line });
   return p;
 }
 
 // One engine tick. src = live, recorder or replay source. Never throws for data errors.
+async function managePositions(state, src, now, emit, prices, tradesByPool, safe) {
+  const s = state.settings;
+  Object.assign(state.lastPrices, prices);
+  for (const p of [...state.open]) {
+    const px = prices[p.token];
+    if (px) { p.lastPrice = px; p.lastMarkedAt = now; }
+    if (p.source === 'copy' && p.pool && tradesByPool) {
+      if (!tradesByPool[p.pool] && state.tick % 2 === 0) {
+        const tr = await safe('exit watch', () => src.poolTrades(p.pool, p.token));
+        if (tr) { tradesByPool[p.pool] = tr; addWalletTrades(state, tr); }
+      }
+      const sold = (tradesByPool[p.pool] || []).find((t) => t.kind === 'sell' && p.wallets.includes(t.wallet) && t.t > p.openedAt);
+      if (sold) { closePosition(state, p, p.lastPrice, now, `COPIED WALLET ${short(sold.wallet)} EXITED`, 'copyexit', emit); continue; }
+    }
+    const ex = C.exitCheck(p, p.lastPrice, now, s);
+    if (!ex) continue;
+    p.peak = ex.peak;
+    if (ex.reason) closePosition(state, p, p.lastPrice, now, ex.reason, ex.kind, emit);
+  }
+}
+
+// Price open positions between scout ticks. DexScreener, not the GeckoTerminal budget.
+export async function mark(state, src, now, emit = () => {}) {
+  if (!state.running || !state.open.length || !(state.settings.markSec > 0)) return state;
+  state.lastMarkAt = now;
+  const safe = async (label, fn) => { try { return await fn(); } catch (e) { state.errors++; log(state, now, 'ERR', `${label}: ${e.message}`); return null; } };
+  const tokens = [...new Set(state.open.map((p) => p.token))];
+  const prices = (await safe('mark', () => src.prices(tokens))) || {};
+  await managePositions(state, src, now, emit, prices, null, safe);
+  state.equity.push({ t: now, v: r2(equityNow(state)) });
+  if (state.equity.length > 3000) state.equity.splice(1, 1);
+  return state;
+}
+
 export async function tick(state, src, now, emit = () => {}) {
   const s = state.settings;
   if (!state.running) return state;
@@ -233,7 +284,11 @@ export async function tick(state, src, now, emit = () => {}) {
     const d = buildDossier(leadId, p, info || {}, trades || [], state.holderSnaps[p.token], now);
     const v = info && trades ? C.judge(d) : { leadId, action: null, missing: ['no answer: data fetch failed'] };
     const priorWatches = p._watch ? p._watch.count : 0;
-    const g = C.gate(v, s, priorWatches);
+    let g = C.gate(v, s, priorWatches);
+    if (g.decision === 'buy' && s.volGate) {
+      const rg = C.rangeAllowsEntry(d.rangePct, s.stopPct, s.volRangeFrac ?? 0.75);
+      if (!rg.ok) g = { decision: 'pass', killedBy: rg.reason };
+    }
     state.counts.judged++;
     const rec = {
       t: now, leadId, pool: p.pool, token: p.token, symbol: p.symbol, price: d.price,
@@ -242,7 +297,7 @@ export async function tick(state, src, now, emit = () => {}) {
       exitRisk: v.exitRisk && (v.exitRisk.answer === 'missing' ? 'missing' : v.exitRisk.answer),
       action: v.action ? (v.action.answer === 'missing' ? 'missing' : `${v.action.answer} ${v.action.p}`) : 'no answer',
       actionP: v.action?.p ?? null, decision: g.decision, killedBy: g.killedBy, missing: v.missing || [], tradeId: null,
-      dossier: { liq: d.liq, top10: d.top10 ?? 'missing', dev: d.dev ?? 'missing', holders: d.holdersNow ?? 'missing', holders1h: d.holders1h ?? 'missing', b5: d.buys5a ?? 'missing', s5: d.sells5a ?? 'missing', b5p: d.buys5b ?? 'missing', s5p: d.sells5b ?? 'missing', pcH1: d.pcH1, buyersRatio: d.buyersRatio == null ? 'missing' : r2(d.buyersRatio), social: d.social ?? 'missing', lp: 'missing' },
+      dossier: { liq: d.liq, top10: d.top10 ?? 'missing', dev: d.dev ?? 'missing', holders: d.holdersNow ?? 'missing', holders1h: d.holders1h ?? 'missing', b5: d.buys5a ?? 'missing', s5: d.sells5a ?? 'missing', b5p: d.buys5b ?? 'missing', s5p: d.sells5b ?? 'missing', pcH1: d.pcH1, buyersRatio: d.buyersRatio == null ? 'missing' : r2(d.buyersRatio), social: d.social ?? 'missing', lp: 'missing', range: d.rangePct == null ? 'missing' : r2(d.rangePct) },
     };
     state.verdicts.push(rec);
     if (state.verdicts.length > MAX_VERDICTS) state.verdicts.splice(0, state.verdicts.length - MAX_VERDICTS);
@@ -257,7 +312,7 @@ export async function tick(state, src, now, emit = () => {}) {
       } else {
         state.counts.judgeBuy++;
         log(state, now, 'JUDGE', `${p.symbol} ${leadId} · BUY gate passed (action ${rec.action}, organic ${rec.organic}, late ${rec.late}, exit_risk ${rec.exitRisk})`);
-        const pos = await safe('enter', () => enter(state, src, now, emit, { pool: p.pool, token: p.token, symbol: p.symbol, source: 'own', sizeUsd: (s.ownPositionPct / 100) * state.startBank, reason: `JUDGE p=${v.action.p}`, leadId }));
+        const pos = await safe('enter', () => enter(state, src, now, emit, { pool: p.pool, token: p.token, symbol: p.symbol, source: 'own', sizeUsd: (s.ownPositionPct / 100) * state.startBank, reason: `JUDGE p=${v.action.p}`, leadId, liq: p.liq }));
         if (pos) rec.tradeId = pos.id;
       }
     }
@@ -285,28 +340,15 @@ export async function tick(state, src, now, emit = () => {}) {
       const sym = pinfo?.symbol || tok.slice(0, 5);
       if (!sig.ok) { log(state, now, 'COPY', `skip ${sym}: ${sig.reason}`); continue; }
       const pool = pinfo?.pool || state.walletTrades.find((t) => t.token === tok && t.pool)?.pool || null;
-      await safe('enter copy', () => enter(state, src, now, emit, { pool, token: tok, symbol: sym, source: 'copy', sizeUsd: sig.sizeUsd, wallets: sig.wallets, reason: `${sig.wallets.length} wallets in ${s.copyWindowMin}m (${sig.wallets.map(short).join(', ')}) · ${s.copyRatio}x · LP missing` }));
+      await safe('enter copy', () => enter(state, src, now, emit, { pool, token: tok, symbol: sym, source: 'copy', sizeUsd: sig.sizeUsd, wallets: sig.wallets, liq: pinfo?.liq, reason: `${sig.wallets.length} wallets in ${s.copyWindowMin}m (${sig.wallets.map(short).join(', ')}) · ${s.copyRatio}x · LP missing` }));
     }
   }
 
   // 6) BANKER: mark to market, exits
-  const tokens = [...new Set([...state.open.map((p) => p.token)])];
+  const tokens = [...new Set(state.open.map((p) => p.token))];
   const prices = tokens.length ? (await safe('prices', () => src.prices(tokens))) || {} : {};
-  Object.assign(state.lastPrices, prices);
-  for (const p of [...state.open]) {
-    const px = prices[p.token];
-    if (px) { p.lastPrice = px; }
-    // copied wallet exit
-    if (p.source === 'copy' && p.pool) {
-      if (!tradesByPool[p.pool] && state.tick % 2 === 0) { const tr = await safe('exit watch', () => src.poolTrades(p.pool, p.token)); if (tr) { tradesByPool[p.pool] = tr; addWalletTrades(state, tr); } }
-      const sold = (tradesByPool[p.pool] || []).find((t) => t.kind === 'sell' && p.wallets.includes(t.wallet) && t.t > p.openedAt);
-      if (sold) { closePosition(state, p, p.lastPrice, now, `COPIED WALLET ${short(sold.wallet)} EXITED`, 'copyexit', emit); continue; }
-    }
-    const ex = C.exitCheck(p, p.lastPrice, now, s);
-    if (!ex) continue;
-    p.peak = ex.peak;
-    if (ex.reason) closePosition(state, p, p.lastPrice, now, ex.reason, ex.kind, emit);
-  }
+  await managePositions(state, src, now, emit, prices, tradesByPool, safe);
+  state.lastMarkAt = now;
 
   // calibration: passes that would have been green after 24h
   const dueChecks = state.passChecks.filter((x) => !x.checked && now - x.t >= 24 * 3600000).slice(0, 30);

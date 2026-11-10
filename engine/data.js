@@ -86,6 +86,22 @@ export function createLiveSource({ fetchImpl = globalThis.fetch, gtGapMs = 3000 
       });
     },
     // Current USD price per token: DexScreener (deepest pair), Jupiter as fallback.
+    // Minute USD candles for research and diagnostics. Read-only. Empty minutes may be omitted by the API.
+    async ohlcv(pool, { timeframe = 'minute', aggregate = 1, limit = 1000, before = null } = {}) {
+      const q = new URLSearchParams({
+        aggregate: String(aggregate),
+        limit: String(Math.min(1000, limit)),
+        currency: 'usd',
+        token: 'base',
+      });
+      if (before) q.set('before_timestamp', String(before));
+      const d = await get(`${GT}/pools/${pool}/ohlcv/${timeframe}?${q}`, true);
+      const rows = d?.data?.attributes?.ohlcv_list || [];
+      return rows
+        .map(([t, o, h, l, c, v]) => ({ t: t * 1000, o: +o, h: +h, l: +l, c: +c, v: +v }))
+        .filter((b) => b.t > 0 && b.o > 0 && b.c > 0 && b.h >= b.l)
+        .sort((a, b) => a.t - b.t);
+    },
     async prices(tokens) {
       const out = {};
       for (let i = 0; i < tokens.length; i += 30) {

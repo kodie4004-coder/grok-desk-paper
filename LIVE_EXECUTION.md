@@ -13,8 +13,9 @@ disabled placeholder.
    fills far worse than the mid price on thin pools, tokens that can't be sold (honeypots, freeze authority).
 4. Safety: hard daily loss cap enforced server-side, max position size, kill switch, an allow-list of
    what the bot may sign, and logs of every signature.
-5. Evidence first: several weeks of paper results that stay positive after fees, checked with the
-   calibration table, before any real money.
+5. Evidence first: paper results that stay positive after fees on data the rules were not fit to.
+   `EVAL_REPORT.md` is the current holdout study. It does not clear that bar. The calibration table
+   is the other check, and it needs far more than a handful of trades.
 
 ## Approval
 
