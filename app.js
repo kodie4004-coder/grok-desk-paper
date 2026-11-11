@@ -1,5 +1,7 @@
 // Grok Desk UI. PAPER ONLY: the engine below moves numbers, never money.
 import { DEFAULT_SETTINGS, RESEARCH_PRIOR, calibration, settingsLocked, updateSettings, strategyHealth, participationDecision, equityDrawdown } from './engine/core.js';
+import { SLOT_IDS, SLOT_SPEC, slotStatus } from './engine/strategies.js';
+import { SLOT_PRIOR } from './engine/slot-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 
@@ -29,7 +31,7 @@ const idb = {
 const loadSettings = () => { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('gd.settings') || '{}') }; } catch { return { ...DEFAULT_SETTINGS }; } };
 const saveSettings = (s) => localStorage.setItem('gd.settings', JSON.stringify(s));
 
-const ui = { tab: 'home', tf: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1' };
+const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1' };
 let live = null;          // live state
 let state = null;         // what is on screen (live or replay)
 const src = createLiveSource();
@@ -200,6 +202,35 @@ function healthCard(st) {
   </div>`;
 }
 
+function scanCard(st) {
+  const chips = ['all', 'solana', 'ethereum', 'base', 'bsc', 'arbitrum', 'predict'];
+  const ago = st.lastScanAt ? Math.max(0, Math.round((Date.now() - st.lastScanAt) / 1000)) : null;
+  const feed = (st.scan?.feed || []).filter((f) => ui.market === 'all' || f.chain === ui.market);
+  const preds = st.predictions || [];
+  const rows = ui.market === 'predict'
+    ? (preds.length ? preds.map((p) => `<li><span><b>${esc(p.venue)}</b><br><span class="note">${esc(p.title)}</span></span><span class="note">${p.price == null ? '—' : esc(String(p.price))}</span></li>`).join('') : '<li><span class="note">No prediction markets on the last scan.</span></li>')
+    : (feed.length ? feed.map((f) => `<li><span><b>${esc(f.symbol)}</b> <span class="note">${esc(f.chain)} · ${esc(f.dex || '')}</span></span><span class="note">${f.liq ? '$' + Math.round(f.liq).toLocaleString() : ''}</span></li>`).join('') : '<li><span class="note">No quotes on this filter yet. Start a paper session to scan.</span></li>');
+  return `<div class="card"><div class="row"><h2 style="margin:0">Scan</h2><span class="note" id="scanAge">${st.scan?.markets || 0} markets · ${st.scan?.chains || 0} chains${ago == null ? '' : ` · last ${ago}s ago`}</span></div>
+    <div class="chips">${chips.map((k) => `<button type="button" data-mkt="${k}" class="${ui.market === k ? 'on' : ''}">${k}</button>`).join('')}</div>
+    <ul class="feed">${rows}</ul>
+    ${st.scan?.note ? `<p class="note">${esc(st.scan.note)}</p>` : '<p class="note">Boost lists are paid promotion. They are a way to see more markets, not a reason to buy. Prediction rows are read-only.</p>'}
+  </div>`;
+}
+function leaderCard(st) {
+  const rows = SLOT_IDS.map((id) => {
+    const spec = SLOT_SPEC[id];
+    const book = st.slots?.[id]?.book || [];
+    const h = strategyHealth(book);
+    const stt = slotStatus(book, st.settings || {});
+    const off = !!(st.slots?.[id]?.off);
+    const edge = SLOT_PRIOR.edges?.[id] === true || stt.mode === 'promoted';
+    const bucket = off ? 'off' : edge ? 'normal' : 'exploration';
+    const drag = h.costDrag == null ? '—' : `${Math.round(h.costDrag * 100)}%`;
+    const ci = h.ci80 ? `${money(h.ci80[0], true)} to ${money(h.ci80[1], true)}` : '—';
+    return `<li><span><b>${esc(spec.label)}</b> <span class="tag ${bucket}">${bucket}</span><br><span class="note">${esc(spec.blurb)}</span></span><span class="note">n ${h.n} · exp ${h.n ? money(h.expectancy, true) : '—'} · ${ci}<br>win ${h.n ? Math.round(h.winRate * 100) + '%' : '—'} · dd ${h.n ? money(h.maxDrawdown) : '—'} · drag ${drag}</span></li>`;
+  }).join('');
+  return `<div class="card"><h2>Strategy slots</h2><p class="note">${esc(SLOT_PRIOR.summary || '')}</p><ul class="feed">${rows}</ul></div>`;
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -221,6 +252,8 @@ function home(st) {
     <div class="note" id="lastTick" style="margin-top:8px"></div>
   </div>
   ${healthCard(st)}
+  ${scanCard(st)}
+  ${leaderCard(st)}
   <div class="card">
     <div class="row" style="margin-bottom:8px"><h2 style="margin:0">Equity</h2>
       <div class="seg" style="width:170px">${['15m', '1h', 'all'].map((k) => `<button data-tf="${k}" class="${ui.tf === k ? 'on' : ''}">${k === 'all' ? 'All' : k}</button>`).join('')}</div></div>
@@ -323,7 +356,9 @@ const FIELDS = [
   ['JUDGE: min buy p', 'judgeBuyP'], ['JUDGE: min organic p', 'judgeOrganicP'], ['JUDGE: max exit_risk', 'judgeMaxExitRisk'], ['JUDGE: watch re-ask (min)', 'watchRecheckMin'],
   ['Copy trading on', 'copyEnabled', 'bool'], ['Copy: min wallets', 'copyMinWallets'], ['Copy: window (min)', 'copyWindowMin'], ['Copy: max run-up since wallet entry (%)', 'copyMaxRunupPct'], ['Copy size ratio (×)', 'copyRatio'],
   ['Fire trader after N losses in a row', 'strikesToFire'], ['Wallet: min win rate (%)', 'walletMinWinRate'], ['Wallet: min observed round trips', 'walletMinRoundTrips'], ['Wallet: min avg hold (min)', 'walletMinHoldMin'],
-  ['Market check every (s, ≥30)', 'tickSec'], ['Reprice open positions every (s, 0 = off)', 'markSec'],
+  ['Market check every (s, ≥15)', 'tickSec'], ['Reprice open positions every (s, 0 = off)', 'markSec'],
+  ['Fast multi-chain scan', 'fastScan', 'bool'], ['Strategy slots', 'strategySlots', 'bool'],
+  ['Exploration size (% of bank)', 'explorePct'], ['Slot off after N non-positive trades', 'slotKillN'],
   ['Edge gate', 'edgeGate', 'bool'], ['Allow exploratory entries at half size', 'allowExplore', 'bool'], ['Closed trades before full size', 'edgeMinN'],
   ['Skip entries when 5m range eats the stop', 'volGate', 'bool'], ['Range limit, as a fraction of the stop', 'volRangeFrac'],
   ['Add liquidity impact on top of the flat fee', 'impactModel', 'bool'],
@@ -357,6 +392,7 @@ function render() {
 
 function bind() {
   document.querySelectorAll('[data-tf]').forEach((b) => (b.onclick = () => { ui.tf = b.dataset.tf; render(); }));
+  document.querySelectorAll('[data-mkt]').forEach((b) => (b.onclick = () => { ui.market = b.dataset.mkt; render(); }));
   document.querySelectorAll('[data-lf]').forEach((b) => (b.onclick = () => { ui.logFilter = b.dataset.lf; render(); }));
   const sb = $('#startBtn'); if (sb) sb.onclick = async () => {
     const book = live.edgeBook?.length ? live.edgeBook : (live.closed || []);
@@ -372,7 +408,7 @@ function bind() {
     e.preventDefault();
     const patch = {};
     for (const [, k, type] of FIELDS) { const el = f.elements[k]; patch[k] = type === 'bool' ? el.checked : Number(el.value); }
-    patch.tickSec = Math.max(30, patch.tickSec || 60);
+    patch.tickSec = Math.max(15, patch.tickSec || 20);
     patch.markSec = patch.markSec ? Math.max(10, patch.markSec) : 0;
     patch.edgeMinN = Math.max(8, patch.edgeMinN || 30);
     patch.volRangeFrac = Math.min(2, Math.max(0.1, patch.volRangeFrac || 0.75));

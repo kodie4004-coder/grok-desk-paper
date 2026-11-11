@@ -144,13 +144,21 @@ export function simulateTrades(bars, signal, cfg) {
   const out = [];
   for (let i = 0; i < bars.length - 1;) {
     let step = 1;
-    if (signal(bars, i)) {
+    const planned = signal(bars, i);
+    const enter = planned === true || planned?.enter === true;
+    if (enter) {
       const entryIdx = i + 1;
       const gap = bars[entryIdx].t - bars[i].t;
       const entryT = bars[entryIdx].t;
       const inWindow = (cfg.tradeFrom == null || entryT >= cfg.tradeFrom) && (cfg.tradeTo == null || entryT < cfg.tradeTo);
+      const use = planned?.enter ? {
+        ...cfg,
+        stopPct: planned.stopPct ?? cfg.stopPct,
+        takeProfitPct: planned.takeProfitPct ?? cfg.takeProfitPct,
+        maxHoldMin: planned.maxHoldMin ?? cfg.maxHoldMin,
+      } : cfg;
       if (inWindow && gap > 0 && gap <= cfg.maxEntryGapMs) {
-        const tr = takeTrade(bars, entryIdx, cfg);
+        const tr = takeTrade(bars, entryIdx, use);
         if (tr && !tr.incomplete) {
           out.push(tr);
           step = tr.exitIndex - i + 1;

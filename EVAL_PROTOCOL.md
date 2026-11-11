@@ -71,6 +71,19 @@ These are not alpha claims:
 - Size/liquidity impact is added on top of the flat fee, capped at 3 percentage points.
 - If the prior says no edge, the desk does not force trades.
 
+## v2 slots (frozen before the multi-strategy run)
+
+Four slots, defined in `engine/strategies.js`. Same fill rule as v1: signal on the close, enter the next open if it prints within 3 minutes, stop fills at the bar low, a trade that would still be open at the window edge is dropped. Round trip cost is 1% plus `roundTripImpactPct` on a $25 trade using the pool's liquidity snapshot. Holdout is the last 8 hours. Train is everything earlier. Parameters below are not searched.
+
+- **meanrev.** Close at least 4% under the 30-minute average, and none of the last three bars fell 2% or more. Stop 4%, target 4%, hold 90 minutes.
+- **breakout.** Close above the prior 20-minute high, and this bar's volume is at least 1.5× the median of those 20 bars. Stop 4%, target 8%, hold 120 minutes.
+- **momentum.** Same 60-minute and 6-hour bounds as v1 (0–25% and under 80%). Stop 4%, target 12%, hold 120 minutes.
+- **grid.** Last 60 minutes range between 3% and 8%, close in the bottom quarter, and the middle of the range is at least 3% above the close. Target that middle. Stop 3%. Hold 180 minutes.
+
+A slot has an edge only if the holdout has at least 30 trades from at least 8 pools and the 90% bootstrap lower bound is above zero, and the train has at least 20 trades, a positive mean, and a lower bound above zero. Anything else is exploration size (1% of the bank). A slot whose own closed trades reach 15 with a non-positive expectancy turns off. Size never goes above the normal 5% paper stake, and a loss never raises it.
+
+Live quotes use the snapshot cousins of these rules (1-hour and 5-minute changes, liquidity, volume). They are not a second fit. Prediction markets are displayed and not traded.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.
