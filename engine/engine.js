@@ -1,7 +1,7 @@
 // Paper trading desk orchestrator. Six agents per tick: Scout -> Filter -> Copy -> Own(JUDGE) -> Risk -> Banker.
 // PAPER ONLY: positions are numbers in this object. There is no wallet, key or order code anywhere.
 import * as C from './core.js';
-import { SLOT_IDS, SLOT_SPEC, liveSignals, slotStatus, emptySlots } from './strategies.js';
+import { SLOT_IDS, SLOT_SPEC, liveSignals, slotStatus, emptySlots, momentumAllowed } from './strategies.js';
 import { SLOT_PRIOR } from './slot-prior.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -188,7 +188,7 @@ async function getInfo(state, src, token, now) {
   return info;
 }
 
-async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null, chain = 'solana', slot = null, stopPct = null, takeProfitPct = null, maxHoldMin = null }) {
+async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null, chain = 'solana', slot = null, stopPct = null, takeProfitPct = null, maxHoldMin = null, trailActivatePct = 0, trailPct = 0 }) {
   const s = state.settings;
   let sized = sizeUsd;
   let why = reason;
@@ -231,6 +231,7 @@ async function enter(state, src, now, emit, { pool, token, symbol, source, sizeU
     id: 'T' + now.toString(36) + state.counts.copied + state.counts.own, pool, token, symbol, source, wallets, leadId, chain, slot, bucket,
     entryMid: px, entryFill: fill, qty: rc.sizeUsd / fill, sizeUsd: rc.sizeUsd, feePct, stop: lv.stop, tp: lv.tp,
     stopPct: levels.stopPct, takeProfitPct: levels.takeProfitPct, maxHoldMin: maxHoldMin ?? s.maxHoldMin,
+    trailActivatePct, trailPct,
     peak: px, lastPrice: px, openedAt: now, reason: why,
   };
   state.cash -= rc.sizeUsd; state.open.push(p);
@@ -281,6 +282,11 @@ async function fetchOpenPrices(src, positions) {
   return out;
 }
 
+function noteDecision(state, now, row) {
+  (state.decisions ||= []).push({ t: now, ...row });
+  if (state.decisions.length > 120) state.decisions.splice(0, state.decisions.length - 120);
+}
+
 async function runSlotEntries(state, src, passed, now, emit, safe) {
   state.slots ||= emptySlots();
   const used = new Set();
@@ -288,15 +294,25 @@ async function runSlotEntries(state, src, passed, now, emit, safe) {
   for (const pool of ranked) {
     if (state.open.some((o) => o.token === pool.token)) continue;
     for (const sig of liveSignals(pool, now)) {
-      if (used.has(sig.slot) || state.slots[sig.slot]?.off) continue;
+      if (used.has(sig.slot) || state.slots[sig.slot]?.off) {
+        noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: sig.slot, action: 'skip', reason: state.slots[sig.slot]?.off ? 'slot is off' : 'already used this scan' });
+        continue;
+      }
+      if (sig.slot === 'momentum' && !momentumAllowed(pool, SLOT_PRIOR.graduated, now)) {
+        noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: sig.slot, action: 'skip', reason: `graduated filter ${SLOT_PRIOR.graduated}` });
+        continue;
+      }
       const spec = SLOT_SPEC[sig.slot];
       if (!spec) continue;
+      const trail = sig.slot === 'momentum' && SLOT_PRIOR.graduated === 'trail';
       const pos = await safe(`slot ${sig.slot}`, () => enter(state, src, now, emit, {
         pool: pool.pool, token: pool.token, symbol: pool.symbol, source: sig.slot, slot: sig.slot,
         chain: pool.chain || 'solana', liq: pool.liq, sizeUsd: 0,
-        stopPct: spec.stopPct, takeProfitPct: spec.takeProfitPct, maxHoldMin: spec.maxHoldMin,
+        stopPct: spec.stopPct, takeProfitPct: trail ? 1000 : spec.takeProfitPct, maxHoldMin: spec.maxHoldMin,
+        trailActivatePct: trail ? 6 : 0, trailPct: 4,
         reason: sig.reason,
       }));
+      noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: sig.slot, action: pos ? 'take' : 'skip', reason: pos ? sig.reason : 'risk or no price' });
       if (pos) used.add(sig.slot);
     }
   }

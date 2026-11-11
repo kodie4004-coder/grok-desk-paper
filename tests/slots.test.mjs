@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { meanrevPlan, breakoutPlan, gridPlan, liveSignals, slotStatus, slotEdge } from '../engine/strategies.js';
+import { meanrevPlan, breakoutPlan, gridPlan, liveSignals, slotStatus, slotEdge, graduates } from '../engine/strategies.js';
 import { simulateTrades } from '../engine/eval.js';
 import { newState, startSession, tick } from '../engine/engine.js';
 import * as C from '../engine/core.js';
@@ -51,6 +51,45 @@ test('a planned trade uses its own stop and target', () => {
   });
   assert.equal(tr[0].kind, 'stop');
   assert.ok(Math.abs(tr[0].exitMid - 0.9) < 1e-9);
+});
+
+test('graduation needs three unseen windows and ignores a seen one', () => {
+  const good = { seen: false, n: 20, mean: 0.2, lo: 0.05 };
+  assert.equal(graduates([good, good, { ...good, seen: true }]), false);
+  assert.equal(graduates([good, good, good]), true);
+  assert.equal(graduates([good, good, { ...good, lo: -0.01 }]), false);
+});
+
+test('backoff grows and stays capped', async () => {
+  const { backoffMs } = await import('../engine/strategies.js');
+  assert.ok(backoffMs(2, 429) > backoffMs(0, 429));
+  assert.ok(backoffMs(11, 429) <= 45000);
+});
+
+test('a trail sells after a 6% push and a 4% giveback', () => {
+  let t = 0;
+  const mk = (o, h, l, c) => ({ t: t += 60000, o, h, l, c, v: 1 });
+  const series = [mk(1, 1, 1, 1), mk(1, 1.02, 0.99, 1.01), mk(1.05, 1.08, 1.04, 1.07), mk(1.04, 1.05, 1.02, 1.03)];
+  const tr = simulateTrades(series, (_b, i) => (i === 0 ? { enter: true, stopPct: 4, takeProfitPct: 1000, maxHoldMin: 30, trailActivatePct: 6, trailPct: 4 } : false), {
+    stopPct: 4, takeProfitPct: 12, maxHoldMin: 30, sizeUsd: 25, feePct: 1, fill: 'conservative', maxEntryGapMs: 180000,
+  });
+  assert.equal(tr[0].kind, 'trail');
+});
+
+test('decisions stay capped across a long paper session', async () => {
+  let t = 1_700_000_000_000;
+  const pool = { pool: 'P1', token: 'TK', symbol: 'DIP', chain: 'base', priceUsd: 1, liq: 300000, pc: { m5: 0, h1: -6, h6: -4 }, tx: { m5: { b: 10, s: 4 } }, vol: { m5: 1000, h1: 50000 } };
+  const src = {
+    newPools: async () => [pool], trendingPools: async () => [],
+    tokenInfo: async () => ({ holders: 10, top10: 10, dev: 0 }),
+    poolTrades: async () => [],
+    prices: async () => ({ TK: 1 }),
+  };
+  const st = newState({ ...C.DEFAULT_SETTINGS, strategySlots: true, fastScan: false, edgeGate: true, allowExplore: false, impactModel: false, edgePrior: { verdict: 'no-edge', summary: 'x' } }, t);
+  startSession(st, t);
+  for (let i = 0; i < 40; i++) { t += 20000; await tick(st, src, t); }
+  assert.ok(st.decisions.length <= 120);
+  assert.ok(st.log.length <= 600);
 });
 
 test('slot status turns off a loser and never sizes up because of it', () => {

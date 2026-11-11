@@ -1,6 +1,6 @@
 // Grok Desk UI. PAPER ONLY: the engine below moves numbers, never money.
 import { DEFAULT_SETTINGS, RESEARCH_PRIOR, calibration, settingsLocked, updateSettings, strategyHealth, participationDecision, equityDrawdown } from './engine/core.js';
-import { SLOT_IDS, SLOT_SPEC, slotStatus } from './engine/strategies.js';
+import { SLOT_IDS, SLOT_SPEC, slotStatus, emptySlots } from './engine/strategies.js';
 import { SLOT_PRIOR } from './engine/slot-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
@@ -160,6 +160,15 @@ function updateTimer() {
     const ago = Date.now() - (state.lastTickAt || state.startedAt);
     lt.innerHTML = ago > (state.settings.tickSec + 30) * 1000 ? `<span class="y">Last market check ${Math.round(ago / 1000)}s ago. Phones pause background tabs; the desk only runs while this page is open.</span>` : `Next market check in ${Math.max(0, Math.round(state.settings.tickSec - ago / 1000))}s`;
   }
+  const link = $('#linkState');
+  if (link && state.mode !== 'replay') {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const limit = ((state.settings?.tickSec || 20) * 3 + 20) * 1000;
+    const stale = !!(state.running && state.lastScanAt && Date.now() - state.lastScanAt > limit);
+    if (offline) { link.hidden = false; link.className = 'link bad'; link.textContent = 'Offline. Quotes are stale. This page cannot trade.'; }
+    else if (stale) { link.hidden = false; link.className = 'link bad'; link.textContent = 'Scan is stale. New entries wait until a market check succeeds.'; }
+    else { link.hidden = true; link.textContent = ''; }
+  }
 }
 
 function fmtPf(h) {
@@ -216,6 +225,25 @@ function scanCard(st) {
     ${st.scan?.note ? `<p class="note">${esc(st.scan.note)}</p>` : '<p class="note">Boost lists are paid promotion. They are a way to see more markets, not a reason to buy. Prediction rows are read-only.</p>'}
   </div>`;
 }
+function spark(values) {
+  if (!values || values.length < 2) return '<p class="empty">No sparkline yet. It draws after two closed paper trades.</p>';
+  const w = 280, h = 42;
+  let acc = 0;
+  const pts = values.map((v) => (acc += v));
+  const min = Math.min(0, ...pts), max = Math.max(0, ...pts);
+  const d = pts.map((v, i) => {
+    const x = (i / (pts.length - 1)) * (w - 4) + 2;
+    const y = h - 6 - ((v - min) / ((max - min) || 1)) * (h - 12);
+    return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+  const up = pts.at(-1) >= pts[0];
+  return `<svg class="spark ${up ? 'up' : 'down'}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative paper P&amp;L for this slot"><path d="${d}" /></svg>`;
+}
+function whyCard(st) {
+  const rows = (st.decisions || []).slice(-8).reverse();
+  if (!rows.length) return `<div class="card"><h2>Why</h2><p class="empty">No takes or skips yet. Start a paper session and this list will say why a slot traded or passed.</p></div>`;
+  return `<div class="card"><h2>Why</h2><ul class="feed">${rows.map((d) => `<li><span><b>${esc(d.symbol || '?')}</b> <span class="tag ${d.action === 'take' ? 'normal' : 'off'}">${esc(d.action)}</span><br><span class="note">${esc(d.slot || '')} · ${esc(d.reason || '')}</span></span></li>`).join('')}</ul></div>`;
+}
 function leaderCard(st) {
   const rows = SLOT_IDS.map((id) => {
     const spec = SLOT_SPEC[id];
@@ -228,8 +256,9 @@ function leaderCard(st) {
     const drag = h.costDrag == null ? '—' : `${Math.round(h.costDrag * 100)}%`;
     const ci = h.ci80 ? `${money(h.ci80[0], true)} to ${money(h.ci80[1], true)}` : '—';
     const priorRow = (SLOT_PRIOR.rows || []).find((r) => r.id === id);
-    const hold = priorRow ? `holdout n ${priorRow.n} · ${money(priorRow.mean, true)} · 90% ${money(priorRow.lo, true)} to ${money(priorRow.hi, true)}` : 'no holdout row';
-    return `<li class="slot"><div class="row"><b>${esc(spec.label)}</b><span class="tag ${bucket}">${bucket}</span></div><p class="note">${esc(spec.blurb)}</p><p class="note">${hold}</p><p class="note">This desk: n ${h.n} · expectancy ${h.n ? money(h.expectancy, true) : '—'} · 80% ${ci} · win ${h.n ? Math.round(h.winRate * 100) + '%' : '—'} · drawdown ${h.n ? money(h.maxDrawdown) : '—'} · cost drag ${drag}${off ? ' · off' : ''}</p></li>`;
+    const hold = priorRow ? `Latest unseen window n ${priorRow.n} · ${money(priorRow.mean, true)} · 90% ${money(priorRow.lo, true)} to ${money(priorRow.hi, true)}` : 'Walk-forward numbers are not in this build yet.';
+    const line = spark(book.map((t) => t.pnl));
+    return `<li class="slot"><div class="row"><b>${esc(spec.label)}</b><span class="tag ${bucket}">${bucket}</span></div>${line}<p class="note">${esc(spec.blurb)}</p><p class="note">${hold}</p><p class="note">${h.n ? `This phone: n ${h.n} · expectancy ${money(h.expectancy, true)} · 80% ${ci} · win ${Math.round(h.winRate * 100)}% · drawdown ${money(h.maxDrawdown)} · cost drag ${drag}` : 'No closed paper trades on this phone yet.'}${off ? ' Slot is off.' : ''}</p></li>`;
   }).join('');
   return `<div class="card"><h2>Strategy slots</h2><p class="note">${esc(SLOT_PRIOR.summary || '')}</p><ul class="feed">${rows}</ul></div>`;
 }
@@ -256,6 +285,7 @@ function home(st) {
   ${healthCard(st)}
   ${scanCard(st)}
   ${leaderCard(st)}
+  ${whyCard(st)}
   <div class="card">
     <div class="row" style="margin-bottom:8px"><h2 style="margin:0">Equity</h2>
       <div class="seg" style="width:170px">${['15m', '1h', 'all'].map((k) => `<button data-tf="${k}" class="${ui.tf === k ? 'on' : ''}">${k === 'all' ? 'All' : k}</button>`).join('')}</div></div>
@@ -429,6 +459,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) live
 (async () => {
   const saved = await idb.get('state');
   live = saved ? JSON.parse(saved) : newState(loadSettings(), Date.now());
+  if (!live.slots) live.slots = emptySlots();
+  if (!Array.isArray(live.decisions)) live.decisions = [];
   state = live; render();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   const q = new URLSearchParams(location.search);

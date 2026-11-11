@@ -16,7 +16,7 @@ const GT_LISTS = [
   `${GT_ROOT}/networks/eth/trending_pools?page=1`,
 ];
 const SCAN_CHAINS = ['solana', 'ethereum', 'base', 'bsc', 'arbitrum'];
-const num = (x) => (x === null || x === undefined || x === '' ? null : Number.isFinite(+x) ? +x : null);
+import { backoffMs } from './strategies.js';
 
 function normPool(p) {
   const a = p.attributes, rel = p.relationships || {};
@@ -42,6 +42,7 @@ function normPool(p) {
 
 export function createLiveSource({ fetchImpl = globalThis.fetch, gtGapMs = 7000 } = {}) {
   let lastGt = 0;
+  let gtPauseUntil = 0;
   const cache = new Map();
   async function cached(key, ttl, fn) {
     const hit = cache.get(key);
@@ -52,18 +53,21 @@ export function createLiveSource({ fetchImpl = globalThis.fetch, gtGapMs = 7000 
   }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function get(url, isGt) {
+    if (isGt && Date.now() < gtPauseUntil) throw new Error('gecko cooling down after 429');
     if (isGt) { const wait = lastGt + gtGapMs - Date.now(); if (wait > 0) await sleep(wait); lastGt = Date.now(); }
     for (let i = 0; i < 3; i++) {
       let res;
       try {
-        // 15 s timeout: a hung request must never stall the desk
         res = await fetchImpl(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
       } catch (e) {
-        // In browsers a 429 arrives without CORS headers and surfaces as a network TypeError; back off and retry.
-        if (i < 2) { await sleep(6000 * (i + 1)); if (isGt) lastGt = Date.now(); continue; }
+        if (i < 2) { await sleep(backoffMs(i, 0)); if (isGt) lastGt = Date.now(); continue; }
         throw e;
       }
-      if (res.status === 429) { await sleep(6000 * (i + 1)); if (isGt) lastGt = Date.now(); continue; }
+      if (res.status === 429) {
+        gtPauseUntil = Date.now() + backoffMs(i, 429);
+        if (i < 2) { await sleep(Math.min(8000, backoffMs(i, 429))); if (isGt) lastGt = Date.now(); continue; }
+        throw new Error(`rate limited ${url.split('?')[0]}`);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status} ${url.split('?')[0]}`);
       return res.json();
     }

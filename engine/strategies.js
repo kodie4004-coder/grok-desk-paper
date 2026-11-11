@@ -75,7 +75,14 @@ export function breakoutPlan(bars, i) {
 }
 
 export function momentumPlan(bars, i) {
-  const spec = SLOT_SPEC.momentum;
+  return momentumBounds(bars, i, SLOT_SPEC.momentum);
+}
+
+export function momentumTightPlan(bars, i) {
+  return momentumBounds(bars, i, { ...SLOT_SPEC.momentum, ret60Lo: 5, ret60Hi: 15 });
+}
+
+function momentumBounds(bars, i, spec) {
   const t = bars[i].t;
   if (!(bars[i].c > 0) || !(bars[i].v > 0)) return false;
   const i60 = lastAt(bars, t - 60 * 60000);
@@ -89,6 +96,12 @@ export function momentumPlan(bars, i) {
   if (!(r60 >= spec.ret60Lo && r60 <= spec.ret60Hi)) return false;
   if (!(r360 < spec.ret360Hi)) return false;
   return plan(spec);
+}
+
+export function momentumTrailPlan(bars, i) {
+  const hit = momentumPlan(bars, i);
+  if (!hit) return false;
+  return { ...hit, takeProfitPct: 1000, trailActivatePct: 6, trailPct: 4 };
 }
 
 export function gridPlan(bars, i) {
@@ -181,6 +194,29 @@ export function slotEdge(hold, train) {
   const holdOk = hold.n >= 30 && hold.nPools >= 8 && hold.lo != null && hold.lo > 0;
   const trainOk = train.n >= 20 && train.mean > 0 && train.lo != null && train.lo > 0;
   return holdOk && trainOk;
+}
+
+// At least three unseen windows, each with 20 trades and a 90% lower bound above zero.
+export function graduates(windows) {
+  const unseen = (windows || []).filter((w) => w && !w.seen && w.n >= 20);
+  if (unseen.length < 3) return false;
+  return unseen.every((w) => w.mean > 0 && w.lo != null && w.lo > 0);
+}
+
+export function backoffMs(attempt, status) {
+  const base = status === 429 ? 4000 : 2000;
+  return Math.min(status === 429 ? 45000 : 20000, base * 2 ** attempt);
+}
+
+export function momentumAllowed(pool, graduated, now = Date.now()) {
+  if (!graduated) return true;
+  if (graduated === 'liq100') return (pool.liq || 0) >= 100000;
+  if (graduated === 'age6h') return !!pool.createdAt && now - pool.createdAt >= 6 * 3600000;
+  if (graduated === 'tight') {
+    const h1 = pool.pc?.h1;
+    return typeof h1 === 'number' && h1 >= 5 && h1 <= 15;
+  }
+  return true;
 }
 
 export function emptySlots() {

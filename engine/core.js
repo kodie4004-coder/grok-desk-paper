@@ -208,6 +208,9 @@ export function exitCheck(pos, price, nowMs, s) {
   const takeProfitPct = pos.takeProfitPct ?? s.takeProfitPct;
   const maxHoldMin = pos.maxHoldMin ?? s.maxHoldMin;
   if (price <= pos.stop) return { reason: `STOP -${stopPct}%`, kind: 'stop', peak };
+  if (pos.trailActivatePct > 0 && peak >= pos.entryMid * (1 + pos.trailActivatePct / 100) && price <= peak * (1 - (pos.trailPct || 4) / 100)) {
+    return { reason: `TRAIL ${pos.trailPct || 4}% off peak`, kind: 'tp', peak };
+  }
   if (s.trailingPct > 0) {
     if (peak >= pos.tp && price <= peak * (1 - s.trailingPct / 100)) return { reason: `TRAIL ${s.trailingPct}% off peak`, kind: 'tp', peak };
   } else if (price >= pos.tp) return { reason: `TAKE PROFIT +${takeProfitPct}%`, kind: 'tp', peak };
