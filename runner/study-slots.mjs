@@ -76,6 +76,11 @@ for (const id of SLOT_IDS) {
 lines.push('');
 lines.push(prior.summary);
 lines.push('');
+for (const id of SLOT_IDS) {
+  const h = splits[id].holdout;
+  if (!edges[id] && h.lo > 0) lines.push(`${id}: the holdout lower bound was above zero (${h.lo.toFixed(2)} per trade) and the train mean was ${splits[id].train.mean.toFixed(2)}. The rule needs both windows, so this slot stays at exploration size.`);
+}
+lines.push('');
 lines.push('A slot is an edge only when the holdout has at least 30 trades, at least 8 pools, and a 90% lower bound above zero, and the train also has at least 20 trades, a positive mean, and a lower bound above zero. Otherwise it is exploration size.');
 lines.push('');
 fs.mkdirSync('runner/research', { recursive: true });

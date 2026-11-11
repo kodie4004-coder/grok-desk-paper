@@ -227,7 +227,9 @@ function leaderCard(st) {
     const bucket = off ? 'off' : edge ? 'normal' : 'exploration';
     const drag = h.costDrag == null ? '—' : `${Math.round(h.costDrag * 100)}%`;
     const ci = h.ci80 ? `${money(h.ci80[0], true)} to ${money(h.ci80[1], true)}` : '—';
-    return `<li><span><b>${esc(spec.label)}</b> <span class="tag ${bucket}">${bucket}</span><br><span class="note">${esc(spec.blurb)}</span></span><span class="note">n ${h.n} · exp ${h.n ? money(h.expectancy, true) : '—'} · ${ci}<br>win ${h.n ? Math.round(h.winRate * 100) + '%' : '—'} · dd ${h.n ? money(h.maxDrawdown) : '—'} · drag ${drag}</span></li>`;
+    const priorRow = (SLOT_PRIOR.rows || []).find((r) => r.id === id);
+    const hold = priorRow ? `holdout n ${priorRow.n} · ${money(priorRow.mean, true)} · 90% ${money(priorRow.lo, true)} to ${money(priorRow.hi, true)}` : 'no holdout row';
+    return `<li class="slot"><div class="row"><b>${esc(spec.label)}</b><span class="tag ${bucket}">${bucket}</span></div><p class="note">${esc(spec.blurb)}</p><p class="note">${hold}</p><p class="note">This desk: n ${h.n} · expectancy ${h.n ? money(h.expectancy, true) : '—'} · 80% ${ci} · win ${h.n ? Math.round(h.winRate * 100) + '%' : '—'} · drawdown ${h.n ? money(h.maxDrawdown) : '—'} · cost drag ${drag}${off ? ' · off' : ''}</p></li>`;
   }).join('');
   return `<div class="card"><h2>Strategy slots</h2><p class="note">${esc(SLOT_PRIOR.summary || '')}</p><ul class="feed">${rows}</ul></div>`;
 }
