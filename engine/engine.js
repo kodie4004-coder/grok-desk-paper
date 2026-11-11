@@ -1,6 +1,8 @@
 // Paper trading desk orchestrator. Six agents per tick: Scout -> Filter -> Copy -> Own(JUDGE) -> Risk -> Banker.
 // PAPER ONLY: positions are numbers in this object. There is no wallet, key or order code anywhere.
 import * as C from './core.js';
+import { SLOT_IDS, SLOT_SPEC, liveSignals, slotStatus, emptySlots, momentumAllowed } from './strategies.js';
+import { SLOT_PRIOR } from './slot-prior.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
 const MAX_LOG = 600, MAX_WT = 15000, MAX_VERDICTS = 1500, MAX_PASS = 1500;
@@ -11,8 +13,11 @@ export function newState(settings, now, mode = 'live') {
     settings: { ...settings }, startBank: settings.bank, cash: settings.bank,
     open: [], closed: [], equity: [], markers: [], log: [], verdicts: [], passChecks: [],
     watch: {}, judged: {}, infoCache: {}, holderSnaps: {}, lastPrices: {},
-    counts: { signals: 0, pools: 0, tradesScanned: 0, filtered: 0, judged: 0, judgeBuy: 0, copySignals: 0, copied: 0, own: 0, riskBlocked: 0, edgeFlat: 0, closed: 0 },
+    counts: { signals: 0, pools: 0, tradesScanned: 0, filtered: 0, judged: 0, judgeBuy: 0, copySignals: 0, copied: 0, own: 0, riskBlocked: 0, edgeFlat: 0, slotTrades: 0, closed: 0 },
     edgeBook: [],
+    slots: emptySlots(),
+    scan: { at: null, markets: 0, chains: 0, feed: [], note: '' },
+    predictions: [],
     walletTrades: [], followed: [], walletBoard: [], strikes: {}, fired: [], firedCards: [],
     halted: false, haltReason: null, tick: 0, lastTickAt: null, errors: 0, recap: null, createdAt: now,
   };
@@ -72,6 +77,17 @@ function closePosition(state, p, price, now, reason, kind, emit) {
   state.closed.push(t); state.counts.closed++;
   (state.edgeBook ||= []).push({ pnl: t.pnl, fees: t.fees, sizeUsd: t.sizeUsd, retPct: t.retPct, closedAt: now, pool: t.pool, symbol: t.symbol });
   if (state.edgeBook.length > 500) state.edgeBook.splice(0, state.edgeBook.length - 500);
+  if (p.slot && state.slots?.[p.slot]) {
+    const book = state.slots[p.slot].book;
+    book.push({ pnl: t.pnl, fees: t.fees, sizeUsd: t.sizeUsd, retPct: t.retPct, closedAt: now, symbol: t.symbol });
+    if (book.length > 400) book.splice(0, book.length - 400);
+    const st = slotStatus(book, s);
+    if (st.mode === 'off' && !state.slots[p.slot].off) {
+      state.slots[p.slot].off = true;
+      state.slots[p.slot].offReason = st.reason;
+      log(state, now, 'HALT', `${SLOT_SPEC[p.slot]?.label || p.slot} off. ${st.reason}`);
+    }
+  }
   state.markers.push({ t: now, v: r2(equityNow(state)), kind, label: `${t.symbol} ${t.retPct}%` });
   const line = `SELL ${t.symbol} @ ${fmtP(price)} · ${reason} · ${t.pnl >= 0 ? '+' : ''}$${t.pnl} (${t.retPct}% after fees)`;
   log(state, now, 'SELL', line, { pnl: t.pnl });
@@ -172,28 +188,56 @@ async function getInfo(state, src, token, now) {
   return info;
 }
 
-async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null }) {
+async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null, chain = 'solana', slot = null, stopPct = null, takeProfitPct = null, maxHoldMin = null, trailActivatePct = 0, trailPct = 0 }) {
   const s = state.settings;
-  const part = C.participationDecision(C.strategyHealth(state.edgeBook || []), s);
-  if (!(part.scale > 0)) {
-    state.counts.edgeFlat = (state.counts.edgeFlat || 0) + 1;
-    log(state, now, 'RISK', `flat ${symbol} (${source}): ${part.reason}`);
-    return null;
+  let sized = sizeUsd;
+  let why = reason;
+  let bucket = null;
+  if (slot) {
+    state.slots ||= emptySlots();
+    const slotState = state.slots[slot] || (state.slots[slot] = { book: [], off: false, offReason: null });
+    if (slotState.off) return null;
+    const st = slotStatus(slotState.book, s);
+    if (st.mode === 'off') {
+      slotState.off = true; slotState.offReason = st.reason;
+      log(state, now, 'HALT', `${SLOT_SPEC[slot]?.label || slot} off. ${st.reason}`);
+      return null;
+    }
+    const studyEdge = SLOT_PRIOR.edges?.[slot] === true || st.mode === 'promoted';
+    const pct = studyEdge ? s.ownPositionPct : (s.explorePct ?? 1);
+    sized = (pct / 100) * state.startBank;
+    bucket = studyEdge ? 'normal' : 'exploration';
+    why = `${reason} · ${bucket}`;
+  } else {
+    const part = C.participationDecision(C.strategyHealth(state.edgeBook || []), s);
+    if (!(part.scale > 0)) {
+      state.counts.edgeFlat = (state.counts.edgeFlat || 0) + 1;
+      log(state, now, 'RISK', `flat ${symbol} (${source}): ${part.reason}`);
+      return null;
+    }
+    sized = sizeUsd * part.scale;
+    why = part.scale === 1 ? reason : `${reason} · ${part.mode} ×${part.scale}`;
   }
-  const rc = C.riskCheck(state, s, { token, sizeUsd: sizeUsd * part.scale });
+  const rc = C.riskCheck(state, s, { token, sizeUsd: sized });
   if (!rc.ok) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol} (${source}): ${rc.reason}`); return null; }
-  const px = (await src.prices([token]))[token];
+  const quote = chain && chain !== 'solana' ? await src.prices([token], chain) : await src.prices([token]);
+  const px = quote[token];
   if (!px) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol}: no live price`); return null; }
   const feePct = s.impactModel ? s.feePct + C.roundTripImpactPct(rc.sizeUsd, liq) : s.feePct;
-  const lv = C.stopLevels(px, s);
+  const levels = { stopPct: stopPct ?? s.stopPct, takeProfitPct: takeProfitPct ?? s.takeProfitPct };
+  const lv = C.stopLevels(px, levels);
   const fill = C.fillPrice(px, 'buy', feePct);
-  const why = part.scale === 1 ? reason : `${reason} · ${part.mode} ×${part.scale}`;
   const p = {
-    id: 'T' + now.toString(36) + state.counts.copied + state.counts.own, pool, token, symbol, source, wallets, leadId,
-    entryMid: px, entryFill: fill, qty: rc.sizeUsd / fill, sizeUsd: rc.sizeUsd, feePct, stop: lv.stop, tp: lv.tp, peak: px, lastPrice: px, openedAt: now, reason: why,
+    id: 'T' + now.toString(36) + state.counts.copied + state.counts.own, pool, token, symbol, source, wallets, leadId, chain, slot, bucket,
+    entryMid: px, entryFill: fill, qty: rc.sizeUsd / fill, sizeUsd: rc.sizeUsd, feePct, stop: lv.stop, tp: lv.tp,
+    stopPct: levels.stopPct, takeProfitPct: levels.takeProfitPct, maxHoldMin: maxHoldMin ?? s.maxHoldMin,
+    trailActivatePct, trailPct,
+    peak: px, lastPrice: px, openedAt: now, reason: why,
   };
   state.cash -= rc.sizeUsd; state.open.push(p);
-  state.counts[source === 'copy' ? 'copied' : 'own']++;
+  if (source === 'copy') state.counts.copied++;
+  else if (source === 'own') state.counts.own++;
+  else state.counts.slotTrades = (state.counts.slotTrades || 0) + 1;
   state.markers.push({ t: now, v: r2(equityNow(state)), kind: 'buy', label: symbol });
   const line = `BUY ${symbol} $${rc.sizeUsd} @ ${fmtP(px)} · ${source.toUpperCase()} · ${why} · stop ${fmtP(lv.stop)} tp ${fmtP(lv.tp)}`;
   log(state, now, 'BUY', line);
@@ -223,13 +267,63 @@ async function managePositions(state, src, now, emit, prices, tradesByPool, safe
   }
 }
 
+async function fetchOpenPrices(src, positions) {
+  const groups = new Map();
+  for (const p of positions) {
+    const chain = p.chain || 'solana';
+    if (!groups.has(chain)) groups.set(chain, []);
+    groups.get(chain).push(p.token);
+  }
+  const out = {};
+  for (const [chain, toks] of groups) {
+    const got = chain === 'solana' ? await src.prices([...new Set(toks)]) : await src.prices([...new Set(toks)], chain);
+    Object.assign(out, got || {});
+  }
+  return out;
+}
+
+function noteDecision(state, now, row) {
+  (state.decisions ||= []).push({ t: now, ...row });
+  if (state.decisions.length > 120) state.decisions.splice(0, state.decisions.length - 120);
+}
+
+async function runSlotEntries(state, src, passed, now, emit, safe) {
+  state.slots ||= emptySlots();
+  const used = new Set();
+  const ranked = [...passed].sort((a, b) => (b.liq || 0) - (a.liq || 0)).slice(0, 16);
+  for (const pool of ranked) {
+    if (state.open.some((o) => o.token === pool.token)) continue;
+    for (const sig of liveSignals(pool, now)) {
+      if (used.has(sig.slot) || state.slots[sig.slot]?.off) {
+        noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: sig.slot, action: 'skip', reason: state.slots[sig.slot]?.off ? 'slot is off' : 'already used this scan' });
+        continue;
+      }
+      if (sig.slot === 'momentum' && !momentumAllowed(pool, SLOT_PRIOR.graduated, now)) {
+        noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: sig.slot, action: 'skip', reason: `graduated filter ${SLOT_PRIOR.graduated}` });
+        continue;
+      }
+      const spec = SLOT_SPEC[sig.slot];
+      if (!spec) continue;
+      const trail = sig.slot === 'momentum' && SLOT_PRIOR.graduated === 'trail';
+      const pos = await safe(`slot ${sig.slot}`, () => enter(state, src, now, emit, {
+        pool: pool.pool, token: pool.token, symbol: pool.symbol, source: sig.slot, slot: sig.slot,
+        chain: pool.chain || 'solana', liq: pool.liq, sizeUsd: 0,
+        stopPct: spec.stopPct, takeProfitPct: trail ? 1000 : spec.takeProfitPct, maxHoldMin: spec.maxHoldMin,
+        trailActivatePct: trail ? 6 : 0, trailPct: 4,
+        reason: sig.reason,
+      }));
+      noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: sig.slot, action: pos ? 'take' : 'skip', reason: pos ? sig.reason : 'risk or no price' });
+      if (pos) used.add(sig.slot);
+    }
+  }
+}
+
 // Price open positions between scout ticks. DexScreener, not the GeckoTerminal budget.
 export async function mark(state, src, now, emit = () => {}) {
   if (!state.running || !state.open.length || !(state.settings.markSec > 0)) return state;
   state.lastMarkAt = now;
   const safe = async (label, fn) => { try { return await fn(); } catch (e) { state.errors++; log(state, now, 'ERR', `${label}: ${e.message}`); return null; } };
-  const tokens = [...new Set(state.open.map((p) => p.token))];
-  const prices = (await safe('mark', () => src.prices(tokens))) || {};
+  const prices = (await safe('mark', () => fetchOpenPrices(src, state.open))) || {};
   await managePositions(state, src, now, emit, prices, null, safe);
   state.equity.push({ t: now, v: r2(equityNow(state)) });
   if (state.equity.length > 3000) state.equity.splice(1, 1);
@@ -245,9 +339,22 @@ export async function tick(state, src, now, emit = () => {}) {
 
   // 1) SCOUT
   const pools = [];
-  const np = await safe('scout new pools', () => src.newPools(1 + (state.tick % 2)));
-  const tp = await safe('scout trending', () => src.trendingPools(1, state.tick % 3 === 0 ? '5m' : '1h'));
-  for (const p of [...(np || []), ...(tp || [])]) if (!pools.some((x) => x.pool === p.pool)) pools.push(p);
+  if (s.fastScan && typeof src.discover === 'function') {
+    const d = await safe('discover', () => src.discover(state.tick));
+    if (d) {
+      for (const p of d.pools || []) if (p.pool && !pools.some((x) => x.pool === p.pool)) pools.push(p);
+      state.predictions = d.predictions || [];
+      state.scan = {
+        at: now, markets: pools.length, chains: new Set(pools.map((p) => p.chain || 'solana')).size,
+        feed: d.feed || [], note: d.note || '',
+      };
+    }
+  } else {
+    const np = await safe('scout new pools', () => src.newPools(1 + (state.tick % 2)));
+    const tp = await safe('scout trending', () => src.trendingPools(1, state.tick % 3 === 0 ? '5m' : '1h'));
+    for (const p of [...(np || []), ...(tp || [])]) if (!pools.some((x) => x.pool === p.pool)) pools.push(p);
+  }
+  state.lastScanAt = now;
   state.counts.pools += pools.length; state.counts.signals += pools.length;
 
   // 2) FILTER
@@ -264,12 +371,16 @@ export async function tick(state, src, now, emit = () => {}) {
     .map((w) => ({ ...w, followed: state.followed.includes(w.wallet), fired: fired.has(w.wallet), strikes: state.strikes[w.wallet] || 0 }));
 
   const entriesOpen = !state.halted && !C.lossCapHit(state, s).hit;
+  if (s.strategySlots && entriesOpen) await runSlotEntries(state, src, passed, now, emit, safe);
 
-  // leads to judge: due watch re-asks first, then hottest unjudged
-  const due = Object.entries(state.watch).filter(([, w]) => now >= w.dueAt).slice(0, 2);
-  const fresh = passed.filter((p) => !state.judged[p.pool] || now - state.judged[p.pool] > 60 * 60000)
+  // leads to judge: due watch re-asks first, then hottest unjudged.
+  // With fastScan, JUDGE runs on odd ticks only so GeckoTerminal stays under its public limit.
+  const judgeNow = !s.fastScan || state.tick % 2 === 1;
+  const due = judgeNow ? Object.entries(state.watch).filter(([, w]) => now >= w.dueAt).slice(0, s.fastScan ? 1 : 2) : [];
+  const fresh = (judgeNow ? passed : []).filter((p) => !s.fastScan || (p.chain || 'solana') === 'solana')
+    .filter((p) => !state.judged[p.pool] || now - state.judged[p.pool] > 60 * 60000)
     .filter((p) => !state.watch[p.pool] && !state.open.some((o) => o.pool === p.pool))
-    .sort((a, b) => (b.vol.h1 || 0) - (a.vol.h1 || 0)).slice(0, Math.max(0, 3 - due.length));
+    .sort((a, b) => (b.vol.h1 || 0) - (a.vol.h1 || 0)).slice(0, Math.max(0, (s.fastScan ? 1 : 3) - due.length));
   const leads = [...due.map(([pool, w]) => ({ ...(passed.find((p) => p.pool === pool) || w.p), _watch: w })), ...fresh];
 
   const tradesByPool = {};
@@ -345,8 +456,7 @@ export async function tick(state, src, now, emit = () => {}) {
   }
 
   // 6) BANKER: mark to market, exits
-  const tokens = [...new Set(state.open.map((p) => p.token))];
-  const prices = tokens.length ? (await safe('prices', () => src.prices(tokens))) || {} : {};
+  const prices = state.open.length ? (await safe('prices', () => fetchOpenPrices(src, state.open))) || {} : {};
   await managePositions(state, src, now, emit, prices, tradesByPool, safe);
   state.lastMarkAt = now;
 

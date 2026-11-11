@@ -154,7 +154,7 @@ test('engine tick end to end with a fake source: own buy, stop out, loss cap', a
     poolTrades: async () => Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i + t, t: t - i * 20000, wallet: 'w' + (i % 7), kind: i % 3 ? 'buy' : 'sell', usd: 50, price: 1, token: 'TK', pool: 'P1' })),
     prices: async (toks) => Object.fromEntries(toks.map((k) => [k, price])),
   };
-  const st = newState({ ...S, bank: 1000, lossCapPct: 0.1, edgeGate: false, impactModel: false }, t);
+  const st = newState({ ...S, bank: 1000, lossCapPct: 0.1, edgeGate: false, impactModel: false, strategySlots: false, fastScan: false }, t);
   startSession(st, t);
   await tick(st, src, t);
   assert.equal(st.open.length, 1, JSON.stringify(st.log.slice(-3)));
@@ -220,7 +220,7 @@ test('edge gate stays flat when the prior says no edge', async () => {
     poolTrades: async () => Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i + t, t: t - i * 20000, wallet: 'w' + (i % 7), kind: i % 3 ? 'buy' : 'sell', usd: 50, price: 1, token: 'TK', pool: 'P1' })),
     prices: async (toks) => Object.fromEntries(toks.map((k) => [k, 1])),
   };
-  const st = newState({ ...S, edgeGate: true, allowExplore: false, impactModel: false, edgePrior: { verdict: 'no-edge', summary: 'study: no edge' } }, t);
+  const st = newState({ ...S, edgeGate: true, allowExplore: false, impactModel: false, strategySlots: false, fastScan: false, edgePrior: { verdict: 'no-edge', summary: 'study: no edge' } }, t);
   startSession(st, t);
   await tick(st, src, t);
   assert.equal(st.open.length, 0);
@@ -237,11 +237,11 @@ test('exploratory mode buys at half size, a proven book buys full size', async (
     poolTrades: async () => Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i + t, t: t - i * 20000, wallet: 'w' + (i % 7), kind: i % 3 ? 'buy' : 'sell', usd: 50, price: 1, token: 'TK', pool: 'P1' })),
     prices: async (toks) => Object.fromEntries(toks.map((k) => [k, 1])),
   };
-  const half = newState({ ...S, bank: 1000, edgeGate: true, allowExplore: true, impactModel: false, volGate: false, edgePrior: { verdict: 'no-edge', summary: 'x' } }, t);
+  const half = newState({ ...S, bank: 1000, edgeGate: true, allowExplore: true, impactModel: false, volGate: false, strategySlots: false, fastScan: false, edgePrior: { verdict: 'no-edge', summary: 'x' } }, t);
   startSession(half, t);
   await tick(half, src, t);
   assert.equal(half.open[0].sizeUsd, 25);
-  const full = newState({ ...S, bank: 1000, edgeGate: true, allowExplore: false, impactModel: false, volGate: false, edgePrior: { verdict: 'no-edge', summary: 'x' } }, t);
+  const full = newState({ ...S, bank: 1000, edgeGate: true, allowExplore: false, impactModel: false, volGate: false, strategySlots: false, fastScan: false, edgePrior: { verdict: 'no-edge', summary: 'x' } }, t);
   full.edgeBook = Array.from({ length: 30 }, () => ({ pnl: 1, fees: 0.1, sizeUsd: 25 }));
   startSession(full, t);
   await tick(full, src, t);
@@ -257,7 +257,7 @@ test('vol gate passes a lead whose 5m range is wider than the stop', async () =>
     poolTrades: async () => Array.from({ length: 12 }, (_, i) => ({ id: 'r' + i, t: t - i * 10000, wallet: 'w' + i, kind: i % 3 ? 'buy' : 'sell', usd: 50, price: i % 2 ? 1 : 1.2, token: 'TK', pool: 'P9' })),
     prices: async (toks) => Object.fromEntries(toks.map((k) => [k, 1])),
   };
-  const st = newState({ ...S, edgeGate: false, impactModel: false, volGate: true, volRangeFrac: 0.75 }, t);
+  const st = newState({ ...S, edgeGate: false, impactModel: false, volGate: true, volRangeFrac: 0.75, strategySlots: false, fastScan: false }, t);
   startSession(st, t);
   await tick(st, src, t);
   assert.equal(st.open.length, 0);

@@ -1,5 +1,7 @@
 // Grok Desk UI. PAPER ONLY: the engine below moves numbers, never money.
 import { DEFAULT_SETTINGS, RESEARCH_PRIOR, calibration, settingsLocked, updateSettings, strategyHealth, participationDecision, equityDrawdown } from './engine/core.js';
+import { SLOT_IDS, SLOT_SPEC, slotStatus, emptySlots } from './engine/strategies.js';
+import { SLOT_PRIOR } from './engine/slot-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 
@@ -29,7 +31,7 @@ const idb = {
 const loadSettings = () => { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('gd.settings') || '{}') }; } catch { return { ...DEFAULT_SETTINGS }; } };
 const saveSettings = (s) => localStorage.setItem('gd.settings', JSON.stringify(s));
 
-const ui = { tab: 'home', tf: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1' };
+const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1' };
 let live = null;          // live state
 let state = null;         // what is on screen (live or replay)
 const src = createLiveSource();
@@ -158,6 +160,15 @@ function updateTimer() {
     const ago = Date.now() - (state.lastTickAt || state.startedAt);
     lt.innerHTML = ago > (state.settings.tickSec + 30) * 1000 ? `<span class="y">Last market check ${Math.round(ago / 1000)}s ago. Phones pause background tabs; the desk only runs while this page is open.</span>` : `Next market check in ${Math.max(0, Math.round(state.settings.tickSec - ago / 1000))}s`;
   }
+  const link = $('#linkState');
+  if (link && state.mode !== 'replay') {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const limit = ((state.settings?.tickSec || 20) * 3 + 20) * 1000;
+    const stale = !!(state.running && state.lastScanAt && Date.now() - state.lastScanAt > limit);
+    if (offline) { link.hidden = false; link.className = 'link bad'; link.textContent = 'Offline. Quotes are stale. This page cannot trade.'; }
+    else if (stale) { link.hidden = false; link.className = 'link bad'; link.textContent = 'Scan is stale. New entries wait until a market check succeeds.'; }
+    else { link.hidden = true; link.textContent = ''; }
+  }
 }
 
 function fmtPf(h) {
@@ -200,6 +211,57 @@ function healthCard(st) {
   </div>`;
 }
 
+function scanCard(st) {
+  const chips = ['all', 'solana', 'ethereum', 'base', 'bsc', 'arbitrum', 'predict'];
+  const ago = st.lastScanAt ? Math.max(0, Math.round((Date.now() - st.lastScanAt) / 1000)) : null;
+  const feed = (st.scan?.feed || []).filter((f) => ui.market === 'all' || f.chain === ui.market);
+  const preds = st.predictions || [];
+  const rows = ui.market === 'predict'
+    ? (preds.length ? preds.map((p) => `<li><span><b>${esc(p.venue)}</b><br><span class="note">${esc(p.title)}</span></span><span class="note">${p.price == null ? '—' : esc(String(p.price))}</span></li>`).join('') : '<li><span class="note">No prediction markets on the last scan.</span></li>')
+    : (feed.length ? feed.map((f) => `<li><span><b>${esc(f.symbol)}</b> <span class="note">${esc(f.chain)} · ${esc(f.dex || '')}</span></span><span class="note">${f.liq ? '$' + Math.round(f.liq).toLocaleString() : ''}</span></li>`).join('') : '<li><span class="note">No quotes on this filter yet. Start a paper session to scan.</span></li>');
+  return `<div class="card"><div class="row"><h2 style="margin:0">Scan</h2><span class="note" id="scanAge">${st.scan?.markets || 0} markets · ${st.scan?.chains || 0} chains${ago == null ? '' : ` · last ${ago}s ago`}</span></div>
+    <div class="chips">${chips.map((k) => `<button type="button" data-mkt="${k}" class="${ui.market === k ? 'on' : ''}">${k}</button>`).join('')}</div>
+    <ul class="feed">${rows}</ul>
+    ${st.scan?.note ? `<p class="note">${esc(st.scan.note)}</p>` : '<p class="note">Boost lists are paid promotion. They are a way to see more markets, not a reason to buy. Prediction rows are read-only.</p>'}
+  </div>`;
+}
+function spark(values) {
+  if (!values || values.length < 2) return '<p class="empty">No sparkline yet. It draws after two closed paper trades.</p>';
+  const w = 280, h = 42;
+  let acc = 0;
+  const pts = values.map((v) => (acc += v));
+  const min = Math.min(0, ...pts), max = Math.max(0, ...pts);
+  const d = pts.map((v, i) => {
+    const x = (i / (pts.length - 1)) * (w - 4) + 2;
+    const y = h - 6 - ((v - min) / ((max - min) || 1)) * (h - 12);
+    return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+  const up = pts.at(-1) >= pts[0];
+  return `<svg class="spark ${up ? 'up' : 'down'}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative paper P&amp;L for this slot"><path d="${d}" /></svg>`;
+}
+function whyCard(st) {
+  const rows = (st.decisions || []).slice(-8).reverse();
+  if (!rows.length) return `<div class="card"><h2>Why</h2><p class="empty">No takes or skips yet. Start a paper session and this list will say why a slot traded or passed.</p></div>`;
+  return `<div class="card"><h2>Why</h2><ul class="feed">${rows.map((d) => `<li><span><b>${esc(d.symbol || '?')}</b> <span class="tag ${d.action === 'take' ? 'normal' : 'off'}">${esc(d.action)}</span><br><span class="note">${esc(d.slot || '')} · ${esc(d.reason || '')}</span></span></li>`).join('')}</ul></div>`;
+}
+function leaderCard(st) {
+  const rows = SLOT_IDS.map((id) => {
+    const spec = SLOT_SPEC[id];
+    const book = st.slots?.[id]?.book || [];
+    const h = strategyHealth(book);
+    const stt = slotStatus(book, st.settings || {});
+    const off = !!(st.slots?.[id]?.off);
+    const edge = SLOT_PRIOR.edges?.[id] === true || stt.mode === 'promoted';
+    const bucket = off ? 'off' : edge ? 'normal' : 'exploration';
+    const drag = h.costDrag == null ? '—' : `${Math.round(h.costDrag * 100)}%`;
+    const ci = h.ci80 ? `${money(h.ci80[0], true)} to ${money(h.ci80[1], true)}` : '—';
+    const priorRow = (SLOT_PRIOR.rows || []).find((r) => r.id === id);
+    const hold = priorRow ? `Latest unseen window n ${priorRow.n} · ${money(priorRow.mean, true)} · 90% ${money(priorRow.lo, true)} to ${money(priorRow.hi, true)}` : 'Walk-forward numbers are not in this build yet.';
+    const line = spark(book.map((t) => t.pnl));
+    return `<li class="slot"><div class="row"><b>${esc(spec.label)}</b><span class="tag ${bucket}">${bucket}</span></div>${line}<p class="note">${esc(spec.blurb)}</p><p class="note">${hold}</p><p class="note">${h.n ? `This phone: n ${h.n} · expectancy ${money(h.expectancy, true)} · 80% ${ci} · win ${Math.round(h.winRate * 100)}% · drawdown ${money(h.maxDrawdown)} · cost drag ${drag}` : 'No closed paper trades on this phone yet.'}${off ? ' Slot is off.' : ''}</p></li>`;
+  }).join('');
+  return `<div class="card"><h2>Strategy slots</h2><p class="note">${esc(SLOT_PRIOR.summary || '')}</p><ul class="feed">${rows}</ul></div>`;
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -221,6 +283,9 @@ function home(st) {
     <div class="note" id="lastTick" style="margin-top:8px"></div>
   </div>
   ${healthCard(st)}
+  ${scanCard(st)}
+  ${leaderCard(st)}
+  ${whyCard(st)}
   <div class="card">
     <div class="row" style="margin-bottom:8px"><h2 style="margin:0">Equity</h2>
       <div class="seg" style="width:170px">${['15m', '1h', 'all'].map((k) => `<button data-tf="${k}" class="${ui.tf === k ? 'on' : ''}">${k === 'all' ? 'All' : k}</button>`).join('')}</div></div>
@@ -323,7 +388,9 @@ const FIELDS = [
   ['JUDGE: min buy p', 'judgeBuyP'], ['JUDGE: min organic p', 'judgeOrganicP'], ['JUDGE: max exit_risk', 'judgeMaxExitRisk'], ['JUDGE: watch re-ask (min)', 'watchRecheckMin'],
   ['Copy trading on', 'copyEnabled', 'bool'], ['Copy: min wallets', 'copyMinWallets'], ['Copy: window (min)', 'copyWindowMin'], ['Copy: max run-up since wallet entry (%)', 'copyMaxRunupPct'], ['Copy size ratio (×)', 'copyRatio'],
   ['Fire trader after N losses in a row', 'strikesToFire'], ['Wallet: min win rate (%)', 'walletMinWinRate'], ['Wallet: min observed round trips', 'walletMinRoundTrips'], ['Wallet: min avg hold (min)', 'walletMinHoldMin'],
-  ['Market check every (s, ≥30)', 'tickSec'], ['Reprice open positions every (s, 0 = off)', 'markSec'],
+  ['Market check every (s, ≥15)', 'tickSec'], ['Reprice open positions every (s, 0 = off)', 'markSec'],
+  ['Fast multi-chain scan', 'fastScan', 'bool'], ['Strategy slots', 'strategySlots', 'bool'],
+  ['Exploration size (% of bank)', 'explorePct'], ['Slot off after N non-positive trades', 'slotKillN'],
   ['Edge gate', 'edgeGate', 'bool'], ['Allow exploratory entries at half size', 'allowExplore', 'bool'], ['Closed trades before full size', 'edgeMinN'],
   ['Skip entries when 5m range eats the stop', 'volGate', 'bool'], ['Range limit, as a fraction of the stop', 'volRangeFrac'],
   ['Add liquidity impact on top of the flat fee', 'impactModel', 'bool'],
@@ -357,6 +424,7 @@ function render() {
 
 function bind() {
   document.querySelectorAll('[data-tf]').forEach((b) => (b.onclick = () => { ui.tf = b.dataset.tf; render(); }));
+  document.querySelectorAll('[data-mkt]').forEach((b) => (b.onclick = () => { ui.market = b.dataset.mkt; render(); }));
   document.querySelectorAll('[data-lf]').forEach((b) => (b.onclick = () => { ui.logFilter = b.dataset.lf; render(); }));
   const sb = $('#startBtn'); if (sb) sb.onclick = async () => {
     const book = live.edgeBook?.length ? live.edgeBook : (live.closed || []);
@@ -372,7 +440,7 @@ function bind() {
     e.preventDefault();
     const patch = {};
     for (const [, k, type] of FIELDS) { const el = f.elements[k]; patch[k] = type === 'bool' ? el.checked : Number(el.value); }
-    patch.tickSec = Math.max(30, patch.tickSec || 60);
+    patch.tickSec = Math.max(15, patch.tickSec || 20);
     patch.markSec = patch.markSec ? Math.max(10, patch.markSec) : 0;
     patch.edgeMinN = Math.max(8, patch.edgeMinN || 30);
     patch.volRangeFrac = Math.min(2, Math.max(0.1, patch.volRangeFrac || 0.75));
@@ -391,6 +459,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) live
 (async () => {
   const saved = await idb.get('state');
   live = saved ? JSON.parse(saved) : newState(loadSettings(), Date.now());
+  if (!live.slots) live.slots = emptySlots();
+  if (!Array.isArray(live.decisions)) live.decisions = [];
   state = live; render();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   const q = new URLSearchParams(location.search);

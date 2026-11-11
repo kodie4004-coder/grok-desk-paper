@@ -96,19 +96,27 @@ function takeTrade(bars, entryIdx, cfg) {
   const stop = entryMid * (1 - cfg.stopPct / 100);
   const tp = entryMid * (1 + cfg.takeProfitPct / 100);
   const deadline = entry.t + cfg.maxHoldMin * 60000;
+  const trailOn = cfg.trailActivatePct > 0;
   let exit = null;
+  let peak = entryMid;
   for (let i = entryIdx; i < bars.length; i++) {
     const b = bars[i];
     if (b.t > deadline) break;
     if (cfg.tradeTo != null && b.t >= cfg.tradeTo) break;
-    const stopHit = b.l <= stop;
-    const tpHit = b.h >= tp;
-    if (stopHit) {
+    if (trailOn) peak = Math.max(peak, b.h);
+    const armed = trailOn && peak >= entryMid * (1 + cfg.trailActivatePct / 100);
+    const trailStop = armed ? peak * (1 - (cfg.trailPct ?? 4) / 100) : null;
+    if (b.l <= stop) {
       const exitMid = cfg.fill === 'optimistic' ? stop : Math.min(stop, b.l);
       exit = { i, exitMid, kind: 'stop', gap: Math.max(0, stop - exitMid) };
       break;
     }
-    if (tpHit) {
+    if (trailStop != null && b.l <= trailStop) {
+      const exitMid = cfg.fill === 'optimistic' ? trailStop : Math.min(trailStop, b.l);
+      exit = { i, exitMid, kind: 'trail', gap: Math.max(0, trailStop - exitMid) };
+      break;
+    }
+    if (!trailOn && b.h >= tp) {
       const exitMid = cfg.fill === 'optimistic' ? Math.min(b.h, Math.max(tp, b.c)) : tp;
       exit = { i, exitMid, kind: 'tp', gap: 0 };
       break;
@@ -144,13 +152,23 @@ export function simulateTrades(bars, signal, cfg) {
   const out = [];
   for (let i = 0; i < bars.length - 1;) {
     let step = 1;
-    if (signal(bars, i)) {
+    const planned = signal(bars, i);
+    const enter = planned === true || planned?.enter === true;
+    if (enter) {
       const entryIdx = i + 1;
       const gap = bars[entryIdx].t - bars[i].t;
       const entryT = bars[entryIdx].t;
       const inWindow = (cfg.tradeFrom == null || entryT >= cfg.tradeFrom) && (cfg.tradeTo == null || entryT < cfg.tradeTo);
+      const use = planned?.enter ? {
+        ...cfg,
+        stopPct: planned.stopPct ?? cfg.stopPct,
+        takeProfitPct: planned.takeProfitPct ?? cfg.takeProfitPct,
+        maxHoldMin: planned.maxHoldMin ?? cfg.maxHoldMin,
+        trailActivatePct: planned.trailActivatePct ?? cfg.trailActivatePct,
+        trailPct: planned.trailPct ?? cfg.trailPct,
+      } : cfg;
       if (inWindow && gap > 0 && gap <= cfg.maxEntryGapMs) {
-        const tr = takeTrade(bars, entryIdx, cfg);
+        const tr = takeTrade(bars, entryIdx, use);
         if (tr && !tr.incomplete) {
           out.push(tr);
           step = tr.exitIndex - i + 1;

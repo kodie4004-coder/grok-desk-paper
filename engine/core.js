@@ -33,9 +33,14 @@ export const DEFAULT_SETTINGS = Object.freeze({
   walletMinWinRate: 55,
   walletMinRoundTrips: 5,  // observed round trips (30-day history is not available from free APIs)
   walletMinHoldMin: 10,
-  tickSec: 60,
-  // Open positions are repriced on this cadence. Scout stays on tickSec (rate limit).
-  markSec: 15,
+  tickSec: 20,
+  // Open positions are repriced on this cadence. Discovery stays slower than marks.
+  markSec: 10,
+  // Multi-chain scan and the four paper slots. JUDGE's own edge gate is unchanged.
+  fastScan: true,
+  strategySlots: true,
+  explorePct: 1,         // exploration bucket, % of starting bank. Never raised after a loss.
+  slotKillN: 15,
   // Edge gate: 0 / 0.5 / 1 times the configured size. Never above 1. Never raised after a loss.
   edgeGate: true,
   allowExplore: false,
@@ -199,11 +204,17 @@ export function stopLevels(entryMid, s) {
 export function exitCheck(pos, price, nowMs, s) {
   if (!isNum(price) || price <= 0) return null;
   const peak = Math.max(pos.peak || pos.entryMid, price);
-  if (price <= pos.stop) return { reason: `STOP -${s.stopPct}%`, kind: 'stop', peak };
+  const stopPct = pos.stopPct ?? s.stopPct;
+  const takeProfitPct = pos.takeProfitPct ?? s.takeProfitPct;
+  const maxHoldMin = pos.maxHoldMin ?? s.maxHoldMin;
+  if (price <= pos.stop) return { reason: `STOP -${stopPct}%`, kind: 'stop', peak };
+  if (pos.trailActivatePct > 0 && peak >= pos.entryMid * (1 + pos.trailActivatePct / 100) && price <= peak * (1 - (pos.trailPct || 4) / 100)) {
+    return { reason: `TRAIL ${pos.trailPct || 4}% off peak`, kind: 'tp', peak };
+  }
   if (s.trailingPct > 0) {
     if (peak >= pos.tp && price <= peak * (1 - s.trailingPct / 100)) return { reason: `TRAIL ${s.trailingPct}% off peak`, kind: 'tp', peak };
-  } else if (price >= pos.tp) return { reason: `TAKE PROFIT +${s.takeProfitPct}%`, kind: 'tp', peak };
-  if (nowMs - pos.openedAt >= s.maxHoldMin * 60000) return { reason: `TIME ${s.maxHoldMin}m`, kind: 'time', peak };
+  } else if (price >= pos.tp) return { reason: `TAKE PROFIT +${takeProfitPct}%`, kind: 'tp', peak };
+  if (nowMs - pos.openedAt >= maxHoldMin * 60000) return { reason: `TIME ${maxHoldMin}m`, kind: 'time', peak };
   return { reason: null, peak };
 }
 
