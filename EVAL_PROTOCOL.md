@@ -84,6 +84,29 @@ A slot has an edge only if the holdout has at least 30 trades from at least 8 po
 
 Live quotes use the snapshot cousins of these rules (1-hour and 5-minute changes, liquidity, volume). They are not a second fit. Prediction markets are displayed and not traded.
 
+## v3 windows (frozen before any new slice)
+
+The v2 holdout is already seen. It ran from 2026-11-11T07:28:00.000Z to the collection at 2026-11-11T15:23:00.853Z. That interval is reported again only as a reference. It cannot graduate a slot.
+
+New minute bars are cut into non-overlapping 8-hour blocks, newest block ending at the last bar. A block that overlaps the seen interval is labeled seen. Every other block is unseen. Costs and fills stay as in v2: 1% round trip plus snapshot liquidity impact, stop at the bar low, entry on the next open within 3 minutes, incomplete trades dropped.
+
+Diagnostics, not candidates. These tables can explain the momentum sign flip. They cannot change a size:
+
+- Chain (solana, base, eth, bsc, arbitrum).
+- Snapshot liquidity buckets: under $100k, $100k–$500k, $500k and above.
+- Pool age at the signal: under 6 hours, 6 hours and older. Missing `createdAt` is its own row.
+- Clock: 13:00–21:00 UTC versus the other hours. One split, not a search over hours.
+
+Candidates, the whole family. Nothing else may be added after the tables are computed.
+
+- **V0.** The four v2 slots, unchanged.
+- **V1. Liquidity floor.** Momentum entries only on pools whose snapshot liquidity is at least $100,000. Same exits as momentum. Snapshot liquidity is not the liquidity at the bar. That bias is a reason to distrust V1, not a reason to ignore a loss.
+- **V2. Not a new pool.** Momentum entries only when `createdAt` is known and the pool is at least 6 hours old at the signal bar. Pools with no `createdAt` are skipped.
+- **V3. Tighter momentum.** 60-minute return from 5% to 15%, 6-hour return still under 80%. Same stop, target, and hold as momentum. Fewer trades on purpose.
+- **V4. Trail.** Momentum entries unchanged. No fixed +12% target. After the high has reached +6% from the entry open, sell when price falls 4% from the peak since entry, filling at the lower of that trail and the bar low. Until then, the −4% stop and the 120-minute time stop still apply.
+
+Graduation. A candidate graduates only if at least three unseen blocks each have 20 or more trades, and in every one of those blocks the mean expectancy is positive and the 90% bootstrap lower bound is above zero. One good block is not enough. V0 slots use the same rule, separately from v2's single holdout. A graduate may use the normal 5% paper size. Every other slot stays at 1%. No size is raised because a window was red. If none graduate, the live rules do not change.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.
