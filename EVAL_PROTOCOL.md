@@ -118,14 +118,14 @@ Motivation, not a result: sports and horse-racing prices have a favorite-longsho
 Data:
 
 - Polymarket Gamma for resolved binary markets. Resolution is the final outcome-price pair `["1","0"]` (YES) or `["0","1"]` (NO).
-- The entry price is the last public trade in a pre-set window before the end, from the public trade tape. If that window has no trade, the market is skipped. The price after the window is not used except the resolution.
+- End is the UMA resolution time when one is published, otherwise the scheduled end. The public trade list for a busy market does not page back to the window, so the entry is the last CLOB prices-history point inside the window. If that window has no point, the market is skipped. The price after the window is not used except the resolution.
 - Kalshi's public API returned HTTP 403 from this network. The cross-venue rule is registered and is not tested unless that API answers. An untested rule cannot graduate.
 - Manifold is shown as play-money context. It cannot graduate a USD size.
 
 Costs, taker, no rebate:
 
 - Fee rate is the market's published `feeSchedule.rate` when fees are enabled. If fees are enabled and the rate is missing, use 0.07. If fees are disabled, use 0.
-- Add 0.005 per share as a half-spread haircut. The tape is a trade price, not a free lift of the book.
+- Add 0.005 per share as a half-spread haircut. The history point is a sampled price, not a free lift of the book.
 - Hold to resolution. Payout is 1 or 0. Expectancy is profit per $1 of entry cost.
 
 - **P1 Favorite, one week out.** Window is 8 days to 6 days before the end. Buy the side priced in `[0.60, 0.80)`. YES in that band buys YES. YES in `(0.20, 0.40]` buys NO.

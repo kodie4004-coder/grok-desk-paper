@@ -1,4 +1,4 @@
-// Resolved Polymarket binaries and the last trade in each pre-registered window.
+// Resolved Polymarket binaries and the last CLOB price in each pre-registered window.
 // Read-only. No orders.
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -16,33 +16,12 @@ async function get(url) {
   throw new Error('rate limited');
 }
 
-function yesPriceOf(trade) {
-  const p = Number(trade.price);
-  if (!(p > 0 && p < 1)) return null;
-  const outcome = String(trade.outcome || '').toLowerCase();
-  if (outcome === 'no') return 1 - p;
-  return p;
-}
-
-async function lastInWindow(conditionId, start, end) {
-  let cursor = '';
-  for (let page = 0; page < 15; page++) {
-    const url = `https://data-api.polymarket.com/v2/trades?condition=${conditionId}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
-    const body = await get(url);
-    const rows = body.data || [];
-    for (const row of rows) {
-      const t = row.timestamp * 1000;
-      if (t > end) continue;
-      if (t < start) return null;
-      const yes = yesPriceOf(row);
-      if (yes == null) continue;
-      return { t, yes };
-    }
-    if (!body.pagination?.has_more || !body.pagination?.next_cursor) return null;
-    cursor = body.pagination.next_cursor;
-    await sleep(80);
-  }
-  return null;
+async function lastInWindow(tokenId, start, end) {
+  const url = `https://clob.polymarket.com/prices-history?market=${tokenId}&startTs=${Math.floor(start / 1000)}&endTs=${Math.floor(end / 1000)}&fidelity=60`;
+  const body = await get(url);
+  const rows = (body.history || []).filter((p) => p.t * 1000 >= start && p.t * 1000 <= end && p.p > 0 && p.p < 1);
+  const last = rows.at(-1);
+  return last ? { t: last.t * 1000, yes: Number(last.p) } : null;
 }
 
 const markets = [];
@@ -52,17 +31,20 @@ while (markets.length < 120 && offset < 800) {
   const page = await get(url);
   if (!Array.isArray(page) || !page.length) break;
   for (const m of page) {
-    if (markets.length >= 120) break;
+    if (markets.some((x) => x.conditionId === m.conditionId)) continue;
     const outcomes = JSON.parse(m.outcomes || '[]');
     const prices = JSON.parse(m.outcomePrices || '[]');
     if (outcomes.length !== 2) continue;
     const yes = Number(prices[0]);
     if (yes !== 0 && yes !== 1) continue;
-    const end = Date.parse(m.umaEndDate || m.endDate);
-    if (!end) continue;
+    const end = Date.parse(m.umaEndDate || m.closedTime || m.endDate);
+    let token = null;
+    try { token = JSON.parse(m.clobTokenIds || '[]')[0]; } catch { token = null; }
+    if (!end || !token) continue;
     markets.push({
       id: m.id,
       conditionId: m.conditionId,
+      token,
       question: m.question,
       end,
       yesWon: yes === 1,
@@ -81,8 +63,9 @@ for (const m of markets) {
   const lateLo = m.end - 36 * 3600000;
   const lateHi = m.end - 12 * 3600000;
   try {
-    m.week = await lastInWindow(m.conditionId, weekLo, weekHi);
-    m.late = await lastInWindow(m.conditionId, lateLo, lateHi);
+    m.week = await lastInWindow(m.token, weekLo, weekHi);
+    await sleep(80);
+    m.late = await lastInWindow(m.token, lateLo, lateHi);
   } catch (e) {
     m.error = e.message;
     console.log('skip', m.id, e.message);
