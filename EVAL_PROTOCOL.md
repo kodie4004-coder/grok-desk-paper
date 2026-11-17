@@ -133,7 +133,7 @@ Costs, taker, no rebate:
 - **P3 Late favorite.** Window is 36 hours to 12 hours before the end. Same favorite band as P1.
 - **P4 Cross-venue.** If Kalshi and Polymarket both quote the same question and the YES prices differ by more than both taker fees plus 0.02, buy the cheaper YES and hold to resolution. Not run if Kalshi does not answer.
 
-Windows are ISO weeks of the market end time. The family is P1–P3, plus P4 only if it can be run. No other band is added after the table exists.
+Windows are ISO weeks of the market end time. The family is P1–P3, plus P4 only if it can be run. No other band is added after the table exists. The sample is the 120 highest-volume resolved binary markets Gamma returns with an end date on or after 2026-01-01. There is no other volume cutoff.
 
 ### Liquid majors
 

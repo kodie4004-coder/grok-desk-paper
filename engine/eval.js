@@ -172,6 +172,10 @@ export function simulateTrades(bars, signal, cfg) {
         if (tr && !tr.incomplete) {
           out.push(tr);
           step = tr.exitIndex - i + 1;
+          if (cfg.cooldownMs) {
+            const until = tr.exitT + cfg.cooldownMs;
+            while (i + step < bars.length && bars[i + step].t < until) step++;
+          }
         }
       }
     }
