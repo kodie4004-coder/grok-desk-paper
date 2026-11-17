@@ -7,7 +7,7 @@ import { clusterBootstrap } from '../engine/eval.js';
 
 const file = process.argv[2] || 'runner/research/predict-markets.json.gz';
 const data = JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString('utf8'));
-const markets = data.markets || [];
+const markets = (data.markets || []).slice(0, 120);
 
 function weekKey(t) {
   const d = new Date(t);

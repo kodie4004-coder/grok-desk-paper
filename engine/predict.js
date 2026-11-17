@@ -41,6 +41,11 @@ export function yesWon(outcomePrices) {
   return null;
 }
 
+export function quoteInWindow(rule, now, end) {
+  if (!(end > now) || !(now > 0)) return false;
+  return now >= end - rule.lo && now <= end - rule.hi;
+}
+
 export const PREDICT_RULES = [
   { id: 'p1', label: 'Favorite, one week out', pick: favoriteEntry, lo: 8 * 86400000, hi: 6 * 86400000 },
   { id: 'p2', label: 'Longshot fade, one week out', pick: longshotFade, lo: 8 * 86400000, hi: 6 * 86400000 },

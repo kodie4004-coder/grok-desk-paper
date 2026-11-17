@@ -1,30 +1,37 @@
 // Hourly bars for deep SOL, ETH, and BTC pools. Read-only.
+// Canonical tokens, then the deepest GeckoTerminal pools. DexScreener search
+// ranks many SOL pairs above real ETH and BTC books, so it is not the source.
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { createLiveSource } from '../engine/data.js';
-import { MAJOR_SYMBOLS, MAJOR_MIN_LIQ } from '../engine/majors.js';
 
 const src = createLiveSource({ gtGapMs: 7000 });
 const OUT = 'runner/research/majors-hourly.json.gz';
-const queries = ['SOL', 'WETH', 'WBTC', 'cbBTC'];
-const found = new Map();
+const TOKENS = [
+  ['solana', 'So11111111111111111111111111111111111111112', 'SOL'],
+  ['eth', '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', 'WETH'],
+  ['eth', '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', 'WBTC'],
+  ['base', '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', 'CBBTC'],
+];
 
-for (const q of queries) {
-  const pairs = await (await fetch(`https://api.dexscreener.com/latest/dex/search?q=${q}`)).json();
-  for (const p of pairs.pairs || []) {
-    const sym = String(p.baseToken?.symbol || '').toUpperCase();
-    const liq = p.liquidity?.usd || 0;
-    if (!MAJOR_SYMBOLS.includes(sym) || liq < MAJOR_MIN_LIQ) continue;
-    const chain = p.chainId === 'ethereum' ? 'eth' : p.chainId;
-    if (!['solana', 'eth', 'base', 'bsc', 'arbitrum'].includes(chain)) continue;
-    const key = chain + ':' + p.pairAddress;
-    if (!found.has(key) || liq > found.get(key).liq) {
-      found.set(key, { pool: p.pairAddress, symbol: sym, chain, liq, dex: p.dexId });
-    }
-  }
+const picks = [];
+for (const [chain, token, symbol] of TOKENS) {
+  const body = await (await fetch(`https://api.geckoterminal.com/api/v2/networks/${chain}/tokens/${token}/pools?page=1`, { headers: { accept: 'application/json' } })).json();
+  const rows = (body.data || [])
+    .map((row) => ({
+      pool: row.attributes.address,
+      symbol,
+      chain,
+      liq: Number(row.attributes.reserve_in_usd) || 0,
+      dex: row.relationships?.dex?.data?.id || null,
+      base: String(row.relationships?.base_token?.data?.id || '').toLowerCase(),
+    }))
+    .filter((p) => p.liq >= 2_000_000 && p.base.endsWith(token.toLowerCase()))
+    .sort((a, b) => b.liq - a.liq)
+    .slice(0, 2);
+  picks.push(...rows);
+  console.log(symbol, rows.map((p) => `${p.chain} ${Math.round(p.liq)}`).join(' | ') || 'none');
 }
-const picks = [...found.values()].sort((a, b) => b.liq - a.liq).slice(0, 12);
-console.log('picks', picks.map((p) => `${p.chain} ${p.symbol} ${Math.round(p.liq)}`).join(' | '));
 
 const doc = { collectedAt: new Date().toISOString(), pools: [] };
 for (const p of picks) {

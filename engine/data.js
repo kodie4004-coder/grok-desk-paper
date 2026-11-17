@@ -230,7 +230,16 @@ async function loadPredictions(get) {
     for (const m of (Array.isArray(rows) ? rows : []).slice(0, 8)) {
       let yes = null;
       try { yes = JSON.parse(m.outcomePrices || '[]')[0]; } catch { yes = null; }
-      out.push({ venue: 'Polymarket', title: m.question || m.slug || 'market', price: yes, volume: m.volumeNum ?? m.volume ?? null });
+      out.push({
+        venue: 'Polymarket',
+        id: m.id || m.conditionId || m.slug,
+        title: m.question || m.slug || 'market',
+        price: yes == null ? null : Number(yes),
+        volume: m.volumeNum ?? m.volume ?? null,
+        end: Date.parse(m.endDate || '') || null,
+        feesEnabled: m.feesEnabled === true,
+        feeRate: typeof m.feeSchedule?.rate === 'number' ? m.feeSchedule.rate : null,
+      });
     }
   } catch (e) {
     out.push({ venue: 'Polymarket', title: `unavailable (${e.message})`, price: null, volume: null });

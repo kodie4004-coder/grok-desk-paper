@@ -3,6 +3,10 @@
 import * as C from './core.js';
 import { SLOT_IDS, SLOT_SPEC, liveSignals, slotStatus, emptySlots, momentumAllowed } from './strategies.js';
 import { SLOT_PRIOR } from './slot-prior.js';
+import { PREDICT_RULES } from './predict.js';
+import { PREDICT_PRIOR } from './predict-prior.js';
+import { isMajor, MAJOR_FEE } from './majors.js';
+import { MAJORS_PRIOR } from './majors-prior.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
 const MAX_LOG = 600, MAX_WT = 15000, MAX_VERDICTS = 1500, MAX_PASS = 1500;
@@ -188,7 +192,7 @@ async function getInfo(state, src, token, now) {
   return info;
 }
 
-async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null, chain = 'solana', slot = null, stopPct = null, takeProfitPct = null, maxHoldMin = null, trailActivatePct = 0, trailPct = 0 }) {
+async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null, chain = 'solana', slot = null, stopPct = null, takeProfitPct = null, maxHoldMin = null, trailActivatePct = 0, trailPct = 0, explore = false, graduated = false, feeBase = null }) {
   const s = state.settings;
   let sized = sizeUsd;
   let why = reason;
@@ -208,6 +212,11 @@ async function enter(state, src, now, emit, { pool, token, symbol, source, sizeU
     sized = (pct / 100) * state.startBank;
     bucket = studyEdge ? 'normal' : 'exploration';
     why = `${reason} · ${bucket}`;
+  } else if (explore) {
+    const pct = graduated ? s.ownPositionPct : (s.explorePct ?? 1);
+    sized = (pct / 100) * state.startBank;
+    bucket = graduated ? 'normal' : 'exploration';
+    why = `${reason} · ${bucket}`;
   } else {
     const part = C.participationDecision(C.strategyHealth(state.edgeBook || []), s);
     if (!(part.scale > 0)) {
@@ -223,7 +232,8 @@ async function enter(state, src, now, emit, { pool, token, symbol, source, sizeU
   const quote = chain && chain !== 'solana' ? await src.prices([token], chain) : await src.prices([token]);
   const px = quote[token];
   if (!px) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol}: no live price`); return null; }
-  const feePct = s.impactModel ? s.feePct + C.roundTripImpactPct(rc.sizeUsd, liq) : s.feePct;
+  const baseFee = feeBase == null ? s.feePct : feeBase;
+  const feePct = s.impactModel ? baseFee + C.roundTripImpactPct(rc.sizeUsd, liq) : baseFee;
   const levels = { stopPct: stopPct ?? s.stopPct, takeProfitPct: takeProfitPct ?? s.takeProfitPct };
   const lv = C.stopLevels(px, levels);
   const fill = C.fillPrice(px, 'buy', feePct);
@@ -318,6 +328,80 @@ async function runSlotEntries(state, src, passed, now, emit, safe) {
   }
 }
 
+async function runMajorEntries(state, src, passed, now, emit, safe) {
+  if (!state.settings.majorsPaper) return;
+  state.majorSeen ||= {};
+  for (const pool of passed) {
+    if (!isMajor(pool)) continue;
+    const h = pool.pc?.h24;
+    const key = pool.pool;
+    if (state.majorSeen[key]) continue;
+    if (typeof h !== 'number' || !(h >= 1 && h <= 8)) {
+      state.majorSeen[key] = true;
+      noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: 'c1', action: 'skip', reason: '24h move is outside +1% to +8%, or missing' });
+      continue;
+    }
+    const recent = [...state.open, ...state.closed].some((p) => p.pool === pool.pool && p.source === 'c1' && now - (p.openedAt || p.closedAt || 0) < 24 * 3600000);
+    if (recent) {
+      noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: 'c1', action: 'skip', reason: 'already traded this pool in the last 24 hours' });
+      continue;
+    }
+    state.majorSeen[key] = true;
+    const pos = await safe('major c1', () => enter(state, src, now, emit, {
+      pool: pool.pool, token: pool.token, symbol: pool.symbol, source: 'c1',
+      chain: pool.chain || 'solana', liq: pool.liq, sizeUsd: 0,
+      explore: true, graduated: MAJORS_PRIOR.edges?.c1 === true, feeBase: MAJOR_FEE,
+      stopPct: 4, takeProfitPct: 1000, maxHoldMin: 24 * 60,
+      reason: `deep major, 24h move ${h.toFixed(1)}%`,
+    }));
+    noteDecision(state, now, { symbol: pool.symbol, chain: pool.chain, slot: 'c1', action: pos ? 'take' : 'skip', reason: pos ? `deep major, 24h move ${h.toFixed(1)}%` : 'risk or no price' });
+  }
+}
+
+function notePredict(state, now, row) {
+  (state.predictLog ||= []).push({ t: now, ...row });
+  if (state.predictLog.length > 80) state.predictLog.splice(0, state.predictLog.length - 80);
+}
+
+function considerPredictions(state, now) {
+  state.predictOpen ||= [];
+  state.predictSeen ||= {};
+  const bank = state.startBank || state.settings.bank || 500;
+  for (const m of state.predictions || []) {
+    if (m.venue === 'Kalshi') {
+      if (!state.predictSeen.p4) {
+        state.predictSeen.p4 = true;
+        notePredict(state, now, { action: 'skip', rule: 'p4', title: m.title || 'Kalshi', reason: 'Kalshi did not answer, so the cross-venue rule is not traded' });
+      }
+      continue;
+    }
+    if (m.venue !== 'Polymarket' || !(m.price > 0 && m.price < 1) || !(m.end > now)) continue;
+    for (const rule of PREDICT_RULES) {
+      const key = `${rule.id}:${m.id || m.title}`;
+      if (state.predictSeen[key]) {
+        const open = state.predictOpen.find((p) => p.key === key);
+        if (open) open.mark = m.price;
+        continue;
+      }
+      if (!((now >= m.end - rule.lo) && (now <= m.end - rule.hi))) continue;
+      state.predictSeen[key] = true;
+      const picked = rule.pick(m.price);
+      if (!picked) {
+        notePredict(state, now, { action: 'skip', rule: rule.id, title: m.title, reason: `YES ${Number(m.price).toFixed(3)} is outside the band` });
+        continue;
+      }
+      const edge = PREDICT_PRIOR.edges?.[rule.id] === true;
+      const pct = edge ? (state.settings.ownPositionPct || 5) : (state.settings.explorePct ?? 1);
+      state.predictOpen.push({
+        key, rule: rule.id, title: m.title, side: picked.side, price: picked.price, yes: m.price,
+        sizeUsd: (pct / 100) * bank, openedAt: now, end: m.end, mark: m.price,
+        bucket: edge ? 'normal' : 'exploration',
+      });
+      notePredict(state, now, { action: 'take', rule: rule.id, title: m.title, reason: `buy ${picked.side} at ${picked.price.toFixed(3)} · ${edge ? 'normal' : 'exploration'} size` });
+    }
+  }
+}
+
 // Price open positions between scout ticks. DexScreener, not the GeckoTerminal budget.
 export async function mark(state, src, now, emit = () => {}) {
   if (!state.running || !state.open.length || !(state.settings.markSec > 0)) return state;
@@ -372,6 +456,8 @@ export async function tick(state, src, now, emit = () => {}) {
 
   const entriesOpen = !state.halted && !C.lossCapHit(state, s).hit;
   if (s.strategySlots && entriesOpen) await runSlotEntries(state, src, passed, now, emit, safe);
+  if (entriesOpen) await runMajorEntries(state, src, passed, now, emit, safe);
+  considerPredictions(state, now);
 
   // leads to judge: due watch re-asks first, then hottest unjudged.
   // With fastScan, JUDGE runs on odd ticks only so GeckoTerminal stays under its public limit.

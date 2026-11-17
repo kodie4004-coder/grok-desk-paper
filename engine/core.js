@@ -50,6 +50,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   volRangeFrac: 0.75,
   // Add a size/liquidity impact on top of feePct. The flat fee already includes a slippage cushion.
   impactModel: true,
+  // Liquid-major paper entries. Replay tapes from before this flag stay on the old path.
+  majorsPaper: true,
 });
 
 export const clamp = (x, a, b) => Math.min(b, Math.max(a, x));

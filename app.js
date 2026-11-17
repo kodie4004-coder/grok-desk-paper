@@ -2,6 +2,8 @@
 import { DEFAULT_SETTINGS, RESEARCH_PRIOR, calibration, settingsLocked, updateSettings, strategyHealth, participationDecision, equityDrawdown } from './engine/core.js';
 import { SLOT_IDS, SLOT_SPEC, slotStatus, emptySlots } from './engine/strategies.js';
 import { SLOT_PRIOR } from './engine/slot-prior.js';
+import { PREDICT_PRIOR } from './engine/predict-prior.js';
+import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 
@@ -262,6 +264,44 @@ function leaderCard(st) {
   }).join('');
   return `<div class="card"><h2>Strategy slots</h2><p class="note">${esc(SLOT_PRIOR.summary || '')}</p><ul class="feed">${rows}</ul></div>`;
 }
+function studyRows(rows) {
+  if (!rows.length) return '<p class="empty">No study row yet.</p>';
+  return `<ul class="feed">${rows.map((r) => `<li class="slot"><div class="row"><b>${esc(r.label || r.id)}</b><span class="tag ${r.graduated ? 'normal' : 'exploration'}">${r.graduated ? 'graduated' : 'exploration'}</span></div><p class="note">Trades ${r.n ?? 0} · windows ${r.windows ?? 0}${r.mean == null ? '' : ` · expectancy ${money(r.mean, true)}`}${r.lo == null ? '' : ` · lower bound ${money(r.lo, true)}`}</p></li>`).join('')}</ul>`;
+}
+function majorsCard() {
+  return `<div class="card"><h2>Liquid majors</h2><p class="note">${esc(MAJORS_PRIOR.summary || '')}</p>${studyRows(MAJORS_PRIOR.rows || [])}</div>`;
+}
+function predictMark(p) {
+  if (!(p.mark > 0 && p.mark < 1) || !(p.price > 0)) return null;
+  const nowPx = p.side === 'yes' ? p.mark : 1 - p.mark;
+  return (nowPx - p.price) * p.sizeUsd;
+}
+function predictView(st) {
+  const open = st.predictOpen || [];
+  const log = (st.predictLog || []).slice(-8).reverse();
+  const rules = [
+    { id: 'p1', label: 'Favorite, one week out' },
+    { id: 'p2', label: 'Longshot fade, one week out' },
+    { id: 'p3', label: 'Late favorite' },
+    { id: 'p4', label: 'Cross-venue' },
+  ];
+  const cards = rules.map((rule) => {
+    const row = (PREDICT_PRIOR.rows || []).find((r) => r.id === rule.id);
+    const live = open.filter((p) => p.rule === rule.id);
+    const edge = PREDICT_PRIOR.edges?.[rule.id] === true;
+    const stat = rule.id === 'p4'
+      ? 'Kalshi did not answer. This rule is registered and untested.'
+      : (row ? `Trades ${row.n} · windows ${row.windows} · expectancy ${row.mean == null ? '—' : money(row.mean, true)} per $1 · lower bound ${row.lo == null ? '—' : money(row.lo, true)}` : 'No resolved sample in this build yet.');
+    return `<li class="slot"><div class="row"><b>${esc(rule.label)}</b><span class="tag ${edge ? 'normal' : 'exploration'}">${edge ? 'graduated' : 'exploration'}</span></div><p class="note">${esc(stat)}</p><p class="note">${live.length ? live.map((p) => { const mk = predictMark(p); return `${esc(p.title)} · ${esc(p.side)} ${p.price.toFixed(3)} · $${p.sizeUsd.toFixed(2)} paper${mk == null ? '' : ` · mark ${money(mk, true)}`}`; }).join('<br>') : 'No open paper bet on this phone.'}</p></li>`;
+  }).join('');
+  const why = log.length
+    ? log.map((d) => `<li><span><b>${esc(d.title || d.rule || '?')}</b> <span class="tag ${d.action === 'take' ? 'normal' : 'off'}">${esc(d.action)}</span><br><span class="note">${esc(d.rule || '')} · ${esc(d.reason || '')}</span></span></li>`).join('')
+    : '<li><span class="empty">No prediction takes or skips yet. Start a paper session. A bet is recorded only inside a pre-registered window.</span></li>';
+  const quotes = (st.predictions || []).slice(0, 8);
+  return `<div class="card"><h2>Prediction</h2><p class="note">${esc(PREDICT_PRIOR.summary || 'Paper quotes only. No wallet.')}</p><p class="note">These bets are a separate paper book. They do not move the coin balance. A session end does not pay 1 or 0; only a resolution does, and that is what the study counts.</p><ul class="feed">${cards}</ul></div>
+  <div class="card"><h2>Why</h2><ul class="feed">${why}</ul></div>
+  <div class="card"><h2>Live quotes</h2><ul class="feed">${quotes.length ? quotes.map((p) => `<li><span><b>${esc(p.venue)}</b><br><span class="note">${esc(p.title)}</span></span><span class="note">${p.price == null ? '—' : esc(String(p.price))}</span></li>`).join('') : '<li><span class="empty">No prediction quote on the last scan.</span></li>'}</ul></div>`;
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -285,6 +325,7 @@ function home(st) {
   ${healthCard(st)}
   ${scanCard(st)}
   ${leaderCard(st)}
+  ${majorsCard()}
   ${whyCard(st)}
   <div class="card">
     <div class="row" style="margin-bottom:8px"><h2 style="margin:0">Equity</h2>
@@ -415,7 +456,7 @@ function settingsView(st) {
 function render() {
   if (!state) return;
   const v = $('#view');
-  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   const badge = $('#modeBadge');
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   if (ui.tab === 'home') { drawChart($('#chart'), state); updateTimer(); }
