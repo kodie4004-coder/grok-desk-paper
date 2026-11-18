@@ -149,6 +149,29 @@ Primary cost, chosen now: 0.30% round trip plus the same liquidity impact used e
 
 Windows are non-overlapping 7-day blocks. Same graduation rule. Live majors use the 24-hour price-change field as the stand-in for C1's close-to-close return, the same 0.30% cost, and exploration size unless that rule graduated.
 
+## v5 Kalshi 15-minute late favorite (frozen before testing)
+
+This rule is K1. It is not Polymarket P3 and it is not the cross-venue rule. Active mode is still not a study. Parameters below are fixed before the backfill runs.
+
+The browser cannot read `api.elections.kalshi.com`: a request with a page Origin is HTTP 403, and a browser User-Agent with no Origin returns `access-control-allow-origin: https://kalshi.com` only. The desk shows a same-origin snapshot. The backfill below is collected from this environment with a browser User-Agent and no Origin, which returns 200.
+
+Sample, frozen now:
+
+- Series, and only these: KXBTC15M, KXETH15M, KXSOL15M, KXXRP15M, KXDOGE15M, KXBNB15M, KXHYPE15M, KXZEC15M, KXNEAR15M, KXGOLD15M, KXSILVER15M, KXPLATINUM15M, KXPALLADIUM15M, KXCOPPER15M, KXWTI15M, KXBRENT15M, KXNATGAS15M, KXEURUSD15M, KXGBPUSD15M, KXUSDJPY15M, KXUSDCAD15M, KXAUDUSD15M, KXCRYPTOLEAD15M.
+- Settled markets with `close_time` on or after 2026-11-15T00:00:00Z, at most the 200 most recent per series.
+- Price is the 1-minute candle whose end is closest to 4 minutes before `close_time`. That end must sit inside the window from 5 minutes before close to 3 minutes before close. If no such candle exists, the market is skipped.
+- YES ask is that candle's `yes_ask.close_dollars`. NO ask is one minus that candle's `yes_bid.close_dollars`. Both quotes must be strictly between 0 and 1.
+
+K1 buys the favorite at its ask when that ask is at least 0.85. If both asks are at least 0.85, or neither is, there is no trade. Hold to the published `result`. Settlement pays 1 or 0 per contract and charges no second fee. Contracts are `floor(5 / ask)`, and a trade needs at least one contract.
+
+Fee, taker, from the Kalshi fee schedule effective 7 July 2026 (`fees = round up(0.07 × C × P × (1 − P))`, https://kalshi.com/docs/kalshi-fee-schedule.pdf). This paper account is not a direct member, so the fee is rounded up to the next $0.01, which matches the schedule's one-contract column and the non-direct balance grid (https://docs.kalshi.com/getting_started/fee_rounding).
+
+Windows are UTC days of `close_time`. A day graduates only with at least 20 trades, a positive mean, and a 90% cluster-bootstrap lower bound above zero, clustered by series. K1 graduates only if at least three such days all clear. Otherwise it stays at the fixed $5. The bootstrap is not retuned.
+
+Controls, same candle, not K1, and they cannot graduate: always buy YES at the YES ask; a coin-flip side is YES when the first byte of the ticker's character codes sums even, otherwise NO, bought at that side's ask.
+
+Live K1 uses the same favorite cut and the same fee. It may bet only when the snapshot is at most 120 seconds old and time left is between 180 and 300 seconds. One bet per ticker.
+
 ## Active mode is not a study
 
 Active mode loosens live thresholds so the phone shows paper trades, skips, and exits. Those fills live in their own book, labeled Active (exploration), at a fixed $5. They are not added to slot books, the edge book, or this protocol's graduation rule. A busy Active feed is not evidence of an edge.
