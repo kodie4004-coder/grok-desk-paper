@@ -87,6 +87,88 @@ export function coinFlipSide(ticker) {
   return sum % 2 === 0 ? 'yes' : 'no';
 }
 
+export function normalizeMarket(m) {
+  if (m.yesAsk != null && m.closeTime) return m;
+  return {
+    ticker: m.ticker,
+    series: String(m.ticker || '').split('-')[0],
+    title: m.title || m.ticker,
+    floorStrike: m.floor_strike ?? m.floorStrike ?? null,
+    yesBid: Number(m.yes_bid_dollars ?? m.yesBid),
+    yesAsk: Number(m.yes_ask_dollars ?? m.yesAsk),
+    noBid: Number(m.no_bid_dollars ?? m.noBid),
+    noAsk: Number(m.no_ask_dollars ?? m.noAsk),
+    closeTime: m.close_time || m.closeTime,
+    volume: Number(m.volume_fp ?? m.volume),
+    result: m.result || '',
+    status: m.status || '',
+  };
+}
+
+export async function loadKalshiBoard(fetchImpl = globalThis.fetch) {
+  const probe = 'https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=KXBTC15M&status=open&limit=1';
+  try {
+    const res = await fetchImpl(probe, { headers: { accept: 'application/json' } });
+    if (!res.ok) throw new Error('blocked');
+    const markets = [];
+    for (const series of KALSHI_SERIES) {
+      for (const status of ['open', 'settled']) {
+        const url = `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${series}&status=${status}&limit=${status === 'settled' ? 4 : 3}`;
+        const body = await (await fetchImpl(url, { headers: { accept: 'application/json' } })).json();
+        for (const m of body.markets || []) markets.push(normalizeMarket(m));
+      }
+    }
+    return { fetchedAt: new Date().toISOString(), via: 'kalshi', markets };
+  } catch {
+    const res = await fetchImpl('data/kalshi-15m.json');
+    if (!res || !res.ok) return { fetchedAt: null, via: 'unavailable', markets: [], cors: 'blocked' };
+    const body = await res.json();
+    return { ...body, via: body.via || 'snapshot' };
+  }
+}
+
+export function reviewKalshi(state, board, now) {
+  state.kalshiOpen ||= [];
+  state.kalshiClosed ||= [];
+  state.kalshiLog ||= [];
+  state.kalshiSeen ||= {};
+  const fetchedAt = Date.parse(board?.fetchedAt || '');
+  const notes = [];
+  const push = (row) => {
+    notes.push(row);
+    state.kalshiLog.push({ t: now, ...row });
+    if (state.kalshiLog.length > 80) state.kalshiLog.splice(0, state.kalshiLog.length - 80);
+  };
+  for (const raw of board?.markets || []) {
+    const m = normalizeMarket(raw);
+    if (m.result === 'yes' || m.result === 'no') {
+      const open = state.kalshiOpen.find((p) => p.ticker === m.ticker);
+      if (!open) continue;
+      const won = m.result === open.side;
+      const deal = settlePnl(open.ask, won);
+      state.kalshiOpen = state.kalshiOpen.filter((p) => p !== open);
+      state.kalshiClosed.push({ ...open, result: m.result, won, pnl: deal?.pnl ?? 0, fees: deal?.fee ?? open.fee, closedAt: now });
+      push({ action: 'settle', rule: 'k1', title: open.title || m.ticker, reason: `${m.result} result · ${won ? 'favorite won' : 'favorite lost'} · fee $${(deal?.fee ?? 0).toFixed(2)}` });
+      continue;
+    }
+    if (state.kalshiSeen[m.ticker] || state.kalshiOpen.some((p) => p.ticker === m.ticker)) continue;
+    const decision = liveK1(m, now, fetchedAt);
+    const left = (Date.parse(m.closeTime) - now) / 1000;
+    if (decision.action === 'take') {
+      state.kalshiSeen[m.ticker] = true;
+      state.kalshiOpen.push({
+        ticker: m.ticker, title: m.title, side: decision.side, ask: decision.ask,
+        contracts: decision.contracts, fee: decision.fee, sizeUsd: K1.budgetUsd, openedAt: now, rule: 'k1',
+      });
+      push({ action: 'take', rule: 'k1', title: m.title || m.ticker, reason: decision.reason });
+    } else if (left > 0 && left <= 20 * 60 && !state.kalshiSeen['skip:' + m.ticker]) {
+      state.kalshiSeen['skip:' + m.ticker] = true;
+      push({ action: 'skip', rule: 'k1', title: m.title || m.ticker, reason: decision.reason });
+    }
+  }
+  return notes;
+}
+
 export function liveK1(market, now, fetchedAt) {
   const close = Date.parse(market.closeTime || market.close_time || '');
   if (!close) return { action: 'skip', reason: 'no close time' };

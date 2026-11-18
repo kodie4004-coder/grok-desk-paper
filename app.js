@@ -4,6 +4,8 @@ import { SLOT_IDS, SLOT_SPEC, slotStatus, emptySlots } from './engine/strategies
 import { SLOT_PRIOR } from './engine/slot-prior.js';
 import { ACTIVE, activePace } from './engine/active.js';
 import { PREDICT_PRIOR } from './engine/predict-prior.js';
+import { KALSHI_PRIOR } from './engine/kalshi-prior.js';
+import { loadKalshiBoard, reviewKalshi } from './engine/kalshi.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
@@ -278,6 +280,43 @@ function studyRows(rows) {
 function majorsCard() {
   return `<div class="card"><h2>Liquid majors</h2><p class="note">${esc(MAJORS_PRIOR.summary || '')}</p><p class="note">Expectancy is dollars on a $25 paper trade after a 0.30% round trip. The lower bound is the 90% bootstrap over the whole sample. Graduation still needs three separate weeks of 20 trades.</p>${studyRows(MAJORS_PRIOR.rows || [])}</div>`;
 }
+function cents(x) {
+  return typeof x === 'number' && Number.isFinite(x) ? x.toFixed(2) : '—';
+}
+function leftLabel(close, now) {
+  const ms = Date.parse(close) - now;
+  if (!Number.isFinite(ms)) return '—';
+  const s = Math.round(ms / 1000);
+  const sign = s < 0 ? '−' : '';
+  const a = Math.abs(s);
+  return `${sign}${Math.floor(a / 60)}m ${String(a % 60).padStart(2, '0')}s`;
+}
+function kalshiCard(st) {
+  const board = st.kalshiBoard || {};
+  const now = Date.now();
+  const rows = (board.markets || [])
+    .filter((m) => !m.result)
+    .sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))
+    .slice(0, 12);
+  const k1 = (KALSHI_PRIOR.rows || []).find((r) => r.id === 'k1');
+  const edge = KALSHI_PRIOR.edges?.k1 === true;
+  const controls = KALSHI_PRIOR.controls || {};
+  const ctl = (name, row) => row && row.n ? `${name} n ${row.n} · win ${Math.round(row.winRate * 100)}% · mean ${money(row.mean, true)}` : `${name} not in this build`;
+  const list = rows.length ? rows.map((m) => `<li class="slot"><div class="row"><b>${esc(m.series || '')}</b><span class="note">${leftLabel(m.closeTime, now)}</span></div><p class="note">${esc(m.title || '')}${m.floorStrike == null ? '' : ` · target ${esc(String(m.floorStrike))}`}</p><p class="kmeta">Up ${cents(m.yesBid)} / ${cents(m.yesAsk)} · Down ${cents(m.noBid)} / ${cents(m.noAsk)} · vol ${m.volume ? Math.round(m.volume).toLocaleString() : '—'}</p></li>`).join('') : '<li><span class="empty">No open 15-minute market in the latest snapshot.</span></li>';
+  const log = (st.kalshiLog || []).slice(-6).reverse();
+  const why = log.length ? log.map((d) => `<li><span><b>${esc(d.title || 'K1')}</b> <span class="tag ${d.action === 'take' ? 'normal' : 'off'}">${esc(d.action)}</span><br><span class="note">${esc(d.reason || '')}</span></span></li>`).join('') : '<li><span class="empty">No K1 take or skip yet. A bet needs a quote under two minutes old and 3 to 5 minutes left.</span></li>';
+  const phone = st.kalshiClosed || [];
+  const phoneNet = phone.reduce((a, t) => a + (t.pnl || 0), 0);
+  return `<div class="card"><h2>Kalshi 15-minute</h2>
+    <p class="note">The public API answers a normal browser User-Agent, then refuses every other page Origin with HTTP 403. This board reads <code>data/kalshi-15m.json</code>, refreshed every five minutes once that job is on main. Quote ${esc(board.fetchedAt || 'not loaded')} · ${esc(board.via || 'snapshot')}.</p>
+    <ul class="feed">${list}</ul></div>
+  <div class="card"><div class="row"><h2 style="margin:0">K1 late favorite</h2><span class="tag ${edge ? 'normal' : 'exploration'}">${edge ? 'graduated' : 'exploration'}</span></div>
+    <p class="note">${esc(KALSHI_PRIOR.summary || '')}</p>
+    <p class="note">${k1 ? `Study trades ${k1.n} · days ${k1.windows} · win ${k1.winRate == null ? '—' : Math.round(k1.winRate * 100) + '%'} · ask ${k1.avgAsk == null ? '—' : k1.avgAsk.toFixed(3)} · mean ${k1.mean == null ? '—' : money(k1.mean, true)} · lower bound ${k1.lo == null ? '—' : money(k1.lo, true)}` : 'No study row yet.'}</p>
+    <p class="note">${esc(ctl('Always Up', controls.alwaysUp))} · ${esc(ctl('Coin-flip', controls.coinFlip))}</p>
+    <p class="note">This phone: ${phone.length} settled · net ${money(phoneNet, true)} · ${(st.kalshiOpen || []).length} open. Fixed $5. Not part of the coin edge book.</p>
+    <ul class="feed">${why}</ul></div>`;
+}
 function predictMark(p) {
   if (!(p.mark > 0 && p.mark < 1) || !(p.price > 0)) return null;
   const nowPx = p.side === 'yes' ? p.mark : 1 - p.mark;
@@ -297,7 +336,7 @@ function predictView(st) {
     const live = open.filter((p) => p.rule === rule.id);
     const edge = PREDICT_PRIOR.edges?.[rule.id] === true;
     const stat = rule.id === 'p4'
-      ? 'Kalshi did not answer. This rule is registered and untested.'
+      ? 'Cross-venue gaps are still untested. The 15-minute board is a separate rule.'
       : (row ? `Trades ${row.n} · windows ${row.windows} · expectancy ${row.mean == null ? '—' : money(row.mean, true)} per $1 · lower bound ${row.lo == null ? '—' : money(row.lo, true)}` : 'No resolved sample in this build yet.');
     return `<li class="slot"><div class="row"><b>${esc(rule.label)}</b><span class="tag ${edge ? 'normal' : 'exploration'}">${edge ? 'graduated' : 'exploration'}</span></div><p class="note">${esc(stat)}</p><p class="note">${live.length ? live.map((p) => { const mk = predictMark(p); return `${esc(p.title)} · ${esc(p.side)} ${p.price.toFixed(3)} · $${p.sizeUsd.toFixed(2)} paper${mk == null ? '' : ` · mark ${money(mk, true)}`}`; }).join('<br>') : 'No open paper bet on this phone.'}</p></li>`;
   }).join('');
@@ -305,7 +344,8 @@ function predictView(st) {
     ? log.map((d) => `<li><span><b>${esc(d.title || d.rule || '?')}</b> <span class="tag ${d.action === 'take' ? 'normal' : 'off'}">${esc(d.action)}</span><br><span class="note">${esc(d.rule || '')} · ${esc(d.reason || '')}</span></span></li>`).join('')
     : '<li><span class="empty">No prediction takes or skips yet. Start a paper session. A bet is recorded only inside a pre-registered window.</span></li>';
   const quotes = (st.predictions || []).slice(0, 8);
-  return `<div class="card"><h2>Prediction</h2><p class="note">${esc(PREDICT_PRIOR.summary || 'Paper quotes only. No wallet.')}</p><p class="note">These bets are a separate paper book. They do not move the coin balance. A session end does not pay 1 or 0; only a resolution does, and that is what the study counts.</p><ul class="feed">${cards}</ul></div>
+  return `${kalshiCard(st)}
+  <div class="card"><h2>Prediction</h2><p class="note">${esc(PREDICT_PRIOR.summary || 'Paper quotes only. No wallet.')}</p><p class="note">These bets are a separate paper book. They do not move the coin balance. A session end does not pay 1 or 0; only a resolution does, and that is what the study counts.</p><ul class="feed">${cards}</ul></div>
   <div class="card"><h2>Why</h2><ul class="feed">${why}</ul></div>
   <div class="card"><h2>Live quotes</h2><ul class="feed">${quotes.length ? quotes.map((p) => `<li><span><b>${esc(p.venue)}</b><br><span class="note">${esc(p.title)}</span></span><span class="note">${p.price == null ? '—' : esc(String(p.price))}</span></li>`).join('') : '<li><span class="empty">No prediction quote on the last scan.</span></li>'}</ul></div>`;
 }
@@ -544,7 +584,18 @@ function bind() {
   const n = $('#notify'); if (n) n.onchange = async () => { ui.notify = n.checked; if (n.checked && 'Notification' in window) { const p = await Notification.requestPermission(); ui.notify = p === 'granted'; } localStorage.setItem('gd.notify', ui.notify ? '1' : '0'); render(); };
   const w = $('#wipe'); if (w) w.onclick = async () => { if (!confirm('Erase all local paper data?')) return; live = newState(loadSettings(), Date.now()); state = live; await persist(); render(); };
 }
-document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tab; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); window.scrollTo(0, 0); }));
+async function refreshKalshi() {
+  if (!live || ui.replay || ui.kalshiBusy) return;
+  ui.kalshiBusy = true;
+  try {
+    const board = await loadKalshiBoard(fetch);
+    live.kalshiBoard = board;
+    reviewKalshi(live, board, Date.now());
+    if (state === live) { await persist(); if (ui.tab === 'predict') render(); }
+  } catch { /* keep the last board */ }
+  finally { ui.kalshiBusy = false; }
+}
+document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tab; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); window.scrollTo(0, 0); if (b.dataset.tab === 'predict') refreshKalshi(); }));
 window.addEventListener('resize', () => ui.tab === 'home' && state && drawChart($('#chart'), state));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) liveTick(); });
 
@@ -555,6 +606,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) live
   if (!live.slots) live.slots = emptySlots();
   if (!Array.isArray(live.decisions)) live.decisions = [];
   state = live; render();
+  refreshKalshi();
+  setInterval(refreshKalshi, 20000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   const q = new URLSearchParams(location.search);
   if (q.get('replay') === '1') startReplay();

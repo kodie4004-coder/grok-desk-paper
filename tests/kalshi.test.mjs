@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { kalshiTakerFee, favoriteSide, candleInWindow, asksFromCandle, settlePnl, coinFlipSide, liveK1, K1 } from '../engine/kalshi.js';
+import { kalshiTakerFee, favoriteSide, candleInWindow, asksFromCandle, settlePnl, coinFlipSide, liveK1, K1, loadKalshiBoard, reviewKalshi } from '../engine/kalshi.js';
 
 test('taker fee matches the one-contract column of the July 2026 schedule', () => {
   assert.equal(kalshiTakerFee(0.5, 1), 0.02);
@@ -46,4 +46,28 @@ test('live K1 waits for a fresh quote inside the last three to five minutes', ()
   assert.equal(liveK1({ ...market, closeTime: '2026-11-18T05:00:00Z' }, now, now).action, 'skip');
   assert.equal(liveK1({ ...market, yesAsk: 0.5, noAsk: 0.52 }, now, now).action, 'skip');
   assert.ok(K1.minAsk === 0.85);
+});
+
+test('a blocked browser falls back to the snapshot and a paper bet stays out of the coin book', async () => {
+  const board = {
+    fetchedAt: '2026-11-18T04:26:00.000Z',
+    markets: [{ ticker: 'T1', title: 'BTC up', yesAsk: 0.9, noAsk: 0.11, closeTime: '2026-11-18T04:30:00Z', result: '', status: 'active' }],
+  };
+  const fetchImpl = async (url) => {
+    if (String(url).includes('kalshi.com')) throw new Error('CORS');
+    return { ok: true, json: async () => board };
+  };
+  const loaded = await loadKalshiBoard(fetchImpl);
+  assert.equal(loaded.via, 'snapshot');
+  const st = { closed: [], edgeBook: [] };
+  const now = Date.parse('2026-11-18T04:26:00Z');
+  reviewKalshi(st, loaded, now);
+  assert.equal(st.kalshiOpen.length, 1);
+  assert.equal(st.kalshiOpen[0].sizeUsd, 5);
+  assert.equal(st.closed.length, 0);
+  assert.equal(st.kalshiOpen[0].fee, kalshiTakerFee(0.9, st.kalshiOpen[0].contracts));
+  reviewKalshi(st, { fetchedAt: loaded.fetchedAt, markets: [{ ...board.markets[0], result: 'yes' }] }, now + 60000);
+  assert.equal(st.kalshiOpen.length, 0);
+  assert.equal(st.kalshiClosed[0].won, true);
+  assert.equal(st.closed.length, 0);
 });
