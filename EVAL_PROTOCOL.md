@@ -149,6 +149,10 @@ Primary cost, chosen now: 0.30% round trip plus the same liquidity impact used e
 
 Windows are non-overlapping 7-day blocks. Same graduation rule. Live majors use the 24-hour price-change field as the stand-in for C1's close-to-close return, the same 0.30% cost, and exploration size unless that rule graduated.
 
+## Active mode is not a study
+
+Active mode loosens live thresholds so the phone shows paper trades, skips, and exits. Those fills live in their own book, labeled Active (exploration), at a fixed $5. They are not added to slot books, the edge book, or this protocol's graduation rule. A busy Active feed is not evidence of an edge.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

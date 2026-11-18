@@ -14,9 +14,17 @@ const GT_LISTS = [
   `${GT_ROOT}/networks/base/trending_pools?page=1`,
   `${GT_ROOT}/networks/bsc/trending_pools?page=1`,
   `${GT_ROOT}/networks/eth/trending_pools?page=1`,
+  `${GT_ROOT}/networks/polygon_pos/trending_pools?page=1`,
+  `${GT_ROOT}/networks/optimism/trending_pools?page=1`,
+  `${GT_ROOT}/networks/avax/trending_pools?page=1`,
 ];
-const SCAN_CHAINS = ['solana', 'ethereum', 'base', 'bsc', 'arbitrum'];
+const SCAN_CHAINS = ['solana', 'ethereum', 'base', 'bsc', 'arbitrum', 'polygon', 'optimism', 'avalanche'];
 import { backoffMs } from './strategies.js';
+
+const num = (x) => {
+  const n = typeof x === 'string' ? Number(x) : x;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+};
 
 function normPool(p) {
   const a = p.attributes, rel = p.relationships || {};
@@ -152,7 +160,8 @@ export function createLiveSource({ fetchImpl = globalThis.fetch, gtGapMs = 7000 
       return out;
     },
     // Frequent multi-chain scan. DexScreener does the wide pass. GeckoTerminal is one list, and only on even ticks.
-    async discover(tick = 0) {
+    async discover(tick = 0, opts = {}) {
+      const wide = !!opts.wide;
       const pools = [];
       const feed = [];
       const notes = [];
@@ -165,8 +174,9 @@ export function createLiveSource({ fetchImpl = globalThis.fetch, gtGapMs = 7000 
           const list = byChain.get(r.chainId);
           if (list.length < 30 && !list.includes(r.tokenAddress)) list.push(r.tokenAddress);
         }
-        const chains = [...byChain.keys()].slice((tick % Math.max(1, byChain.size)), (tick % Math.max(1, byChain.size)) + 3);
-        const use = chains.length ? chains : [...byChain.keys()].slice(0, 3);
+        const take = wide ? 5 : 3;
+        const chains = [...byChain.keys()].slice((tick % Math.max(1, byChain.size)), (tick % Math.max(1, byChain.size)) + take);
+        const use = chains.length ? chains : [...byChain.keys()].slice(0, take);
         for (const chain of use) {
           const addrs = byChain.get(chain) || [];
           if (!addrs.length) continue;
@@ -193,11 +203,24 @@ export function createLiveSource({ fetchImpl = globalThis.fetch, gtGapMs = 7000 
           }
         } catch (e) { notes.push(`gecko: ${e.message}`); }
       }
+      if (wide) {
+        const q = ['SOL', 'ETH', 'PEPE', 'WIF', 'BONK'][tick % 5];
+        try {
+          const body = await get(`${DS}/latest/dex/search?q=${q}`);
+          for (const p of (body.pairs || []).slice(0, 20)) {
+            const pool = pairToPool(p);
+            if (!pool.pool || !pool.token || !SCAN_CHAINS.includes(pool.chain)) continue;
+            if (pools.some((x) => x.pool === pool.pool)) continue;
+            pools.push(pool);
+            feed.push({ chain: pool.chain, symbol: pool.symbol, liq: pool.liq, dex: pool.dex, via: 'search' });
+          }
+        } catch (e) { notes.push(`search: ${e.message}`); }
+      }
       let predictions = [];
       try {
-        predictions = await cached('predict', 60000, () => loadPredictions(get));
+        predictions = await cached(wide ? 'predict-wide' : 'predict', wide ? 20000 : 60000, () => loadPredictions(get, wide ? 30 : 8));
       } catch (e) { notes.push(`predict: ${e.message}`); }
-      return { pools, feed: feed.slice(0, 16), predictions, note: notes.join(' · ') };
+      return { pools, feed: feed.slice(0, wide ? 24 : 16), predictions, note: notes.join(' · ') };
     },
   };
 }
@@ -223,11 +246,14 @@ function pairToPool(p) {
   };
 }
 
-async function loadPredictions(get) {
+async function loadPredictions(get, limit = 8) {
   const out = [];
+  const url = limit > 8
+    ? 'https://gamma-api.polymarket.com/markets?closed=false&limit=40&order=volumeNum&ascending=false'
+    : POLY;
   try {
-    const rows = await get(POLY);
-    for (const m of (Array.isArray(rows) ? rows : []).slice(0, 8)) {
+    const rows = await get(url);
+    for (const m of (Array.isArray(rows) ? rows : []).slice(0, limit)) {
       let yes = null;
       try { yes = JSON.parse(m.outcomePrices || '[]')[0]; } catch { yes = null; }
       out.push({

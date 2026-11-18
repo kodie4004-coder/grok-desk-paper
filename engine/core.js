@@ -52,6 +52,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   impactModel: true,
   // Liquid-major paper entries. Replay tapes from before this flag stay on the old path.
   majorsPaper: true,
+  // Separate exploration book. Off unless this is exactly true, so old replays stay on the gated path.
+  activeMode: true,
+  activeTickSec: 15,
 });
 
 export const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
