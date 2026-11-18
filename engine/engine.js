@@ -7,6 +7,7 @@ import { PREDICT_RULES } from './predict.js';
 import { PREDICT_PRIOR } from './predict-prior.js';
 import { isMajor, MAJOR_FEE } from './majors.js';
 import { MAJORS_PRIOR } from './majors-prior.js';
+import { ACTIVE, ACTIVE_COIN_RULES, ACTIVE_PREDICT_RULES, activeSignals, activePredictPicks, dayKey, flatFee, predictRoundTrip } from './active.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
 const MAX_LOG = 600, MAX_WT = 15000, MAX_VERDICTS = 1500, MAX_PASS = 1500;
@@ -402,13 +403,167 @@ function considerPredictions(state, now) {
   }
 }
 
+function pushActive(state, now, row) {
+  (state.activeFeed ||= []).push({ t: now, bucket: 'Active (exploration)', ...row });
+  if (state.activeFeed.length > 80) state.activeFeed.splice(0, state.activeFeed.length - 80);
+}
+
+function activeEquity(state) {
+  const cash = state.activeCash ?? state.startBank ?? state.settings.bank;
+  return cash + (state.activeOpen || []).reduce((a, p) => a + activeMarkValue(p), 0);
+}
+
+function activeMarkValue(p) {
+  if (p.kind === 'predict') {
+    const mark = p.mark ?? p.entry;
+    const r = predictRoundTrip(p.entry, mark, p.sizeUsd, p.rate ?? 0);
+    return p.sizeUsd + r.pnl;
+  }
+  const px = p.lastPrice ?? p.entryMid;
+  return p.qty * C.fillPrice(px, 'sell', p.feePct);
+}
+
+async function quoteToken(src, token, chain) {
+  if (!token) return null;
+  const quote = chain && chain !== 'solana' ? await src.prices([token], chain) : await src.prices([token]);
+  return quote?.[token] || null;
+}
+
+function closeActive(state, p, now, emit, result, reason) {
+  state.activeCash += p.sizeUsd + result.pnl;
+  state.activeOpen = state.activeOpen.filter((x) => x !== p);
+  const row = {
+    ...p, closedAt: now, pnl: r2(result.pnl), fees: r2(result.fees), exitReason: reason, bucket: 'Active (exploration)',
+  };
+  state.activeClosed.push(row);
+  pushActive(state, now, { kind: 'exit', rule: p.rule, symbol: p.symbol, text: `EXIT ${p.symbol} ${reason} · ${result.pnl >= 0 ? '+' : ''}$${r2(result.pnl)} · fee $${r2(result.fees)}`, pnl: r2(result.pnl), fee: r2(result.fees) });
+  emit && emit({ type: 'trade', side: 'sell', pnl: result.pnl, text: `Active exit ${p.symbol} ${reason} · fee $${r2(result.fees)}` });
+}
+
+async function markActive(state, src, now, emit, safe) {
+  const open = state.activeOpen || [];
+  const coins = open.filter((p) => p.kind !== 'predict');
+  const prices = coins.length ? (await safe('active marks', () => fetchOpenPrices(src, coins))) || {} : {};
+  for (const p of [...open]) {
+    if (p.kind === 'predict') {
+      const live = (state.predictions || []).find((m) => m.id && m.id === p.marketId);
+      if (live && live.price > 0 && live.price < 1) p.mark = p.side === 'yes' ? live.price : 1 - live.price;
+      if (now - p.openedAt >= ACTIVE.predictHoldMin * 60000 && p.mark > 0) {
+        closeActive(state, p, now, emit, predictRoundTrip(p.entry, p.mark, p.sizeUsd, p.rate ?? 0), `TIME ${ACTIVE.predictHoldMin}m`);
+      }
+      continue;
+    }
+    const px = prices[p.token];
+    if (px) { p.lastPrice = px; p.peak = Math.max(p.peak || p.entryMid, px); }
+    const ex = C.exitCheck(p, p.lastPrice, now, { trailingPct: 0, stopPct: p.stopPct, takeProfitPct: p.takeProfitPct, maxHoldMin: p.maxHoldMin });
+    if (ex) p.peak = ex.peak;
+    if (!ex?.reason) continue;
+    const r = C.tradePnl({ entryMid: p.entryMid, exitMid: p.lastPrice, sizeUsd: p.sizeUsd, feePct: p.feePct });
+    closeActive(state, p, now, emit, r, ex.reason);
+  }
+}
+
+async function runActive(state, src, pools, now, emit, safe) {
+  if (state.settings.activeMode !== true) return;
+  state.activeOpen ||= [];
+  state.activeClosed ||= [];
+  state.activeLast ||= {};
+  if (state.activeCash == null) state.activeCash = state.startBank || state.settings.bank;
+  const day = dayKey(now);
+  if (state.activeDayKey !== day) {
+    state.activeDayKey = day;
+    state.activeDayStart = activeEquity(state);
+    if (state.activePausedDay && state.activePausedDay !== day) state.activePausedDay = null;
+  }
+  await markActive(state, src, now, emit, safe);
+  if (state.activePausedDay === day) {
+    pushActive(state, now, { kind: 'skip', rule: 'pause', symbol: 'ACTIVE', text: 'Paused for the day. Paper drawdown hit $25. Size stays $5.' });
+    return;
+  }
+  for (const rule of ACTIVE_COIN_RULES) {
+    if (now - (state.activeLast[rule] || 0) < ACTIVE.ruleGapMs) continue;
+    const hit = [];
+    for (const pool of pools) {
+      if (state.activeOpen.some((p) => p.token === pool.token)) continue;
+      const sig = activeSignals(pool).find((s) => s.slot === rule);
+      if (sig) hit.push({ pool, sig });
+    }
+    if (!hit.length) {
+      pushActive(state, now, { kind: 'skip', rule, symbol: rule, text: `${rule} skipped · no pool in the loose band` });
+      continue;
+    }
+    if (state.activeOpen.length >= ACTIVE.maxOpen || state.activeCash < ACTIVE.sizeUsd - 1e-6) {
+      pushActive(state, now, { kind: 'skip', rule, symbol: hit[0].pool.symbol, text: `${rule} skipped · book full or cash reserved. Size stays $${ACTIVE.sizeUsd}.` });
+      continue;
+    }
+    const { pool, sig } = hit[0];
+    const chain = pool.chain || 'solana';
+    const px = (await safe(`active ${rule}`, () => quoteToken(src, pool.token, chain))) || pool.priceUsd;
+    if (!(px > 0)) {
+      pushActive(state, now, { kind: 'skip', rule, symbol: pool.symbol, text: `${pool.symbol} skipped · no price` });
+      continue;
+    }
+    const feePct = ACTIVE.feePct + (state.settings.impactModel ? C.roundTripImpactPct(ACTIVE.sizeUsd, pool.liq) : 0);
+    const fill = C.fillPrice(px, 'buy', feePct);
+    const fee = flatFee(ACTIVE.sizeUsd, feePct);
+    const pos = {
+      id: 'A' + now.toString(36) + rule, kind: 'coin', rule, symbol: pool.symbol, token: pool.token, pool: pool.pool, chain,
+      entryMid: px, entryFill: fill, qty: ACTIVE.sizeUsd / fill, sizeUsd: ACTIVE.sizeUsd, feePct, fee: r2(fee),
+      stop: px * (1 - ACTIVE.stopPct / 100), tp: px * (1 + ACTIVE.takeProfitPct / 100),
+      stopPct: ACTIVE.stopPct, takeProfitPct: ACTIVE.takeProfitPct, maxHoldMin: ACTIVE.holdMin, trailActivatePct: 0,
+      peak: px, lastPrice: px, openedAt: now, bucket: 'Active (exploration)', reason: sig.reason,
+    };
+    state.activeCash -= ACTIVE.sizeUsd;
+    state.activeOpen.push(pos);
+    state.activeLast[rule] = now;
+    pushActive(state, now, { kind: 'entry', rule, symbol: pool.symbol, text: `ENTRY ${pool.symbol} $${ACTIVE.sizeUsd} · ${rule} · ${sig.reason} · fee $${r2(fee)}`, fee: r2(fee) });
+    emit && emit({ type: 'trade', side: 'buy', text: `Active ${pool.symbol} $${ACTIVE.sizeUsd} · ${rule} · fee $${r2(fee)}` });
+  }
+  for (const rule of ACTIVE_PREDICT_RULES) {
+    if (now - (state.activeLast[rule] || 0) < ACTIVE.ruleGapMs) continue;
+    let took = false;
+    for (const market of state.predictions || []) {
+      if (market.venue !== 'Polymarket') continue;
+      const pick = activePredictPicks(market, now).find((p) => p.rule === rule);
+      if (!pick) continue;
+      if (state.activeOpen.some((p) => p.marketId === market.id && p.rule === rule)) continue;
+      if (state.activeOpen.length >= ACTIVE.maxOpen || state.activeCash < ACTIVE.sizeUsd - 1e-6) {
+        pushActive(state, now, { kind: 'skip', rule, symbol: 'POLY', text: `${rule} skipped · book full. Size stays $${ACTIVE.sizeUsd}.` });
+        took = true;
+        break;
+      }
+      const rate = typeof market.feeRate === 'number' ? market.feeRate : 0.07;
+      const fee = predictRoundTrip(pick.price, pick.price, ACTIVE.sizeUsd, rate).fees;
+      state.activeCash -= ACTIVE.sizeUsd;
+      state.activeOpen.push({
+        id: 'A' + now.toString(36) + rule, kind: 'predict', rule, symbol: pick.side.toUpperCase(), title: market.title,
+        marketId: market.id, side: pick.side, entry: pick.price, mark: pick.price, rate, sizeUsd: ACTIVE.sizeUsd,
+        fee: r2(fee), openedAt: now, bucket: 'Active (exploration)', reason: pick.reason,
+      });
+      state.activeLast[rule] = now;
+      pushActive(state, now, { kind: 'entry', rule, symbol: market.title || rule, text: `ENTRY ${rule} ${pick.side} ${pick.price.toFixed(3)} · $${ACTIVE.sizeUsd} · ${pick.reason} · fee $${r2(fee)}`, fee: r2(fee) });
+      emit && emit({ type: 'trade', side: 'buy', text: `Active ${rule} $${ACTIVE.sizeUsd} · fee $${r2(fee)}` });
+      took = true;
+      break;
+    }
+    if (!took) pushActive(state, now, { kind: 'skip', rule, symbol: rule, text: `${rule} skipped · no Polymarket quote in the loose band` });
+  }
+  const eq = activeEquity(state);
+  if (state.activeDayStart - eq >= ACTIVE.dayLossUsd) {
+    state.activePausedDay = day;
+    pushActive(state, now, { kind: 'skip', rule: 'pause', symbol: 'ACTIVE', text: `Paused for the day. Down $${r2(state.activeDayStart - eq)} from the day's start. Size stays $${ACTIVE.sizeUsd}.` });
+  }
+}
+
 // Price open positions between scout ticks. DexScreener, not the GeckoTerminal budget.
 export async function mark(state, src, now, emit = () => {}) {
-  if (!state.running || !state.open.length || !(state.settings.markSec > 0)) return state;
+  const activeOpen = state.settings.activeMode === true && (state.activeOpen || []).length;
+  if (!state.running || !(state.settings.markSec > 0) || (!state.open.length && !activeOpen)) return state;
   state.lastMarkAt = now;
   const safe = async (label, fn) => { try { return await fn(); } catch (e) { state.errors++; log(state, now, 'ERR', `${label}: ${e.message}`); return null; } };
-  const prices = (await safe('mark', () => fetchOpenPrices(src, state.open))) || {};
+  const prices = state.open.length ? (await safe('mark', () => fetchOpenPrices(src, state.open))) || {} : {};
   await managePositions(state, src, now, emit, prices, null, safe);
+  if (activeOpen) await markActive(state, src, now, emit, safe);
   state.equity.push({ t: now, v: r2(equityNow(state)) });
   if (state.equity.length > 3000) state.equity.splice(1, 1);
   return state;
@@ -424,7 +579,7 @@ export async function tick(state, src, now, emit = () => {}) {
   // 1) SCOUT
   const pools = [];
   if (s.fastScan && typeof src.discover === 'function') {
-    const d = await safe('discover', () => src.discover(state.tick));
+    const d = await safe('discover', () => src.discover(state.tick, s.activeMode === true ? { wide: true } : undefined));
     if (d) {
       for (const p of d.pools || []) if (p.pool && !pools.some((x) => x.pool === p.pool)) pools.push(p);
       state.predictions = d.predictions || [];
@@ -552,6 +707,8 @@ export async function tick(state, src, now, emit = () => {}) {
     const pr = (await safe('24h check', () => src.prices([...new Set(dueChecks.map((x) => x.token))]))) || {};
     for (const x of dueChecks) if (pr[x.token]) { x.checked = true; x.later = pr[x.token]; x.green = C.fillPrice(pr[x.token], 'sell', s.feePct) > C.fillPrice(x.price, 'buy', s.feePct); }
   }
+
+  await runActive(state, src, pools, now, emit, safe);
 
   state.equity.push({ t: now, v: r2(equityNow(state)) });
   if (state.equity.length > 3000) state.equity.splice(1, 1);

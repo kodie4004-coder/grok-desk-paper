@@ -2,6 +2,7 @@
 import { DEFAULT_SETTINGS, RESEARCH_PRIOR, calibration, settingsLocked, updateSettings, strategyHealth, participationDecision, equityDrawdown } from './engine/core.js';
 import { SLOT_IDS, SLOT_SPEC, slotStatus, emptySlots } from './engine/strategies.js';
 import { SLOT_PRIOR } from './engine/slot-prior.js';
+import { ACTIVE, activePace } from './engine/active.js';
 import { PREDICT_PRIOR } from './engine/predict-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
@@ -58,8 +59,13 @@ async function liveTick() {
   try { await tick(live, src, Date.now(), toast); await persist(); } finally { ui.busy = false; }
   render();
 }
+function scanEveryMs(st) {
+  if (!st?.settings) return 60000;
+  return (st.settings.activeMode === true ? (st.settings.activeTickSec || ACTIVE.tickSec) : (st.settings.tickSec || 60)) * 1000;
+}
 async function liveMark() {
-  if (!live?.running || ui.busy || ui.replay || !live.open.length) return;
+  const activeOpen = live?.settings?.activeMode === true && (live.activeOpen || []).length;
+  if (!live?.running || ui.busy || ui.replay || (!live.open.length && !activeOpen)) return;
   const markSec = live.settings.markSec || 0;
   if (!(markSec > 0)) return;
   if (Date.now() - Math.max(live.lastMarkAt || 0, live.lastTickAt || 0) < markSec * 1000) return;
@@ -69,7 +75,7 @@ async function liveMark() {
 }
 setInterval(() => {
   if (live?.running && !ui.replay) {
-    const due = Date.now() - (live.lastTickAt || 0) >= (live.settings.tickSec || 60) * 1000;
+    const due = Date.now() - (live.lastTickAt || 0) >= scanEveryMs(live);
     if (due) liveTick(); else liveMark();
   }
   if (ui.tab === 'home') updateTimer();
@@ -160,7 +166,8 @@ function updateTimer() {
   const lt = $('#lastTick');
   if (lt && state.mode !== 'replay' && state.running) {
     const ago = Date.now() - (state.lastTickAt || state.startedAt);
-    lt.innerHTML = ago > (state.settings.tickSec + 30) * 1000 ? `<span class="y">Last market check ${Math.round(ago / 1000)}s ago. Phones pause background tabs; the desk only runs while this page is open.</span>` : `Next market check in ${Math.max(0, Math.round(state.settings.tickSec - ago / 1000))}s`;
+    const every = Math.round(scanEveryMs(state) / 1000);
+    lt.innerHTML = ago > (every + 30) * 1000 ? `<span class="y">Last market check ${Math.round(ago / 1000)}s ago. Phones pause background tabs; the desk only runs while this page is open.</span>` : `Next market check in ${Math.max(0, Math.round(every - ago / 1000))}s`;
   }
   const link = $('#linkState');
   if (link && state.mode !== 'replay') {
@@ -302,6 +309,42 @@ function predictView(st) {
   <div class="card"><h2>Why</h2><ul class="feed">${why}</ul></div>
   <div class="card"><h2>Live quotes</h2><ul class="feed">${quotes.length ? quotes.map((p) => `<li><span><b>${esc(p.venue)}</b><br><span class="note">${esc(p.title)}</span></span><span class="note">${p.price == null ? '—' : esc(String(p.price))}</span></li>`).join('') : '<li><span class="empty">No prediction quote on the last scan.</span></li>'}</ul></div>`;
 }
+function activeCard(st) {
+  const on = st.settings?.activeMode === true;
+  const pace = activePace();
+  const open = st.activeOpen || [];
+  const closed = st.activeClosed || [];
+  const fees = closed.reduce((a, t) => a + (t.fees || 0), 0) + open.reduce((a, t) => a + (t.fee || 0), 0);
+  const net = closed.reduce((a, t) => a + (t.pnl || 0), 0);
+  const paused = st.activePausedDay && st.activePausedDay === new Date().toISOString().slice(0, 10);
+  const rows = (st.activeFeed || []).slice(-8).reverse();
+  const list = rows.length
+    ? rows.map((d, i) => `<li class="${i === 0 ? 'in' : ''}"><span><b>${esc(d.symbol || d.rule || 'scan')}</b> <span class="tag explore">Active (exploration)</span><br><span class="note">${esc(d.text || '')}</span></span></li>`).join('')
+    : '<li><span class="empty">Feed starts when a paper session is running. Entries, exits, and skips show up here. They are not the gated book.</span></li>';
+  return `<div class="card active-card">
+    <div class="row"><h2 style="margin:0">Active mode</h2><button type="button" class="switch ${on ? 'on' : ''}" id="activeToggle" aria-pressed="${on}">${on ? 'ON' : 'OFF'}</button></div>
+    <p class="tag explore">Active (exploration)</p>
+    <p class="note">Separate paper book. These trades do not count toward the edge gate or graduation. Each fill is $${ACTIVE.sizeUsd} and a loss does not raise that. A $${ACTIVE.dayLossUsd} daily drawdown pauses new Active entries until the next UTC day. Fees are on every line.</p>
+    <p class="note">Scan every ${pace.tickSec}s while this is on. About ${Math.round(pace.steadyPerHour)} paper entries an hour once 12 positions are turning over, and a feed line every scan.</p>
+    <div class="grid" style="margin:8px 0">
+      <div class="stat"><small>Open</small><b>${open.length}</b><span class="note">of ${ACTIVE.maxOpen}</span></div>
+      <div class="stat"><small>Closed net</small><b class="${net < 0 ? 'r' : 'g'}">${money(net, true)}</b></div>
+      <div class="stat"><small>Fees shown</small><b>${money(fees)}</b></div>
+    </div>
+    ${paused ? '<p class="note r">Paused for the day. The drawdown cap hit. Size is still $5.</p>' : ''}
+    <ul class="feed">${list}</ul>
+  </div>`;
+}
+function paintTicker(st) {
+  const bar = $('#ticker');
+  const track = $('#tickerTrack');
+  if (!bar || !track) return;
+  const rows = (st.activeFeed || []).slice(-10);
+  if (!rows.length || st.mode === 'replay') { bar.hidden = true; track.textContent = ''; return; }
+  const text = rows.map((d) => d.text).join('   ·   ');
+  track.innerHTML = `<span>${esc(text)}</span><span>${esc(text)}</span>`;
+  bar.hidden = false;
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -310,6 +353,7 @@ function home(st) {
   const unreal = st.open.reduce((a, p) => a + (p.qty * (p.lastPrice ?? p.entryMid) * (1 - st.settings.feePct / 200) - p.sizeUsd), 0);
   const isReplay = st.mode === 'replay';
   return `
+  ${activeCard(st)}
   ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card hero ${net < 0 ? 'down' : ''}">
     <div class="row"><h2 style="margin:0">${isReplay ? 'Replay balance' : 'Paper balance'}</h2><span class="note" id="timer"></span></div>
@@ -459,6 +503,7 @@ function render() {
   v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   const badge = $('#modeBadge');
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
+  paintTicker(state);
   if (ui.tab === 'home') { drawChart($('#chart'), state); updateTimer(); }
   bind();
 }
@@ -467,6 +512,12 @@ function bind() {
   document.querySelectorAll('[data-tf]').forEach((b) => (b.onclick = () => { ui.tf = b.dataset.tf; render(); }));
   document.querySelectorAll('[data-mkt]').forEach((b) => (b.onclick = () => { ui.market = b.dataset.mkt; render(); }));
   document.querySelectorAll('[data-lf]').forEach((b) => (b.onclick = () => { ui.logFilter = b.dataset.lf; render(); }));
+  const at = $('#activeToggle'); if (at) at.onclick = async () => {
+    const next = live.settings.activeMode !== true;
+    live.settings = { ...live.settings, activeMode: next };
+    if (state && state !== live) state.settings = { ...state.settings, activeMode: next };
+    saveSettings(live.settings); await persist(); render();
+  };
   const sb = $('#startBtn'); if (sb) sb.onclick = async () => {
     const book = live.edgeBook?.length ? live.edgeBook : (live.closed || []);
     const settings = live.settings;
@@ -500,6 +551,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) live
 (async () => {
   const saved = await idb.get('state');
   live = saved ? JSON.parse(saved) : newState(loadSettings(), Date.now());
+  if (live.settings && live.settings.activeMode == null) live.settings = { ...live.settings, activeMode: true, activeTickSec: ACTIVE.tickSec };
   if (!live.slots) live.slots = emptySlots();
   if (!Array.isArray(live.decisions)) live.decisions = [];
   state = live; render();
