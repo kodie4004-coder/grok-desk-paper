@@ -1,0 +1,185 @@
+{
+  "prior": {
+    "id": "ohlcv-walkforward-v2",
+    "collectedAt": "2026-11-11T15:23:00.853Z",
+    "summary": "No pre-declared slot cleared both windows after costs. Every slot stays in the exploration bucket at 1% of the bank until its own trades say otherwise.",
+    "edges": {
+      "meanrev": false,
+      "breakout": false,
+      "momentum": false,
+      "grid": false
+    },
+    "rows": [
+      {
+        "id": "meanrev",
+        "n": 33,
+        "nPools": 9,
+        "net": -9.56,
+        "mean": -0.2896525576808062,
+        "lo": -0.7462976946109869,
+        "hi": 0.20968146546229055,
+        "winRate": 0.6060606060606061,
+        "maxDrawdown": 9.53,
+        "fees": 8.65,
+        "costDrag": null,
+        "trainMean": -0.3205578722584069,
+        "trainN": 25,
+        "edge": false
+      },
+      {
+        "id": "breakout",
+        "n": 35,
+        "nPools": 12,
+        "net": -13.99,
+        "mean": -0.3996148136580315,
+        "lo": -0.8203661614850863,
+        "hi": 0.025167299603048924,
+        "winRate": 0.34285714285714286,
+        "maxDrawdown": 16.14,
+        "fees": 9.06,
+        "costDrag": null,
+        "trainMean": -0.4316131879832677,
+        "trainN": 74,
+        "edge": false
+      },
+      {
+        "id": "momentum",
+        "n": 42,
+        "nPools": 11,
+        "net": 21.28,
+        "mean": 0.5067738222313832,
+        "lo": 0.02261303222997513,
+        "hi": 0.8904323589581624,
+        "winRate": 0.47619047619047616,
+        "maxDrawdown": 8.89,
+        "fees": 11.24,
+        "costDrag": 0.3456670237429415,
+        "trainMean": -0.4317007468929893,
+        "trainN": 186,
+        "edge": false
+      },
+      {
+        "id": "grid",
+        "n": 7,
+        "nPools": 6,
+        "net": -0.28,
+        "mean": -0.040344033723383986,
+        "lo": -0.3997566271394631,
+        "hi": 0.3300653167851467,
+        "winRate": 0.5714285714285714,
+        "maxDrawdown": 1.82,
+        "fees": 1.85,
+        "costDrag": 1.1796028087584183,
+        "trainMean": -0.3528378974543807,
+        "trainN": 33,
+        "edge": false
+      }
+    ]
+  },
+  "splits": {
+    "meanrev": {
+      "train": {
+        "n": 25,
+        "nPools": 6,
+        "net": -8.01,
+        "mean": -0.3205578722584069,
+        "lo": -0.4815567043576299,
+        "hi": -0.08850632941004864,
+        "winRate": 0.52,
+        "maxDrawdown": 11.28,
+        "fees": 6.96,
+        "costDrag": null
+      },
+      "holdout": {
+        "n": 33,
+        "nPools": 9,
+        "net": -9.56,
+        "mean": -0.2896525576808062,
+        "lo": -0.7462976946109869,
+        "hi": 0.20968146546229055,
+        "winRate": 0.6060606060606061,
+        "maxDrawdown": 9.53,
+        "fees": 8.65,
+        "costDrag": null
+      }
+    },
+    "breakout": {
+      "train": {
+        "n": 74,
+        "nPools": 7,
+        "net": -31.94,
+        "mean": -0.4316131879832677,
+        "lo": -0.8220260156534812,
+        "hi": -0.2755014151543973,
+        "winRate": 0.24324324324324326,
+        "maxDrawdown": 26.6,
+        "fees": 19.7,
+        "costDrag": null
+      },
+      "holdout": {
+        "n": 35,
+        "nPools": 12,
+        "net": -13.99,
+        "mean": -0.3996148136580315,
+        "lo": -0.8203661614850863,
+        "hi": 0.025167299603048924,
+        "winRate": 0.34285714285714286,
+        "maxDrawdown": 16.14,
+        "fees": 9.06,
+        "costDrag": null
+      }
+    },
+    "momentum": {
+      "train": {
+        "n": 186,
+        "nPools": 13,
+        "net": -80.3,
+        "mean": -0.4317007468929893,
+        "lo": -0.603489023979331,
+        "hi": -0.2716547059872607,
+        "winRate": 0.22043010752688172,
+        "maxDrawdown": 80.39,
+        "fees": 47.89,
+        "costDrag": null
+      },
+      "holdout": {
+        "n": 42,
+        "nPools": 11,
+        "net": 21.28,
+        "mean": 0.5067738222313832,
+        "lo": 0.02261303222997513,
+        "hi": 0.8904323589581624,
+        "winRate": 0.47619047619047616,
+        "maxDrawdown": 8.89,
+        "fees": 11.24,
+        "costDrag": 0.3456670237429415
+      }
+    },
+    "grid": {
+      "train": {
+        "n": 33,
+        "nPools": 10,
+        "net": -11.64,
+        "mean": -0.3528378974543807,
+        "lo": -0.522682890873704,
+        "hi": -0.17827644582396082,
+        "winRate": 0.36363636363636365,
+        "maxDrawdown": 12.28,
+        "fees": 8.62,
+        "costDrag": null
+      },
+      "holdout": {
+        "n": 7,
+        "nPools": 6,
+        "net": -0.28,
+        "mean": -0.040344033723383986,
+        "lo": -0.3997566271394631,
+        "hi": 0.3300653167851467,
+        "winRate": 0.5714285714285714,
+        "maxDrawdown": 1.82,
+        "fees": 1.85,
+        "costDrag": 1.1796028087584183
+      }
+    }
+  }
+}

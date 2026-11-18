@@ -71,6 +71,84 @@ These are not alpha claims:
 - Size/liquidity impact is added on top of the flat fee, capped at 3 percentage points.
 - If the prior says no edge, the desk does not force trades.
 
+## v2 slots (frozen before the multi-strategy run)
+
+Four slots, defined in `engine/strategies.js`. Same fill rule as v1: signal on the close, enter the next open if it prints within 3 minutes, stop fills at the bar low, a trade that would still be open at the window edge is dropped. Round trip cost is 1% plus `roundTripImpactPct` on a $25 trade using the pool's liquidity snapshot. Holdout is the last 8 hours. Train is everything earlier. Parameters below are not searched.
+
+- **meanrev.** Close at least 4% under the 30-minute average, and none of the last three bars fell 2% or more. Stop 4%, target 4%, hold 90 minutes.
+- **breakout.** Close above the prior 20-minute high, and this bar's volume is at least 1.5× the median of those 20 bars. Stop 4%, target 8%, hold 120 minutes.
+- **momentum.** Same 60-minute and 6-hour bounds as v1 (0–25% and under 80%). Stop 4%, target 12%, hold 120 minutes.
+- **grid.** Last 60 minutes range between 3% and 8%, close in the bottom quarter, and the middle of the range is at least 3% above the close. Target that middle. Stop 3%. Hold 180 minutes.
+
+A slot has an edge only if the holdout has at least 30 trades from at least 8 pools and the 90% bootstrap lower bound is above zero, and the train has at least 20 trades, a positive mean, and a lower bound above zero. Anything else is exploration size (1% of the bank). A slot whose own closed trades reach 15 with a non-positive expectancy turns off. Size never goes above the normal 5% paper stake, and a loss never raises it.
+
+Live quotes use the snapshot cousins of these rules (1-hour and 5-minute changes, liquidity, volume). They are not a second fit. Prediction markets are displayed and not traded.
+
+## v3 windows (frozen before any new slice)
+
+The v2 holdout is already seen. It ran from 2026-11-11T07:28:00.000Z to the collection at 2026-11-11T15:23:00.853Z. That interval is reported again only as a reference. It cannot graduate a slot.
+
+New minute bars are cut into non-overlapping 8-hour blocks, newest block ending at the last bar. A block that overlaps the seen interval is labeled seen. Every other block is unseen. Costs and fills stay as in v2: 1% round trip plus snapshot liquidity impact, stop at the bar low, entry on the next open within 3 minutes, incomplete trades dropped.
+
+Diagnostics, not candidates. These tables can explain the momentum sign flip. They cannot change a size:
+
+- Chain (solana, base, eth, bsc, arbitrum).
+- Snapshot liquidity buckets: under $100k, $100k–$500k, $500k and above.
+- Pool age at the signal: under 6 hours, 6 hours and older. Missing `createdAt` is its own row.
+- Clock: 13:00–21:00 UTC versus the other hours. One split, not a search over hours.
+
+Candidates, the whole family. Nothing else may be added after the tables are computed.
+
+- **V0.** The four v2 slots, unchanged.
+- **V1. Liquidity floor.** Momentum entries only on pools whose snapshot liquidity is at least $100,000. Same exits as momentum. Snapshot liquidity is not the liquidity at the bar. That bias is a reason to distrust V1, not a reason to ignore a loss.
+- **V2. Not a new pool.** Momentum entries only when `createdAt` is known and the pool is at least 6 hours old at the signal bar. Pools with no `createdAt` are skipped.
+- **V3. Tighter momentum.** 60-minute return from 5% to 15%, 6-hour return still under 80%. Same stop, target, and hold as momentum. Fewer trades on purpose.
+- **V4. Trail.** Momentum entries unchanged. No fixed +12% target. After the high has reached +6% from the entry open, sell when price falls 4% from the peak since entry, filling at the lower of that trail and the bar low. Until then, the −4% stop and the 120-minute time stop still apply.
+
+Graduation. A candidate graduates only if at least three unseen blocks each have 20 or more trades, and in every one of those blocks the mean expectancy is positive and the 90% bootstrap lower bound is above zero. One good block is not enough. V0 slots use the same rule, separately from v2's single holdout. A graduate may use the normal 5% paper size. Every other slot stays at 1%. No size is raised because a window was red. If none graduate, the live rules do not change.
+
+## v4 prediction markets and liquid majors (frozen before testing)
+
+The v2 and v3 coin windows are already seen for the four meme slots. They are not reused to pass those slots. The rules below are new. Their parameters are not searched. A rule graduates only if at least three non-overlapping windows each have 20 or more trades, a positive mean, and a 90% bootstrap lower bound above zero. Otherwise it stays at 1% of the paper bank. A loss never raises size. `live_execution` stays off.
+
+### Prediction markets
+
+Motivation, not a result: sports and horse-racing prices have a favorite-longshot bias, where longshots win less often than their price and favorites win more often (Snowberg and Wolfers, Journal of Political Economy, 2010, https://www.jstor.org/stable/10.1086/656518). That is not evidence it exists on Polymarket. These tests ask that question. Polymarket taker fees are `C × rate × p × (1 − p)` with category rates, makers pay zero, and geopolitics is fee-free (https://docs.polymarket.com/trading/fees). Kalshi's July 2026 taker fee is `round up(0.07 × C × P × (1 − P))` (https://kalshi.com/docs/kalshi-fee-schedule.pdf). Manifold mana cannot be cashed out (https://docs.manifold.markets/faq), so Manifold is not a USD strategy.
+
+Data:
+
+- Polymarket Gamma for resolved binary markets. Resolution is the final outcome-price pair `["1","0"]` (YES) or `["0","1"]` (NO).
+- End is the UMA resolution time when one is published, otherwise the scheduled end. The public trade list for a busy market does not page back to the window, so the entry is the last CLOB prices-history point inside the window. If that window has no point, the market is skipped. The price after the window is not used except the resolution.
+- Kalshi's public API returned HTTP 403 from this network. The cross-venue rule is registered and is not tested unless that API answers. An untested rule cannot graduate.
+- Manifold is shown as play-money context. It cannot graduate a USD size.
+
+Costs, taker, no rebate:
+
+- Fee rate is the market's published `feeSchedule.rate` when fees are enabled. If fees are enabled and the rate is missing, use 0.07. If fees are disabled, use 0.
+- Add 0.005 per share as a half-spread haircut. The history point is a sampled price, not a free lift of the book.
+- Hold to resolution. Payout is 1 or 0. Expectancy is profit per $1 of entry cost.
+
+- **P1 Favorite, one week out.** Window is 8 days to 6 days before the end. Buy the side priced in `[0.60, 0.80)`. YES in that band buys YES. YES in `(0.20, 0.40]` buys NO.
+- **P2 Longshot fade, one week out.** Same window. Buy YES if YES is in `[0.85, 0.95]`. Buy NO if YES is in `[0.05, 0.15]`.
+- **P3 Late favorite.** Window is 36 hours to 12 hours before the end. Same favorite band as P1.
+- **P4 Cross-venue.** If Kalshi and Polymarket both quote the same question and the YES prices differ by more than both taker fees plus 0.02, buy the cheaper YES and hold to resolution. Not run if Kalshi does not answer.
+
+Windows are ISO weeks of the market end time. The family is P1–P3, plus P4 only if it can be run. No other band is added after the table exists. The sample is the 120 highest-volume resolved binary markets Gamma returns with an end date on or after 2026-01-01. There is no other volume cutoff.
+
+### Liquid majors
+
+Hypothesis: the meme slots lose because a 1% round trip is large next to a short move. Deep majors cost less, and a hold of hours to days gives the move room. This is a hypothesis.
+
+Universe: base symbol is one of SOL, WSOL, WETH, ETH, WBTC, BTC, cbBTC, CBBTC, and snapshot liquidity is at least $2,000,000. Hourly bars. Entry on the next hour's open. Stop fills at the bar low. At most one entry per pool per 24 hours.
+
+Primary cost, chosen now: 0.30% round trip plus the same liquidity impact used elsewhere. A 1% stress is reported and cannot graduate a rule. 0.30% is two 0.15% AMM-style sides, not a number picked after seeing profits.
+
+- **C1 Trend, one day.** 24-hour close-to-close return from +1% to +8%. No take-profit. Stop −4%. Hold 24 hours, then exit at the close.
+- **C2 Quiet range, two days.** Last 48 hours' high-low range is under 6% of the mid, the close is in the bottom quarter, and the mid is at least 1.5% above the close. Target the mid. Stop −3%. Hold up to 48 hours.
+- **C3 Slow breakout, half a day.** 4-hour return from +0.5% to +3%, and this hour's volume is above the median of the prior 24 hours. Stop −2%. Target +3%. Hold up to 12 hours.
+
+Windows are non-overlapping 7-day blocks. Same graduation rule. Live majors use the 24-hour price-change field as the stand-in for C1's close-to-close return, the same 0.30% cost, and exploration size unless that rule graduated.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.
