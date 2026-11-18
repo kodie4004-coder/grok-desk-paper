@@ -1,18 +1,35 @@
 name: Kalshi 15-minute snapshot
 
-# The public API allows only https://kalshi.com as a browser Origin.
-# This job refreshes the same-origin file the desk reads. Schedule runs on main.
+# GitHub's scheduler dropped every */5 run of this workflow: from the merge at
+# 04:50Z until 12:40Z there was one workflow_dispatch and zero schedule events.
+# The job-level ref guard was not the cause. A skipped job would still be a run.
+# Docs say schedules are delayed at the top of each hour and queued jobs can be
+# dropped: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
+#
+# The reliable path is workflow_dispatch. GITHUB_TOKEN cannot start a push
+# workflow, but it can start workflow_dispatch:
+# https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
+# Each successful pass waits three minutes and queues the next pass. The cron
+# below is only a restart if that chain stops. It avoids minute 0.
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kalshi-15m.yml'
 
 permissions:
   contents: write
+  actions: write
+
+concurrency:
+  group: kalshi-15m-snapshot
+  cancel-in-progress: false
 
 jobs:
   snapshot:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +42,24 @@ jobs:
           git config user.name "kalshi-snapshot"
           git config user.email "kalshi-snapshot@users.noreply.github.com"
           git add data/kalshi-15m.json
-          git diff --cached --quiet && exit 0
-          git commit -m "Update the Kalshi 15-minute paper snapshot"
-          git push
+          if git diff --cached --quiet; then
+            echo "snapshot unchanged"
+          else
+            git commit -m "Update the Kalshi 15-minute paper snapshot"
+            git push
+          fi
+      - name: Queue the next refresh
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 180
+          queued=$(gh run list --workflow kalshi-15m.yml --status queued --json databaseId --jq 'length')
+          active=$(gh run list --workflow kalshi-15m.yml --status in_progress --json databaseId --jq 'length')
+          echo "queued=$queued in_progress=$active"
+          # in_progress includes this run. Queue another only when nothing else is waiting.
+          if [ "$queued" = "0" ] && [ "$active" = "1" ]; then
+            gh workflow run kalshi-15m.yml --ref main
+          else
+            echo "another run is already queued or in progress"
+          fi

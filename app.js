@@ -5,7 +5,7 @@ import { SLOT_PRIOR } from './engine/slot-prior.js';
 import { ACTIVE, activePace } from './engine/active.js';
 import { PREDICT_PRIOR } from './engine/predict-prior.js';
 import { KALSHI_PRIOR } from './engine/kalshi-prior.js';
-import { loadKalshiBoard, reviewKalshi } from './engine/kalshi.js';
+import { loadKalshiBoard, reviewKalshi, quoteAge } from './engine/kalshi.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
@@ -307,8 +307,11 @@ function kalshiCard(st) {
   const why = log.length ? log.map((d) => `<li><span><b>${esc(d.title || 'K1')}</b> <span class="tag ${d.action === 'take' ? 'normal' : 'off'}">${esc(d.action)}</span><br><span class="note">${esc(d.reason || '')}</span></span></li>`).join('') : '<li><span class="empty">No K1 take or skip yet. A bet needs a quote under two minutes old and 3 to 5 minutes left.</span></li>';
   const phone = st.kalshiClosed || [];
   const phoneNet = phone.reduce((a, t) => a + (t.pnl || 0), 0);
+  const age = quoteAge(board.fetchedAt, now);
+  const ageText = age.ms == null ? 'Kalshi quote age unknown' : `Kalshi quote is ${age.label} old`;
   return `<div class="card"><h2>Kalshi 15-minute</h2>
-    <p class="note">The public API answers a normal browser User-Agent, then refuses every other page Origin with HTTP 403. This board reads <code>data/kalshi-15m.json</code>, refreshed every five minutes once that job is on main. Quote ${esc(board.fetchedAt || 'not loaded')} · ${esc(board.via || 'snapshot')}.</p>
+    <p class="age ${age.stale ? 'stale' : 'fresh'}" role="status">${esc(ageText)} · ${age.stale ? 'STALE' : 'fresh'}</p>
+    <p class="note">The public API refuses every page Origin except https://kalshi.com. This board reads <code>data/kalshi-15m.json</code>. A quote older than 15 minutes is stale. Collected ${esc(board.fetchedAt || 'not loaded')} · ${esc(board.via || 'snapshot')}.</p>
     <ul class="feed">${list}</ul></div>
   <div class="card"><div class="row"><h2 style="margin:0">K1 late favorite</h2><span class="tag ${edge ? 'normal' : 'exploration'}">${edge ? 'graduated' : 'exploration'}</span></div>
     <p class="note">${esc(KALSHI_PRIOR.summary || '')}</p>
