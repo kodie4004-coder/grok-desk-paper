@@ -269,7 +269,7 @@ function studyRows(rows) {
   return `<ul class="feed">${rows.map((r) => `<li class="slot"><div class="row"><b>${esc(r.label || r.id)}</b><span class="tag ${r.graduated ? 'normal' : 'exploration'}">${r.graduated ? 'graduated' : 'exploration'}</span></div><p class="note">Trades ${r.n ?? 0} · windows ${r.windows ?? 0}${r.mean == null ? '' : ` · expectancy ${money(r.mean, true)}`}${r.lo == null ? '' : ` · lower bound ${money(r.lo, true)}`}</p></li>`).join('')}</ul>`;
 }
 function majorsCard() {
-  return `<div class="card"><h2>Liquid majors</h2><p class="note">${esc(MAJORS_PRIOR.summary || '')}</p>${studyRows(MAJORS_PRIOR.rows || [])}</div>`;
+  return `<div class="card"><h2>Liquid majors</h2><p class="note">${esc(MAJORS_PRIOR.summary || '')}</p><p class="note">Expectancy is dollars on a $25 paper trade after a 0.30% round trip. The lower bound is the 90% bootstrap over the whole sample. Graduation still needs three separate weeks of 20 trades.</p>${studyRows(MAJORS_PRIOR.rows || [])}</div>`;
 }
 function predictMark(p) {
   if (!(p.mark > 0 && p.mark < 1) || !(p.price > 0)) return null;

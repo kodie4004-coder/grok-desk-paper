@@ -48,13 +48,21 @@ for (const rule of MAJOR_RULES) {
   lines.push(`Graduates at 0.30%: ${pass ? 'yes' : 'no'}.`);
   lines.push('');
   const usable = primary.filter((w) => w.n >= 20);
+  const all = [];
+  for (const p of [...pools].sort((a, b) => String(a.pool).localeCompare(String(b.pool)))) {
+    const fee = MAJOR_FEE + roundTripImpactPct(25, p.liq || 0);
+    const cfg = { ...PROTOCOL, feePct: fee, sizeUsd: 25, fill: 'conservative', maxEntryGapMs: 2 * 3600000, cooldownMs: 24 * 3600000 };
+    for (const tr of simulateTrades(p.bars, rule.plan, cfg)) all.push({ ...tr, pool: p.pool });
+  }
+  const boot = clusterBootstrap(all, { iters: 2000, seed: 7 });
   priorRows.push({
     id: rule.id, label: rule.label,
-    n: primary.reduce((a, w) => a + w.n, 0),
-    windows: usable.length,
-    mean: usable.length ? usable.reduce((a, w) => a + w.mean, 0) / usable.length : null,
-    lo: usable.length ? Math.min(...usable.map((w) => w.lo)) : null,
-    hi: usable.length ? Math.max(...usable.map((w) => w.hi)) : null,
+    n: all.length,
+    windows: primary.length,
+    usableWindows: usable.length,
+    mean: boot.mean,
+    lo: boot.lo,
+    hi: boot.hi,
     graduated: pass,
   });
 }

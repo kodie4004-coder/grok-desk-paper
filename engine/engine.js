@@ -371,7 +371,7 @@ function considerPredictions(state, now) {
     if (m.venue === 'Kalshi') {
       if (!state.predictSeen.p4) {
         state.predictSeen.p4 = true;
-        notePredict(state, now, { action: 'skip', rule: 'p4', title: m.title || 'Kalshi', reason: 'Kalshi did not answer, so the cross-venue rule is not traded' });
+        notePredict(state, now, { action: 'skip', rule: 'p4', title: 'Kalshi', reason: 'Kalshi did not answer, so the cross-venue rule is not traded' });
       }
       continue;
     }

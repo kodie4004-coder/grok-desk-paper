@@ -46,11 +46,15 @@ A grid buys weakness and sells strength inside a band. Hummingbot's inventory sk
 
 ## Prediction markets
 
-Polymarket's Gamma API lists markets with no API key. A request from this environment returned live markets and `access-control-allow-origin: *`, so a static page can read them. The docs still show `GET /markets`; the response we got also carried a deprecation warning pointing at `/markets/keyset`. We read and display. We do not trade them, because we have no historical tape and no holdout.
+Polymarket's Gamma API lists markets with no API key, and the CLOB `prices-history` endpoint returns a sampled YES price for a bounded window, including markets that have already resolved. The public trade list does not page back far enough on a busy market to reach a week before resolution. A static page can read both. The v4 study uses that history. It does not send orders.
 
-Kalshi's docs describe unauthenticated reads at `https://external-api.kalshi.com/trade-api/v2` and `https://api.elections.kalshi.com/trade-api/v2`. Both returned HTTP 403 from this network (CloudFront). The desk will try and, if refused, say so. It will not invent Kalshi prices.
+Kalshi's docs describe unauthenticated reads at `https://external-api.kalshi.com/trade-api/v2` and `https://api.elections.kalshi.com/trade-api/v2`. Both returned HTTP 403 from this network (CloudFront). The desk will try and, if refused, say so. It will not invent Kalshi prices. The cross-venue rule stays registered and untested.
 
-Sources: [Polymarket public API](https://docs.polymarket.com/getting-started/api), [List markets](https://docs.polymarket.com/api-reference/markets/list-markets), [Kalshi market data](https://docs.kalshi.com/getting_started/quick_start_market_data).
+Manifold's API is public and its currency is play money that cannot be cashed out, so it is not in the dollar study.
+
+Favorite-longshot bias is documented in horse racing and sports book prices (Snowberg and Wolfers, Journal of Political Economy, 2010). That paper is the motive for the bands. It is not evidence the bias exists on Polymarket. Polymarket's taker fee is `C × rate × p × (1 − p)`; makers pay zero.
+
+Sources: [Polymarket public API](https://docs.polymarket.com/getting-started/api), [List markets](https://docs.polymarket.com/api-reference/markets/list-markets), [Fees](https://docs.polymarket.com/trading/fees), [Kalshi market data](https://docs.kalshi.com/getting_started/quick_start_market_data), [Kalshi fee schedule](https://kalshi.com/docs/kalshi-fee-schedule.pdf), [Manifold FAQ](https://docs.manifold.markets/faq), [Snowberg and Wolfers 2010](https://www.jstor.org/stable/10.1086/656518).
 
 ## Data feeds and rate limits
 
@@ -66,4 +70,4 @@ Sources: [DexScreener API reference](https://docs.dexscreener.com/api/reference)
 
 Taken: separate strategy slots, a fixed small stake, fees and impact on every fill, stops filled at the worse price in the bar, a holdout that is not used to retune, a cap on open positions, and a per-slot stop when that slot's own trades are not making money.
 
-Left behind: same-block sniping, copy-trading wallets, martingale, raising size after a loss, and any prediction-market order. Live execution stays off.
+Left behind: same-block sniping, copy-trading wallets, martingale, raising size after a loss, and any real prediction-market order. Paper prediction bets are a separate book. Live execution stays off.

@@ -10,10 +10,13 @@ const data = JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString('utf8'))
 const markets = (data.markets || []).slice(0, 120);
 
 function weekKey(t) {
-  const d = new Date(t);
-  const onejan = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.floor((d - onejan) / 604800000);
-  return `${d.getUTCFullYear()}-W${week}`;
+  const date = new Date(t);
+  const utc = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((utc - yearStart) / 86400000) + 1) / 7);
+  return `${utc.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
 function tradesFor(rule) {
@@ -53,7 +56,8 @@ const lines = ['# Prediction-market paper study', '', 'Play money is not in this
 const priorRows = [];
 let any = false;
 for (const rule of PREDICT_RULES) {
-  const weeks = byWeek(tradesFor(rule));
+  const trades = tradesFor(rule);
+  const weeks = byWeek(trades);
   const pass = graduates(weeks);
   if (pass) any = true;
   lines.push(`## ${rule.id} ${rule.label}`);
@@ -65,9 +69,18 @@ for (const rule of PREDICT_RULES) {
   lines.push('');
   lines.push(`Graduates: ${pass ? 'yes' : 'no'}.`);
   lines.push('');
-  const usable = weeks.filter((w) => w.n >= 20);
-  const avg = usable.length ? usable.reduce((a, w) => a + w.mean, 0) / usable.length : null;
-  priorRows.push({ id: rule.id, label: rule.label, n: weeks.reduce((a, w) => a + w.n, 0), mean: avg, lo: usable.length ? Math.min(...usable.map((w) => w.lo)) : null, hi: usable.length ? Math.max(...usable.map((w) => w.hi)) : null, windows: usable.length, graduated: pass });
+  const boot = clusterBootstrap(trades, { iters: 2000, seed: 7 });
+  priorRows.push({
+    id: rule.id,
+    label: rule.label,
+    n: trades.length,
+    mean: boot.mean,
+    lo: boot.lo,
+    hi: boot.hi,
+    windows: weeks.length,
+    usableWindows: weeks.filter((w) => w.n >= 20).length,
+    graduated: pass,
+  });
 }
 lines.push(any ? 'At least one rule cleared every usable week.' : 'No prediction rule graduated. They stay at exploration size.');
 fs.writeFileSync('PREDICT_REPORT.md', lines.join('\n'));
@@ -76,7 +89,7 @@ const prior = {
   collectedAt: data.collectedAt || null,
   summary: any
     ? 'A pre-registered prediction rule was positive on every week with 20 trades. That rule can use the normal paper size.'
-    : 'No pre-registered prediction rule was positive across three or more weeks. They stay at 1% exploration size. Kalshi was not tested. Manifold is play money and is not in this verdict.',
+    : 'No prediction rule had three weeks of 20 or more trades with a lower bound above zero. They stay at 1% exploration size. A positive average on a handful of bets is not graduation. Kalshi was not tested. Manifold is play money and is not in this verdict.',
   edges: Object.fromEntries(priorRows.map((r) => [r.id, r.graduated])),
   rows: priorRows,
   kalshi: 'unavailable',
