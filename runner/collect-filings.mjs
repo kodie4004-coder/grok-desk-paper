@@ -23,8 +23,8 @@ function tickersFrom(json) {
 async function infoTable(acc) {
   const path = acc.replace(/-/g, '');
   const index = await get(`https://www.sec.gov/Archives/edgar/data/1067983/${path}/${acc}-index.html`);
-  const href = index.match(/href="([^"]+\.xml)"[^>]*>[^<]*<\/a><\/td>\s*<td[^>]*>INFORMATION TABLE/i)?.[1]
-    || index.match(/href="(\/Archives\/edgar\/data\/1067983\/[^"]+?\.xml)"/g)?.map((s) => s.slice(6, -1)).find((h) => !h.includes('primary_doc') && !h.includes('xslForm'));
+  const hrefs = [...index.matchAll(/href="([^"]+\.xml)"/g)].map((m) => m[1]);
+  const href = hrefs.find((h) => !h.includes('primary_doc') && !h.includes('xslForm'));
   if (!href) throw new Error('no info table ' + acc);
   const xml = await get(href.startsWith('http') ? href : 'https://www.sec.gov' + href);
   const rows = [];

@@ -6,6 +6,9 @@ import { ACTIVE, activePace } from './engine/active.js';
 import { PREDICT_PRIOR } from './engine/predict-prior.js';
 import { KALSHI_PRIOR } from './engine/kalshi-prior.js';
 import { loadKalshiBoard, reviewKalshi, quoteAge } from './engine/kalshi.js';
+import { reviewArena, placePick, loadSpots, loadBook, ARENA_SIZE } from './engine/arena.js';
+import { levelOf, streak, achievements } from './engine/game.js';
+import { GATE_PRIOR } from './engine/gate-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
@@ -36,7 +39,7 @@ const idb = {
 const loadSettings = () => { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('gd.settings') || '{}') }; } catch { return { ...DEFAULT_SETTINGS }; } };
 const saveSettings = (s) => localStorage.setItem('gd.settings', JSON.stringify(s));
 
-const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1' };
+const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1', arena: 'feed', sound: localStorage.getItem('gd.sound') === '1' };
 let live = null;          // live state
 let state = null;         // what is on screen (live or replay)
 const src = createLiveSource();
@@ -388,6 +391,95 @@ function paintTicker(st) {
   track.innerHTML = `<span>${esc(text)}</span><span>${esc(text)}</span>`;
   bar.hidden = false;
 }
+function blip(win) {
+  if (!ui.sound) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  const ctx = new Ctx();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.frequency.value = win ? 740 : 180;
+  g.gain.value = 0.04;
+  o.connect(g); g.connect(ctx.destination);
+  o.start();
+  o.stop(ctx.currentTime + 0.12);
+}
+function burst(kind) {
+  const fx = document.getElementById('fx');
+  if (!fx) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  fx.className = reduce ? 'fx' : `fx ${kind}`;
+  fx.innerHTML = reduce ? '' : Array.from({ length: 16 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
+  if (navigator.vibrate) navigator.vibrate(kind === 'win' ? [12, 28, 12] : 8);
+  blip(kind === 'win');
+  setTimeout(() => { fx.className = 'fx'; fx.innerHTML = ''; }, 1000);
+}
+function countdown(close, now) {
+  const s = Math.max(0, Math.round((Date.parse(close) - now) / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+function arenaHome(st) {
+  const xp = st.game?.xp || 0;
+  const soon = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > Date.now()).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
+  return `<div class="card arcade">
+    <div class="row"><h2 style="margin:0">Paper arena</h2><span class="tag explore">PAPER · not real money</span></div>
+    <p class="lvl">Level ${levelOf(xp)} · ${xp} XP · streak ${streak(st.game || {}, Date.now())}d</p>
+    <p class="note">XP comes from placing and settling paper bets, not from how much they made. Next window ${soon ? countdown(soon.closeTime, Date.now()) : '—'}.</p>
+    <button class="btn pri wide" id="goArena" type="button">Open the arena</button>
+    <div class="row" style="margin-top:8px"><button type="button" class="btn" data-tabjump="agents">Agents</button><button type="button" class="btn" data-tabjump="activity">Log</button></div>
+  </div>`;
+}
+function arenaView(st) {
+  const now = Date.now();
+  const seg = ui.arena;
+  const tabs = ['feed', 'pick', 'badges', 'score'].map((k) => `<button type="button" data-arena="${k}" class="${seg === k ? 'on' : ''}">${k}</button>`).join('');
+  const sound = `<button type="button" id="soundBtn" class="switch ${ui.sound ? 'on' : ''}" aria-pressed="${ui.sound}">${ui.sound ? 'Sound on' : 'Sound off'}</button>`;
+  if (seg === 'badges') {
+    const rows = achievements(st).map((a) => `<li class="slot"><b>${esc(a.label)}</b><span class="tag ${a.on ? 'normal' : 'off'}">${a.on ? 'earned' : 'locked'}</span></li>`).join('');
+    return `<div class="card arcade"><div class="row"><h2 style="margin:0">Badges</h2>${sound}</div><p class="note">Badges mark paper habits. A win does not mint a bigger badge.</p><div class="seg">${tabs}</div><ul class="feed">${rows}</ul></div>`;
+  }
+  if (seg === 'score') return scoreView(st, tabs, sound);
+  if (seg === 'pick') {
+    const rows = (st.kalshiBoard?.markets || []).filter((m) => !m.result).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime)).slice(0, 8);
+    const list = rows.map((m) => `<li class="slot"><div class="row"><b>${esc(m.series || m.ticker)}</b><span class="note">${countdown(m.closeTime, now)}</span></div><p class="note">${esc(m.title || '')} · PAPER chip $${ARENA_SIZE}</p><div class="row"><button type="button" class="btn pri" data-pick="yes" data-ticker="${esc(m.ticker)}">Up</button><button type="button" class="btn" data-pick="no" data-ticker="${esc(m.ticker)}">Down</button></div></li>`).join('');
+    const mine = (st.picksOpen || []).concat(st.picksClosed || []).slice(-6).reverse().map((p) => `<li><span><b>${esc(p.title || p.ticker)}</b> ${esc(p.side)} $${p.sizeUsd}<br><span class="note">${p.pnl == null ? 'open' : money(p.pnl, true) + ' after fees'}</span></span></li>`).join('');
+    return `<div class="card arcade"><div class="row"><h2 style="margin:0">Pick a side</h2>${sound}</div><p class="note">One $${ARENA_SIZE} paper chip. A loss does not raise the next chip. Bots are on the feed.</p><div class="seg">${tabs}</div><ul class="feed">${list || '<li><span class="empty">No live 15-minute market in the snapshot.</span></li>'}</ul><h2>Your paper</h2><ul class="feed">${mine || '<li><span class="empty">No picks yet.</span></li>'}</ul></div>`;
+  }
+  const feed = (st.arenaLog || []).slice(-10).reverse();
+  const won = feed.find((d) => d.won);
+  const soon = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
+  const spots = Object.entries(st.spots || {}).slice(0, 6).map(([k, v]) => `${k} ${v.px?.toFixed ? v.px.toFixed(2) : v.px}`).join(' · ');
+  const rows = feed.map((d, i) => `<li class="${i === 0 ? 'in' : ''}"><span><b>${esc(d.title || d.rule)}</b> <span class="tag ${d.won ? 'normal' : 'explore'}">${esc(d.action)}</span><br><span class="note">${esc(d.rule)} · ${esc(d.reason || '')}</span></span></li>`).join('');
+  return `<div class="card arcade"><div class="row"><h2 style="margin:0">Arena feed</h2>${sound}</div>${won ? '<p class="lvl">PAPER WIN</p>' : ''}<p class="tag explore">PAPER exploration · not the edge gate</p><p class="note">${st.arenaPausedDay ? 'Paused for the day. Size stays $2.' : 'Bots bet $2. Estimates are Coinbase or OKX spots, not Kalshi prints.'}</p><p class="note">${esc(spots || 'Spot estimates load with the arena.')}</p>
+    ${st.arenaError ? `<p class="note r">${esc(st.arenaError)}</p>` : ''}
+    <p class="lvl">${soon ? `Next close ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}</p>
+    <p class="note">${(st.arenaLog || []).length} paper lines · ${(st.kalshiBoard?.markets || []).filter((m) => !m.result).length} open markets in the snapshot.</p><div class="seg">${tabs}</div><ul class="feed">${rows || '<li><span class="empty">The feed fills as windows open. Countdown is on each market in Pick.</span></li>'}</ul></div>`;
+}
+function scoreView(st, tabs, sound) {
+  const rules = GATE_PRIOR.rules || [];
+  const gate = rules.map((r) => `<li class="slot"><div class="row"><b>${esc(r.label)}</b><span class="tag ${r.graduated ? 'normal' : 'off'}">${r.graduated ? 'passed' : 'not ready'}</span></div><p class="note">${esc(r.venue || '')} · ${esc(r.windowLabel || '')} · n ${r.n ?? 0} · mean ${r.mean == null ? '—' : money(r.mean, true)} · low ${r.lo == null ? '—' : money(r.lo, true)}</p>${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}</li>`).join('');
+  const phone = (st.arenaClosed || []).concat(st.picksClosed || []);
+  const net = phone.reduce((a, t) => a + (t.pnl || 0), 0);
+  const fees = phone.reduce((a, t) => a + (t.fees || 0), 0);
+  const by = new Map();
+  for (const t of phone) {
+    const row = by.get(t.rule) || { n: 0, pnl: 0, fees: 0 };
+    row.n += 1; row.pnl += t.pnl || 0; row.fees += t.fees || 0;
+    by.set(t.rule, row);
+  }
+  const race = [...by.entries()].sort((a, b) => b[1].pnl - a[1].pnl).map(([rule, row]) => `<li><span><b>${esc(rule)}</b><br><span class="note">n ${row.n} · fees ${money(row.fees)} · PAPER</span></span><b class="${row.pnl >= 0 ? 'g' : 'r'}">${money(row.pnl, true)}</b></li>`).join('');
+  return `<div class="card arcade"><div class="row"><h2 style="margin:0">Honest scoreboard</h2>${sound || ''}</div>
+    <p class="tag explore">PAPER · after fees · not real money</p>
+    <p class="note">${esc(GATE_PRIOR.summary || '')} Crypto and Kalshi means are on a $2 paper bet. The 13F copy is on $100 paper per name, entered on the filing date.</p>
+    <div class="hype"><b>Hype check.</b> Posts that say a bot turned $68 into $500k are not a track record. This desk does not copy them. A scalp that cannot pay the fee is a loss, even if the screenshot looks green.</div>
+    <h2>Ready for real money?</h2>
+    <p class="note">Informational only. live_execution is disabled. Passing a study does not turn on a wallet.</p>
+    <ul class="feed">${gate || '<li><span class="empty">No gate table in this build yet.</span></li>'}</ul>
+    <h2>This phone, arena only</h2>
+    <p class="note">n ${phone.length} · net ${money(net, true)} · fees ${money(fees)}. These trades are not in the edge gate.</p>
+    <ul class="feed">${race || '<li><span class="empty">No settled arena bets on this phone yet.</span></li>'}</ul>
+    ${tabs ? `<div class="seg">${tabs}</div>` : ''}</div>`;
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -396,6 +488,7 @@ function home(st) {
   const unreal = st.open.reduce((a, p) => a + (p.qty * (p.lastPrice ?? p.entryMid) * (1 - st.settings.feePct / 200) - p.sizeUsd), 0);
   const isReplay = st.mode === 'replay';
   return `
+  ${arenaHome(st)}
   ${activeCard(st)}
   ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card hero ${net < 0 ? 'down' : ''}">
@@ -543,7 +636,7 @@ function settingsView(st) {
 function render() {
   if (!state) return;
   const v = $('#view');
-  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'score' ? scoreView(state) : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   const badge = $('#modeBadge');
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   paintTicker(state);
@@ -586,6 +679,18 @@ function bind() {
   const d = $('#defaults'); if (d) d.onclick = () => { const r = updateSettings(live, live.settings, { ...DEFAULT_SETTINGS }); if (r.ok) { live.settings = r.settings; saveSettings(r.settings); persist(); render(); } };
   const n = $('#notify'); if (n) n.onchange = async () => { ui.notify = n.checked; if (n.checked && 'Notification' in window) { const p = await Notification.requestPermission(); ui.notify = p === 'granted'; } localStorage.setItem('gd.notify', ui.notify ? '1' : '0'); render(); };
   const w = $('#wipe'); if (w) w.onclick = async () => { if (!confirm('Erase all local paper data?')) return; live = newState(loadSettings(), Date.now()); state = live; await persist(); render(); };
+  const go = $('#goArena'); if (go) go.onclick = () => { ui.tab = 'arena'; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === 'arena')); render(); };
+  document.querySelectorAll('[data-tabjump]').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tabjump; render(); }));
+  document.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => { ui.arena = b.dataset.arena; render(); }));
+  const sound = $('#soundBtn'); if (sound) sound.onclick = () => { ui.sound = !ui.sound; localStorage.setItem('gd.sound', ui.sound ? '1' : '0'); render(); };
+  document.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = async () => {
+    const market = (live.kalshiBoard?.markets || []).find((m) => m.ticker === b.dataset.ticker);
+    if (!market) return;
+    const res = placePick(live, market, b.dataset.pick, Date.now());
+    if (!res.ok) toast({ text: res.reason });
+    else { burst('loss'); await persist(); }
+    render();
+  }));
 }
 async function refreshKalshi() {
   if (!live || ui.replay || ui.kalshiBusy) return;
@@ -594,8 +699,23 @@ async function refreshKalshi() {
     const board = await loadKalshiBoard(fetch);
     live.kalshiBoard = board;
     reviewKalshi(live, board, Date.now());
-    if (state === live) { await persist(); if (ui.tab === 'predict') render(); }
-  } catch { /* keep the last board */ }
+    const [spots, book] = await Promise.all([loadSpots(fetch), loadBook(fetch)]);
+    live.spots = spots;
+    const before = (live.arenaClosed || []).length + (live.picksClosed || []).length;
+    const notes = reviewArena(live, board, Date.now(), spots, book);
+    const after = (live.arenaClosed || []).length + (live.picksClosed || []).length;
+    if (after > before) {
+      const last = (live.arenaClosed || []).concat(live.picksClosed || []).at(-1);
+      burst(last?.won ? 'win' : 'loss');
+    }
+    if (location.hash === '#shot' && !live._shot && (live.arenaOpen || []).some((p) => p.contracts >= 1)) {
+      const bet = live.arenaOpen.find((p) => p.contracts >= 1);
+      live._shot = true;
+      reviewArena(live, { markets: [{ ticker: bet.ticker, title: bet.title, series: bet.series, result: bet.side, yesAsk: bet.ask, noAsk: 1 - bet.ask, closeTime: new Date(Date.now() + 60000).toISOString() }] }, Date.now(), spots, book);
+      burst('win');
+    }
+    if (state === live) { await persist(); if (ui.tab === 'predict' || ui.tab === 'arena' || ui.tab === 'score' || ui.tab === 'home') render(); }
+  } catch (e) { if (live) live.arenaError = e.message; if (state === live) render(); }
   finally { ui.kalshiBusy = false; }
 }
 document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tab; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); window.scrollTo(0, 0); if (b.dataset.tab === 'predict') refreshKalshi(); }));

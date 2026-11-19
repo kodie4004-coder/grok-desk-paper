@@ -135,7 +135,7 @@ export async function loadKalshiBoard(fetchImpl = globalThis.fetch) {
     }
     return { fetchedAt: new Date().toISOString(), via: 'kalshi', markets };
   } catch {
-    const res = await fetchImpl('data/kalshi-15m.json');
+    const res = await fetchImpl(`data/kalshi-15m.json?v=${Date.now()}`, { cache: 'no-store' });
     if (!res || !res.ok) return { fetchedAt: null, via: 'unavailable', markets: [], cors: 'blocked' };
     const body = await res.json();
     return { ...body, via: body.via || 'snapshot' };

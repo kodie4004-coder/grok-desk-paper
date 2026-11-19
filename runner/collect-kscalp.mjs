@@ -9,9 +9,13 @@ const ROOT = 'https://api.elections.kalshi.com/trade-api/v2';
 const OUT = 'runner/research/kalshi-scalp.json.gz';
 
 async function get(url) {
-  const res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': UA } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  for (let i = 0; i < 5; i++) {
+    const res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': UA } });
+    if (res.status === 429) { await new Promise((r) => setTimeout(r, 1500 * (i + 1))); continue; }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+  throw new Error('rate limited');
 }
 
 const doc = { collectedAt: new Date().toISOString(), markets: [] };
@@ -24,7 +28,7 @@ for (const series of SERIES) {
     const candles = await get(`${ROOT}/series/${series}/markets/${m.ticker}/candlesticks?start_ts=${Math.floor(close / 1000) - 15 * 60}&end_ts=${Math.floor(close / 1000)}&period_interval=1`);
     doc.markets.push({ ticker: m.ticker, series, close, candles: candles.candlesticks || [] });
     n += 1;
-    await new Promise((r) => setTimeout(r, 70));
+    await new Promise((r) => setTimeout(r, 250));
   }
   console.log(series, n);
 }

@@ -85,6 +85,15 @@ canvas{width:100%;height:180px;display:block;border-radius:12px}
 .age{margin:0 0 8px;padding:8px 10px;border-radius:10px;font:800 14px/1.3 var(--mono)}
 .age.fresh{color:#04140a;background:var(--g)}
 .age.stale{color:#ffd0d6;background:#3a1820;border:1px solid #8a3040}
+.arcade{border-color:#245c3e;box-shadow:0 0 24px #3dff9a22}
+.lvl{margin:8px 0;font:800 22px/1.1 var(--mono);color:var(--g);text-shadow:0 0 12px #3dff9a66}
+.hype{margin:8px 0;padding:10px;border-radius:12px;background:#2a2210;color:#ffe7a3;border:1px solid #8a6a1a}
+.fx{position:fixed;inset:0;pointer-events:none;z-index:8}
+.fx i{position:absolute;left:50%;top:30%;width:8px;height:8px;border-radius:2px;background:var(--g);opacity:0}
+.fx.win i{animation:pop .9s ease forwards;transform:rotate(calc(var(--i) * 22deg)) translateY(-12px)}
+.fx.loss i{background:var(--r);animation:pop .7s ease forwards}
+@keyframes pop{to{opacity:0;transform:rotate(calc(var(--i) * 22deg)) translateY(-140px)}}
+@media (prefers-reduced-motion: reduce){.fx i{animation:none}}
 .feed li.in{animation:rowin .45s ease}
 @keyframes rowin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){

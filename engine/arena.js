@@ -36,10 +36,10 @@ function plans(market, now, spots, prev) {
   const base = SPOT[market.series];
   const spot = base && spots?.[base];
   if (left >= 120 && left <= 600 && spot?.px > 0 && market.floorStrike > 0 && yes > 0 && yes < 1 && no > 0 && no < 1) {
-    const up = spot.px > market.floorStrike * 1.0005;
-    const down = spot.px < market.floorStrike * 0.9995;
-    if (up) out.push({ rule: 'mom', side: 'yes', ask: yes, reason: `momentum vs target, ${spot.source} estimate above strike` });
-    else if (down) out.push({ rule: 'mom', side: 'no', ask: no, reason: `momentum vs target, ${spot.source} estimate below strike` });
+    const up = spot.px > market.floorStrike;
+    const down = spot.px < market.floorStrike;
+    if (up) out.push({ rule: 'mom', side: 'yes', ask: yes, reason: `momentum vs target, ${spot.source} above strike` });
+    else if (down) out.push({ rule: 'mom', side: 'no', ask: no, reason: `momentum vs target, ${spot.source} below strike` });
   }
   if (left >= 360 && left <= 720 && yes > 0.15 && yes < 0.4) out.push({ rule: 'revert', side: 'yes', ask: yes, reason: 'mean revert, YES ask is cheap vs 0.50' });
   else if (left >= 360 && left <= 720 && yes > 0.6 && yes < 0.85) out.push({ rule: 'revert', side: 'no', ask: no, reason: 'mean revert, YES ask is rich vs 0.50' });
@@ -77,7 +77,7 @@ export function reviewArena(state, board, now, spots, book) {
   for (const m of markets) {
     if (m.result !== 'yes' && m.result !== 'no') continue;
     for (const list of ['arenaOpen', 'picksOpen']) {
-      const open = (state[list] || []).filter((p) => p.ticker === m.ticker);
+      const open = (state[list] || []).filter((p) => p.ticker === m.ticker && !p.estimate);
       for (const bet of open) {
         const won = m.result === bet.side;
         const exitPx = won ? 1 : 0;
