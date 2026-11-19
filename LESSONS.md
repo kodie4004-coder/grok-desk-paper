@@ -4,7 +4,27 @@ Paper only, after fees. Lessons do not move the edge gate, raise size, or turn o
 
 ## This week from the journal
 
-No feature bucket has 8 settled paper trades yet. Nothing was retuned.
+- Mean revert loses when the ask is below 0.60 and 5 to 10 minutes are left. n 73, mean −$0.73 after fees. This describes paper trades. It does not change the rule.
+
+- Late favorite loses when the ask is from 0.85 to 0.95 and 5 to 10 minutes are left. n 17, mean −$0.64 after fees. This describes paper trades. It does not change the rule.
+
+- Intra-window scalp loses when the ask is from 0.60 to 0.85 and 2 to 5 minutes are left. n 8, mean −$0.55 after fees. This describes paper trades. It does not change the rule.
+
+- Coin-flip control loses when the ask is from 0.60 to 0.85 and more than 10 minutes are left. n 8, mean −$0.36 after fees. This describes paper trades. It does not change the rule.
+
+- Late favorite makes money when the ask is above 0.95 and 2 to 5 minutes are left. n 24, mean +$0.04 after fees. This describes paper trades. It does not change the rule.
+
+- Momentum vs target makes money when the ask is above 0.95 and 2 to 5 minutes are left. n 8, mean +$0.04 after fees. This describes paper trades. It does not change the rule.
+
+- Late favorite makes money when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 14, mean +$0.15 after fees. This describes paper trades. It does not change the rule.
+
+- Intra-window scalp makes money when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 8, mean +$0.16 after fees. This describes paper trades. It does not change the rule.
+
+- Momentum vs target makes money when the ask is from 0.60 to 0.85 and 5 to 10 minutes are left. n 15, mean +$0.22 after fees. This describes paper trades. It does not change the rule.
+
+- Coin-flip control makes money when the ask is below 0.60 and more than 10 minutes are left. n 14, mean +$0.44 after fees. This describes paper trades. It does not change the rule.
+
+- Momentum vs target makes money when the ask is below 0.60 and 5 to 10 minutes are left. n 13, mean +$0.92 after fees. This describes paper trades. It does not change the rule.
 
 ## Frozen studies
 

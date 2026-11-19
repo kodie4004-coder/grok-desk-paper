@@ -1,8 +1,75 @@
 {
-  "generatedAt": "2026-11-19T04:28:04.538Z",
+  "generatedAt": "2026-11-19T16:33:19.802Z",
   "paper": true,
   "note": "Paper only, after fees. Lessons do not move the edge gate, raise size, or turn on live execution.",
-  "lessons": [],
+  "lessons": [
+    {
+      "family": "revert",
+      "n": 73,
+      "mean": -0.7295890410958901,
+      "text": "Mean revert loses when the ask is below 0.60 and 5 to 10 minutes are left. n 73, mean −$0.73 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "late",
+      "n": 17,
+      "mean": -0.644,
+      "text": "Late favorite loses when the ask is from 0.85 to 0.95 and 5 to 10 minutes are left. n 17, mean −$0.64 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "scalp",
+      "n": 8,
+      "mean": -0.54625,
+      "text": "Intra-window scalp loses when the ask is from 0.60 to 0.85 and 2 to 5 minutes are left. n 8, mean −$0.55 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "flip",
+      "n": 8,
+      "mean": -0.35625,
+      "text": "Coin-flip control loses when the ask is from 0.60 to 0.85 and more than 10 minutes are left. n 8, mean −$0.36 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "late",
+      "n": 24,
+      "mean": 0.04050000000000004,
+      "text": "Late favorite makes money when the ask is above 0.95 and 2 to 5 minutes are left. n 24, mean +$0.04 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "mom",
+      "n": 8,
+      "mean": 0.04100000000000004,
+      "text": "Momentum vs target makes money when the ask is above 0.95 and 2 to 5 minutes are left. n 8, mean +$0.04 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "late",
+      "n": 14,
+      "mean": 0.14799999999999994,
+      "text": "Late favorite makes money when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 14, mean +$0.15 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "scalp",
+      "n": 8,
+      "mean": 0.16199999999999998,
+      "text": "Intra-window scalp makes money when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 8, mean +$0.16 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "mom",
+      "n": 15,
+      "mean": 0.2239999999999999,
+      "text": "Momentum vs target makes money when the ask is from 0.60 to 0.85 and 5 to 10 minutes are left. n 15, mean +$0.22 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "flip",
+      "n": 14,
+      "mean": 0.43857142857142833,
+      "text": "Coin-flip control makes money when the ask is below 0.60 and more than 10 minutes are left. n 14, mean +$0.44 after fees. This describes paper trades. It does not change the rule."
+    },
+    {
+      "family": "mom",
+      "n": 13,
+      "mean": 0.9238461538461537,
+      "text": "Momentum vs target makes money when the ask is below 0.60 and 5 to 10 minutes are left. n 13, mean +$0.92 after fees. This describes paper trades. It does not change the rule."
+    }
+  ],
   "frozen": [
     {
       "source": "gate-v6",
@@ -39,12 +106,12 @@
       "family": "late",
       "label": "Late favorite",
       "role": "champion",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 13,
+      "mean": 0.08523076923076923,
+      "lo": 0.05696153846153849,
       "benched": false,
       "weight": 1,
-      "level": 1,
+      "level": 2,
       "gateWindows": 0,
       "graduated": false
     },
@@ -53,12 +120,12 @@
       "family": "late",
       "label": "Late favorite, looser ask",
       "role": "challenger",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 14,
+      "mean": 0.10200000000000001,
+      "lo": 0.06633571428571429,
       "benched": false,
       "weight": 1,
-      "level": 1,
+      "level": 2,
       "gateWindows": 0,
       "graduated": false
     },
@@ -67,13 +134,13 @@
       "family": "late",
       "label": "Late favorite, tighter ask",
       "role": "challenger",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 21,
+      "mean": -0.3845714285714286,
+      "lo": -0.5909317391304347,
       "benched": false,
       "weight": 1,
-      "level": 1,
-      "gateWindows": 0,
+      "level": 3,
+      "gateWindows": 1,
       "graduated": false
     },
     {
@@ -81,12 +148,12 @@
       "family": "late",
       "label": "Late favorite, earlier",
       "role": "challenger",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 14,
+      "mean": -0.6874285714285715,
+      "lo": -1.1563956043956047,
       "benched": false,
       "weight": 1,
-      "level": 1,
+      "level": 2,
       "gateWindows": 0,
       "graduated": false
     },
@@ -95,13 +162,13 @@
       "family": "mom",
       "label": "Momentum vs target",
       "role": "champion",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 27,
+      "mean": 0.3085185185185185,
+      "lo": -0.040966666666666596,
       "benched": false,
       "weight": 1,
-      "level": 1,
-      "gateWindows": 0,
+      "level": 3,
+      "gateWindows": 1,
       "graduated": false
     },
     {
@@ -109,13 +176,13 @@
       "family": "mom",
       "label": "Momentum, 0.05% past the strike",
       "role": "challenger",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 24,
+      "mean": 0.41,
+      "lo": -0.020890333333333313,
       "benched": false,
       "weight": 1,
-      "level": 1,
-      "gateWindows": 0,
+      "level": 3,
+      "gateWindows": 1,
       "graduated": false
     },
     {
@@ -123,13 +190,13 @@
       "family": "revert",
       "label": "Mean revert",
       "role": "champion",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 33,
+      "mean": -0.7384848484848487,
+      "lo": -1.3544684873949582,
       "benched": false,
       "weight": 1,
-      "level": 1,
-      "gateWindows": 0,
+      "level": 4,
+      "gateWindows": 1,
       "graduated": false
     },
     {
@@ -137,13 +204,13 @@
       "family": "revert",
       "label": "Mean revert, wider band",
       "role": "challenger",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 40,
+      "mean": -0.7222500000000001,
+      "lo": -1.2953690476190478,
       "benched": false,
       "weight": 1,
-      "level": 1,
-      "gateWindows": 0,
+      "level": 5,
+      "gateWindows": 1,
       "graduated": false
     },
     {
@@ -151,13 +218,13 @@
       "family": "scalp",
       "label": "Intra-window scalp",
       "role": "champion",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 20,
+      "mean": -0.04799999999999997,
+      "lo": -0.47543511705685626,
       "benched": false,
       "weight": 1,
-      "level": 1,
-      "gateWindows": 0,
+      "level": 3,
+      "gateWindows": 1,
       "graduated": false
     },
     {
@@ -165,12 +232,12 @@
       "family": "scalp",
       "label": "Scalp, larger jump",
       "role": "challenger",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 16,
+      "mean": -0.39562499999999995,
+      "lo": -0.7023888888888891,
       "benched": false,
       "weight": 1,
-      "level": 1,
+      "level": 2,
       "gateWindows": 0,
       "graduated": false
     },
@@ -179,13 +246,13 @@
       "family": "flip",
       "label": "Coin-flip control",
       "role": "control",
-      "n": 0,
-      "mean": null,
-      "lo": null,
+      "n": 26,
+      "mean": 0.1523076923076922,
+      "lo": -0.5268447204968941,
       "benched": false,
       "weight": 1,
-      "level": 1,
-      "gateWindows": 0,
+      "level": 3,
+      "gateWindows": 1,
       "graduated": false
     }
   ],
