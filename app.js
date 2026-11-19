@@ -13,6 +13,7 @@ import { GATE_PRIOR } from './engine/gate-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
+import { bestPair, scoreCoin, memeGate } from './engine/meme.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -40,7 +41,7 @@ const idb = {
 const loadSettings = () => { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('gd.settings') || '{}') }; } catch { return { ...DEFAULT_SETTINGS }; } };
 const saveSettings = (s) => localStorage.setItem('gd.settings', JSON.stringify(s));
 
-const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1', arena: 'feed', sound: localStorage.getItem('gd.sound') === '1' };
+const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1', arena: 'feed', sound: localStorage.getItem('gd.sound') === '1', coinAlerts: localStorage.getItem('gd.coinAlerts') === '1', memeJournal: [] };
 let live = null;          // live state
 let state = null;         // what is on screen (live or replay)
 const src = createLiveSource();
@@ -510,6 +511,7 @@ function home(st) {
   return `
   ${cockpit(st)}
   ${morningCard()}
+  <section class="card" aria-label="Live signals"><h2>Live signals</h2><p class="note">${ui.coinsState === 'ready' ? `${(ui.coins || []).filter((c) => c.pass).length} paper buy${(ui.coins || []).filter((c) => c.pass).length === 1 ? '' : 's'} in the latest Solana list.` : 'Open Coins for the live Solana list. Only a paper buy shows a contract address to copy.'}</p><button type="button" class="btn wide" data-tabjump="coins">Open coins</button></section>
   ${activeCard(st)}
   ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card hero ${net < 0 ? 'down' : ''}">
@@ -649,6 +651,8 @@ function settingsView(st) {
   <button type="button" class="btn wide" id="defaults" style="margin-top:8px" ${locked ? 'disabled' : ''}>Reset to defaults</button></form>
   <div class="note" style="margin-top:8px">There is no "make it back" setting on purpose. Raising size or loosening rules after a loss is loss-chasing and drains accounts; the loss cap stops new entries instead. The edge gate only shrinks or stops. It never sizes above the position you set, and a loss never increases size.</div></div>
   <div class="card"><h2>Notifications</h2><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Nothing is sent outside this device.</div></div>
+  <div class="card" id="pro"><h2>Pro</h2><p class="note">Coming soon. There is no payment and no account. If you would pay for a finished version, you can leave an email on this phone. It is stored only in this browser and is not sent anywhere.</p><label class="f">Email on this phone<input id="proEmail" type="email" inputmode="email" autocomplete="off" value="${esc(localStorage.getItem('gd.proEmail') || '')}"></label><button type="button" class="btn wide" id="proSave">Save on this phone</button></div>
+  <div class="card"><h2>Appearance</h2><button type="button" class="btn wide" id="themeBtn">${document.documentElement.dataset.theme === 'light' ? 'Use dark theme' : 'Use light theme'}</button></div>
   <div class="card"><h2>Live execution</h2><label class="f">live_execution<input type="checkbox" disabled></label>
     <div class="note">Disabled and not built. This app has no wallet connection, no private keys and no order code. Going live would need a separate build (wallet signing, a swap router such as Jupiter, priority fees, real slippage handling, kill switch) and Kodie's explicit approval. See <code>LIVE_EXECUTION.md</code>.</div></div>
   <div class="card"><h2>Data</h2><div class="note">Sources (free, no keys): GeckoTerminal, DexScreener, Jupiter, Coinbase, Kalshi snapshot, EDGAR. State lives only in this browser.</div>
@@ -741,10 +745,74 @@ function brainView() {
     <details class="fold"><summary>Frozen studies</summary><div class="fold-body"><ul class="feed">${frozen}</ul><p class="note">${esc(doc.note || '')}</p></div></details>
   </section>`;
 }
+function dexReady(pair, now) {
+  const scored = scoreCoin(pair, { holders: { distribution_percentage: { top_10: '0' } }, mint_authority: 'no', freeze_authority: 'no' }, now);
+  return scored.reasons.filter((r) => ['liquidity', 'volume', 'age', 'quote', '1h move'].includes(r.name)).every((r) => r.ok === true);
+}
+async function loadCoins() {
+  if (ui.coinsState === 'loading') return;
+  ui.coinsState = 'loading';
+  if (ui.tab === 'coins') render();
+  try {
+    const boosts = await fetch('https://api.dexscreener.com/token-boosts/latest/v1', { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('DexScreener ' + r.status); return r.json(); });
+    const sols = (Array.isArray(boosts) ? boosts : []).filter((b) => b.chainId === 'solana' && b.tokenAddress).slice(0, 8);
+    const joined = sols.map((b) => b.tokenAddress).join(',');
+    const book = joined ? await fetch('https://api.dexscreener.com/latest/dex/tokens/' + joined, { cache: 'no-store' }).then((r) => r.json()) : { pairs: [] };
+    const now = Date.now();
+    const prelim = sols.map((b) => ({ b, pair: bestPair(book.pairs, b.tokenAddress) }));
+    const need = prelim.filter((row) => dexReady(row.pair, now)).slice(0, 4);
+    const info = {};
+    for (const row of need) {
+      try {
+        const res = await fetch('https://api.geckoterminal.com/api/v2/networks/solana/tokens/' + row.b.tokenAddress + '/info', { cache: 'no-store' });
+        if (res.ok) info[row.b.tokenAddress] = (await res.json())?.data?.attributes || null;
+      } catch { info[row.b.tokenAddress] = null; }
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+    ui.coins = prelim.map(({ b, pair }) => {
+      const score = scoreCoin(pair, info[b.tokenAddress] || null, now);
+      return {
+        ca: b.tokenAddress,
+        symbol: pair?.baseToken?.symbol || '?',
+        name: pair?.baseToken?.name || 'Unknown',
+        priceUsd: Number(pair?.priceUsd),
+        dexUrl: pair?.url || `https://dexscreener.com/solana/${b.tokenAddress}`,
+        ...score,
+      };
+    });
+    ui.coinsState = 'ready';
+    ui.coinsAt = now;
+    const fresh = ui.coins.filter((c) => c.pass && !(ui.seenCoins || new Set()).has(c.ca));
+    if (ui.coinAlerts && fresh.length && 'Notification' in window && Notification.permission === 'granted' && !document.hidden) {
+      try { new Notification('Grok Desk paper signal', { body: fresh.map((c) => c.symbol).join(', ') + ' passed the paper safety list. Not advice.' }); } catch {}
+    }
+    ui.seenCoins = new Set([...(ui.seenCoins || []), ...ui.coins.map((c) => c.ca)]);
+  } catch (e) {
+    ui.coinsState = 'error';
+    ui.coinsError = e.message || 'Coin feed failed';
+  }
+  if (ui.tab === 'coins') render();
+}
+function coinsView() {
+  if (ui.coinsState !== 'ready' && ui.coinsState !== 'error') loadCoins();
+  const note = `<p class="note">Signals are paper-tested ideas, not advice. You buy in your own pump.fun or fomo account. This app has no wallet and cannot place an order.</p>`;
+  const alert = `<button type="button" id="coinAlert" class="switch ${ui.coinAlerts ? 'on' : ''}" aria-pressed="${!!ui.coinAlerts}">${ui.coinAlerts ? 'Alerts on' : 'Alerts off'}</button>`;
+  if (ui.coinsState !== 'ready') {
+    return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">${esc(ui.coinsError)}</p>` : '<div class="skel" aria-busy="true"></div><p class="note">Loading the public Solana feed.</p>'}</section>`;
+  }
+  const cards = (ui.coins || []).map((coin) => {
+    const why = coin.reasons.map((r) => `<li><span class="tag ${r.ok === true ? 'normal' : r.ok === false ? 'off' : ''}">${r.ok === true ? 'pass' : r.ok === false ? 'fail' : 'missing'}</span> ${esc(r.name)} · ${esc(r.detail)}</li>`).join('');
+    const actions = coin.pass ? `<p class="ca" aria-label="Contract address">${esc(coin.ca)}</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn pri" data-copy="${esc(coin.ca)}">Copy CA</button><a class="btn" href="https://pump.fun/coin/${esc(coin.ca)}" target="_blank" rel="noopener">Pump.fun</a><a class="btn" href="https://fomo.family/tokens/solana/${esc(coin.ca)}" target="_blank" rel="noopener">FOMO</a><a class="btn" href="${esc(coin.dexUrl)}" target="_blank" rel="noopener">DexScreener</a></div>` : '';
+    return `<article class="card"><div class="row"><h2 style="margin:0">${esc(coin.symbol)} · ${esc(coin.name)}</h2><span class="tag ${coin.pass ? 'normal' : 'off'}">${coin.pass ? 'paper buy' : 'no buy'}</span></div>${actions}<ul class="feed">${why}</ul></article>`;
+  }).join('');
+  const gate = memeGate(ui.memeJournal || []);
+  const net = (ui.memeJournal || []).reduce((sum, row) => sum + (row.pnl || 0), 0);
+  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">pump.fun's API did not answer from this network. Prices are DexScreener. Holder, mint, and freeze checks are GeckoTerminal when it answers. FOMO opens https://fomo.family/tokens/solana/&lt;CA&gt;.</p></div>${cards || '<div class="card"><p class="empty">No Solana coins in the latest public boost list.</p></div>'}</section>`;
+}
 function render() {
   if (!state) return;
   const v = $('#view');
-  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'score' ? scoreView(state) : ui.tab === 'brain' ? brainView() : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? scoreView(state) : ui.tab === 'brain' ? brainView() : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   const badge = $('#modeBadge');
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   paintTicker(state);
@@ -802,6 +870,32 @@ function bind() {
   document.querySelectorAll('[data-tabjump]').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tabjump; render(); }));
   document.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => { ui.arena = b.dataset.arena; render(); }));
   const sound = $('#soundBtn'); if (sound) sound.onclick = () => { ui.sound = !ui.sound; localStorage.setItem('gd.sound', ui.sound ? '1' : '0'); render(); };
+  const themeBtn = $('#themeBtn'); if (themeBtn) themeBtn.onclick = () => {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('gd.theme', next);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = next === 'light' ? '#f4f6f8' : '#07090c';
+    render();
+  };
+  const pro = $('#proSave'); if (pro) pro.onclick = () => {
+    const email = ($('#proEmail')?.value || '').trim();
+    if (email && !/^[^\s@]+@[^\s@]+$/.test(email)) return toast({ text: 'That does not look like an email. Nothing was saved.' });
+    if (email) localStorage.setItem('gd.proEmail', email); else localStorage.removeItem('gd.proEmail');
+    toast({ text: email ? 'Saved on this phone only.' : 'Cleared on this phone.' });
+  };
+  const alertBtn = $('#coinAlert'); if (alertBtn) alertBtn.onclick = async () => {
+    ui.coinAlerts = !ui.coinAlerts;
+    if (ui.coinAlerts && 'Notification' in window) { const p = await Notification.requestPermission(); ui.coinAlerts = p === 'granted'; }
+    localStorage.setItem('gd.coinAlerts', ui.coinAlerts ? '1' : '0');
+    render();
+  };
+  document.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = async () => {
+    const ca = b.dataset.copy;
+    try { await navigator.clipboard.writeText(ca); } catch { /* the address stays on screen */ }
+    if (navigator.vibrate) navigator.vibrate(12);
+    toast({ text: 'Contract address copied. Buy it in your own account.' });
+  }));
   document.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = async () => {
     const market = (live.kalshiBoard?.markets || []).find((m) => m.ticker === b.dataset.ticker);
     if (!market) return;
@@ -854,4 +948,41 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) live
   const q = new URLSearchParams(location.search);
   if (q.get('replay') === '1') startReplay();
   if (q.get('tab')) document.querySelector(`[data-tab="${q.get('tab')}"]`)?.click();
+  showIntro();
 })();
+function showIntro() {
+  if (localStorage.getItem('gd.intro') === '1') return;
+  const pages = [
+    ['What this is', 'A paper desk for public markets. It shows what a bot would do with fake money, including a contract address when a Solana coin passes the safety list.'],
+    ['Paper is not your account', 'This app cannot buy anything. To buy a coin, copy the contract address and open pump.fun or fomo yourself. There is no wallet here.'],
+    ['How a signal works', 'A paper buy needs liquidity, volume, age, holders, and mint and freeze authority. A missing check is not a buy. Signals are not advice.'],
+  ];
+  const el = document.createElement('section');
+  el.id = 'intro';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', 'Welcome');
+  let step = 0;
+  const paint = () => {
+    const last = step === pages.length - 1;
+    el.innerHTML = `<div class="card intro-card"><p class="note">Step ${step + 1} of ${pages.length}</p><h2>${pages[step][0]}</h2><p>${pages[step][1]}</p><button type="button" class="btn pri wide" id="introNext">${last ? 'Start paper desk' : 'Next'}</button><button type="button" class="btn wide" id="introSkip">Skip</button></div>`;
+    el.querySelector('#introNext').onclick = () => { if (last) finish(); else { step += 1; paint(); } };
+    el.querySelector('#introSkip').onclick = finish;
+  };
+  const finish = () => { localStorage.setItem('gd.intro', '1'); el.remove(); };
+  paint();
+  document.body.appendChild(el);
+}
+let pullY = null;
+document.addEventListener('touchstart', (e) => { if (window.scrollY < 2) pullY = e.touches[0].clientY; else pullY = null; }, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (pullY == null) return;
+  const dy = e.changedTouches[0].clientY - pullY;
+  pullY = null;
+  if (dy < 70 || window.scrollY > 8) return;
+  if (ui.tab === 'coins') { ui.coinsState = null; loadCoins(); }
+  else { refreshKalshi(); if (ui.morningState) { ui.morningState = null; loadMorning(); } }
+  toast({ text: 'Refreshing.' });
+}, { passive: true });
+window.addEventListener('offline', () => { const n = $('#linkState'); if (!n) return; n.hidden = false; n.textContent = 'Offline. The saved app shell is still here. Live prices are not.'; });
+window.addEventListener('online', () => { const n = $('#linkState'); if (n) n.hidden = true; });
+if (localStorage.getItem('gd.theme') === 'light') document.documentElement.dataset.theme = 'light';
