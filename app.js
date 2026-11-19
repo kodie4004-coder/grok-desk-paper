@@ -8,6 +8,7 @@ import { KALSHI_PRIOR } from './engine/kalshi-prior.js';
 import { loadKalshiBoard, reviewKalshi, quoteAge } from './engine/kalshi.js';
 import { reviewArena, placePick, loadSpots, loadBook, ARENA_SIZE } from './engine/arena.js';
 import { levelOf, streak, achievements } from './engine/game.js';
+import { migrate, exportHistory, importHistory, historyCsv } from './engine/store.js';
 import { GATE_PRIOR } from './engine/gate-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
@@ -50,6 +51,7 @@ async function persist() { if (live) await idb.set('state', serialize(live)); }
 function toast(e) {
   const el = document.createElement('div');
   el.className = 'toast ' + (e.side === 'buy' ? 'buy' : e.pnl > 0 ? 'win' : e.pnl < 0 ? 'loss' : '');
+  el.setAttribute('role', 'status');
   el.textContent = (state?.mode === 'replay' ? '[REPLAY] ' : '[PAPER] ') + e.text;
   $('#toasts').prepend(el); setTimeout(() => el.remove(), 5000);
   if (ui.notify && state?.mode !== 'replay' && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
@@ -418,42 +420,60 @@ function countdown(close, now) {
   const s = Math.max(0, Math.round((Date.parse(close) - now) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
-function arenaHome(st) {
+function cockpit(st) {
+  const now = Date.now();
+  const day = new Date(now).toISOString().slice(0, 10);
+  const today = (st.arenaClosed || []).concat(st.picksClosed || []).filter((t) => new Date(t.closedAt || 0).toISOString().slice(0, 10) === day);
+  const pnl = today.reduce((a, t) => a + (t.pnl || 0), 0);
+  const last = (st.arenaLog || []).slice().reverse().find((d) => d.action === 'settle');
+  const soon = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
+  const openN = (st.arenaOpen || []).length + (st.picksOpen || []).length;
   const xp = st.game?.xp || 0;
-  const soon = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > Date.now()).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
-  return `<div class="card arcade">
-    <div class="row"><h2 style="margin:0">Paper arena</h2><span class="tag explore">PAPER · not real money</span></div>
-    <p class="lvl">Level ${levelOf(xp)} · ${xp} XP · streak ${streak(st.game || {}, Date.now())}d</p>
-    <p class="note">XP comes from placing and settling paper bets, not from how much they made. Next window ${soon ? countdown(soon.closeTime, Date.now()) : '—'}.</p>
+  const loading = !st.kalshiBoard;
+  const age = st.kalshiBoard ? quoteAge(st.kalshiBoard.fetchedAt, now) : null;
+  return `<section class="card cockpit arcade" aria-label="Paper cockpit">
+    <div class="row"><h2 style="margin:0">Cockpit</h2><span class="tag explore">PAPER · not real money</span></div>
+    ${loading ? '<div class="skel" aria-busy="true" aria-label="Loading markets"></div>' : ''}
+    <div class="grid">
+      <div class="stat"><small>Live now</small><b>${openN}</b><span class="note">open</span></div>
+      <div class="stat"><small>Today</small><b class="${pnl > 0 ? 'g' : pnl < 0 ? 'r' : ''}">${money(pnl, true)}</b><span class="note">after fees</span></div>
+      <div class="stat"><small>Streak</small><b>${streak(st.game || {}, now)}d</b><span class="note">Level ${levelOf(xp)} · ${xp} XP</span></div>
+    </div>
+    ${age ? `<p class="age ${age.stale ? 'stale' : 'fresh'}" role="status">Kalshi quote ${esc(age.label)} · ${age.stale ? 'STALE' : 'fresh'}</p>` : ''}
+    <p class="lvl">${soon ? `Next close ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}</p>
+    <p class="note">${last ? `Just settled: ${esc(last.title || last.rule)} · ${esc(last.reason || '')}` : 'Nothing has settled on this phone yet.'}</p>
     <button class="btn pri wide" id="goArena" type="button">Open the arena</button>
     <div class="row" style="margin-top:8px"><button type="button" class="btn" data-tabjump="agents">Agents</button><button type="button" class="btn" data-tabjump="activity">Log</button></div>
-  </div>`;
+  </section>`;
 }
 function arenaView(st) {
   const now = Date.now();
   const seg = ui.arena;
-  const tabs = ['feed', 'pick', 'badges', 'score'].map((k) => `<button type="button" data-arena="${k}" class="${seg === k ? 'on' : ''}">${k}</button>`).join('');
+  const labels = { feed: 'Feed', pick: 'Pick', badges: 'Badges', score: 'Score' };
+  const tabs = Object.keys(labels).map((k) => `<button type="button" data-arena="${k}" class="${seg === k ? 'on' : ''}" aria-current="${seg === k ? 'true' : 'false'}">${labels[k]}</button>`).join('');
   const sound = `<button type="button" id="soundBtn" class="switch ${ui.sound ? 'on' : ''}" aria-pressed="${ui.sound}">${ui.sound ? 'Sound on' : 'Sound off'}</button>`;
   if (seg === 'badges') {
-    const rows = achievements(st).map((a) => `<li class="slot"><b>${esc(a.label)}</b><span class="tag ${a.on ? 'normal' : 'off'}">${a.on ? 'earned' : 'locked'}</span></li>`).join('');
+    const rows = achievements(st).map((a) => `<li class="slot"><div class="row"><b>${esc(a.label)}</b><span class="tag ${a.on ? 'normal' : 'off'}">${a.on ? 'earned' : 'locked'}</span></div></li>`).join('');
     return `<div class="card arcade"><div class="row"><h2 style="margin:0">Badges</h2>${sound}</div><p class="note">Badges mark paper habits. A win does not mint a bigger badge.</p><div class="seg">${tabs}</div><ul class="feed">${rows}</ul></div>`;
   }
   if (seg === 'score') return scoreView(st, tabs, sound);
   if (seg === 'pick') {
-    const rows = (st.kalshiBoard?.markets || []).filter((m) => !m.result).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime)).slice(0, 8);
+    const age = quoteAge(st.kalshiBoard?.fetchedAt, now);
+    const rows = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime)).slice(0, 8);
     const list = rows.map((m) => `<li class="slot"><div class="row"><b>${esc(m.series || m.ticker)}</b><span class="note">${countdown(m.closeTime, now)}</span></div><p class="note">${esc(m.title || '')} · PAPER chip $${ARENA_SIZE}</p><div class="row"><button type="button" class="btn pri" data-pick="yes" data-ticker="${esc(m.ticker)}">Up</button><button type="button" class="btn" data-pick="no" data-ticker="${esc(m.ticker)}">Down</button></div></li>`).join('');
+    const empty = age.stale ? `Snapshot is ${esc(age.label)} old and marked STALE. No open window to pick.` : 'No live 15-minute market in the snapshot.';
     const mine = (st.picksOpen || []).concat(st.picksClosed || []).slice(-6).reverse().map((p) => `<li><span><b>${esc(p.title || p.ticker)}</b> ${esc(p.side)} $${p.sizeUsd}<br><span class="note">${p.pnl == null ? 'open' : money(p.pnl, true) + ' after fees'}</span></span></li>`).join('');
-    return `<div class="card arcade"><div class="row"><h2 style="margin:0">Pick a side</h2>${sound}</div><p class="note">One $${ARENA_SIZE} paper chip. A loss does not raise the next chip. Bots are on the feed.</p><div class="seg">${tabs}</div><ul class="feed">${list || '<li><span class="empty">No live 15-minute market in the snapshot.</span></li>'}</ul><h2>Your paper</h2><ul class="feed">${mine || '<li><span class="empty">No picks yet.</span></li>'}</ul></div>`;
+    return `<div class="card arcade"><div class="row"><h2 style="margin:0">Pick a side</h2>${sound}</div><p class="note">One $${ARENA_SIZE} paper chip. A loss does not raise the next chip. Bots are on the feed.</p><div class="seg">${tabs}</div><ul class="feed">${list || `<li><span class="empty">${empty}</span></li>`}</ul><h2>Your paper</h2><ul class="feed">${mine || '<li><span class="empty">No picks yet.</span></li>'}</ul></div>`;
   }
   const feed = (st.arenaLog || []).slice(-10).reverse();
   const won = feed.find((d) => d.won);
   const soon = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
-  const spots = Object.entries(st.spots || {}).slice(0, 6).map(([k, v]) => `${k} ${v.px?.toFixed ? v.px.toFixed(2) : v.px}`).join(' · ');
+  const spots = Object.entries(st.spots || {}).slice(0, 6).map(([k, v]) => `<span class="chip">${esc(k)} ${v.px?.toFixed ? v.px.toFixed(2) : esc(v.px)}</span>`).join('');
   const rows = feed.map((d, i) => `<li class="${i === 0 ? 'in' : ''}"><span><b>${esc(d.title || d.rule)}</b> <span class="tag ${d.won ? 'normal' : 'explore'}">${esc(d.action)}</span><br><span class="note">${esc(d.rule)} · ${esc(d.reason || '')}</span></span></li>`).join('');
-  return `<div class="card arcade"><div class="row"><h2 style="margin:0">Arena feed</h2>${sound}</div>${won ? '<p class="lvl">PAPER WIN</p>' : ''}<p class="tag explore">PAPER exploration · not the edge gate</p><p class="note">${st.arenaPausedDay ? 'Paused for the day. Size stays $2.' : 'Bots bet $2. Estimates are Coinbase or OKX spots, not Kalshi prints.'}</p><p class="note">${esc(spots || 'Spot estimates load with the arena.')}</p>
+  return `<div class="card arcade"><div class="row"><h2 style="margin:0">Arena feed</h2>${sound}</div>${won ? '<p class="lvl">PAPER WIN</p>' : ''}<p class="tag explore">PAPER exploration · not the edge gate</p><p class="note">${st.arenaPausedDay ? 'Paused for the day. Size stays $2.' : 'Bots bet $2. Estimates are Coinbase or OKX spots, not Kalshi prints.'}</p><p class="note">${spots || 'Spot estimates load with the arena.'}</p>
     ${st.arenaError ? `<p class="note r">${esc(st.arenaError)}</p>` : ''}
     <p class="lvl">${soon ? `Next close ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}</p>
-    <p class="note">${(st.arenaLog || []).length} paper lines · ${(st.kalshiBoard?.markets || []).filter((m) => !m.result).length} open markets in the snapshot.</p><div class="seg">${tabs}</div><ul class="feed">${rows || '<li><span class="empty">The feed fills as windows open. Countdown is on each market in Pick.</span></li>'}</ul></div>`;
+    <p class="note">${(st.arenaLog || []).length} paper lines · ${(st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length} windows still open.</p><div class="seg">${tabs}</div><ul class="feed">${rows || '<li><span class="empty">The feed fills as windows open. Countdown is on each market in Pick.</span></li>'}</ul></div>`;
 }
 function scoreView(st, tabs, sound) {
   const rules = GATE_PRIOR.rules || [];
@@ -488,7 +508,7 @@ function home(st) {
   const unreal = st.open.reduce((a, p) => a + (p.qty * (p.lastPrice ?? p.entryMid) * (1 - st.settings.feePct / 200) - p.sizeUsd), 0);
   const isReplay = st.mode === 'replay';
   return `
-  ${arenaHome(st)}
+  ${cockpit(st)}
   ${activeCard(st)}
   ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card hero ${net < 0 ? 'down' : ''}">
@@ -502,11 +522,13 @@ function home(st) {
     </div>
     <div class="note" id="lastTick" style="margin-top:8px"></div>
   </div>
+  <details class="card fold"><summary>Desk detail</summary><div class="fold-body">
   ${healthCard(st)}
   ${scanCard(st)}
   ${leaderCard(st)}
   ${majorsCard()}
   ${whyCard(st)}
+  </div></details>
   <div class="card">
     <div class="row" style="margin-bottom:8px"><h2 style="margin:0">Equity</h2>
       <div class="seg" style="width:170px">${['15m', '1h', 'all'].map((k) => `<button data-tf="${k}" class="${ui.tf === k ? 'on' : ''}">${k === 'all' ? 'All' : k}</button>`).join('')}</div></div>
@@ -628,8 +650,11 @@ function settingsView(st) {
   <div class="card"><h2>Notifications</h2><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Nothing is sent outside this device.</div></div>
   <div class="card"><h2>Live execution</h2><label class="f">live_execution<input type="checkbox" disabled></label>
     <div class="note">Disabled and not built. This app has no wallet connection, no private keys and no order code. Going live would need a separate build (wallet signing, a swap router such as Jupiter, priority fees, real slippage handling, kill switch) and Kodie's explicit approval. See <code>LIVE_EXECUTION.md</code>.</div></div>
-  <div class="card"><h2>Data</h2><div class="note">Sources (free, no keys): GeckoTerminal (pools, trades, holders), DexScreener (prices), Jupiter lite price API (fallback). State lives only in this browser.</div>
-    <button class="btn dng wide" id="wipe" style="margin-top:10px" ${live.running ? 'disabled' : ''}>Erase local data</button></div>
+  <div class="card"><h2>Data</h2><div class="note">Sources (free, no keys): GeckoTerminal, DexScreener, Jupiter, Coinbase, Kalshi snapshot, EDGAR. State lives only in this browser.</div>
+    <button class="btn wide" id="exportJson" type="button">Export paper JSON</button>
+    <button class="btn wide" id="exportCsv" type="button" style="margin-top:8px">Export paper CSV</button>
+    <label class="btn wide" style="margin-top:8px;display:block;text-align:center">Import paper JSON<input id="importJson" type="file" accept="application/json" hidden></label>
+    <button class="btn dng wide" id="wipe" style="margin-top:8px" ${live.running ? 'disabled' : ''}>Erase local data</button></div>
   <div class="note" style="text-align:center;margin-bottom:10px">Grok Desk paper v1 · not financial advice</div>`;
 }
 
@@ -641,6 +666,7 @@ function render() {
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   paintTicker(state);
   if (ui.tab === 'home') { drawChart($('#chart'), state); updateTimer(); }
+  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-current', b.classList.contains('on') ? 'page' : 'false'));
   bind();
 }
 
@@ -679,6 +705,16 @@ function bind() {
   const d = $('#defaults'); if (d) d.onclick = () => { const r = updateSettings(live, live.settings, { ...DEFAULT_SETTINGS }); if (r.ok) { live.settings = r.settings; saveSettings(r.settings); persist(); render(); } };
   const n = $('#notify'); if (n) n.onchange = async () => { ui.notify = n.checked; if (n.checked && 'Notification' in window) { const p = await Notification.requestPermission(); ui.notify = p === 'granted'; } localStorage.setItem('gd.notify', ui.notify ? '1' : '0'); render(); };
   const w = $('#wipe'); if (w) w.onclick = async () => { if (!confirm('Erase all local paper data?')) return; live = newState(loadSettings(), Date.now()); state = live; await persist(); render(); };
+  const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); };
+  const ej = $('#exportJson'); if (ej) ej.onclick = () => download('grok-desk-paper.json', JSON.stringify(exportHistory(live), null, 2), 'application/json');
+  const ec = $('#exportCsv'); if (ec) ec.onclick = () => download('grok-desk-paper.csv', historyCsv([...(live.arenaClosed || []), ...(live.picksClosed || []), ...(live.closed || [])].map((r) => ({ book: r.rule ? 'arena' : 'desk', ...r }))), 'text/csv');
+  const im = $('#importJson'); if (im) im.onchange = async () => {
+    try {
+      const doc = JSON.parse(await im.files[0].text());
+      importHistory(live, doc);
+      state = live; await persist(); toast({ text: 'Paper history imported.' }); render();
+    } catch (e) { toast({ text: e.message }); }
+  };
   const go = $('#goArena'); if (go) go.onclick = () => { ui.tab = 'arena'; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === 'arena')); render(); };
   document.querySelectorAll('[data-tabjump]').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tabjump; render(); }));
   document.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => { ui.arena = b.dataset.arena; render(); }));
@@ -724,7 +760,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) live
 
 (async () => {
   const saved = await idb.get('state');
-  live = saved ? JSON.parse(saved) : newState(loadSettings(), Date.now());
+  live = migrate(saved ? JSON.parse(saved) : newState(loadSettings(), Date.now()));
   if (live.settings && live.settings.activeMode == null) live.settings = { ...live.settings, activeMode: true, activeTickSec: ACTIVE.tickSec };
   if (!live.slots) live.slots = emptySlots();
   if (!Array.isArray(live.decisions)) live.decisions = [];

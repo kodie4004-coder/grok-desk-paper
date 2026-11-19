@@ -121,8 +121,12 @@ export function normalizeMarket(m) {
 }
 
 export async function loadKalshiBoard(fetchImpl = globalThis.fetch) {
+  const origin = globalThis.location?.origin || '';
+  // A page origin is refused. Skip the probe in the browser so it does not log a CORS error.
+  const browserBlocked = origin && origin !== 'https://kalshi.com';
   const probe = 'https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=KXBTC15M&status=open&limit=1';
   try {
+    if (browserBlocked) throw new Error('blocked');
     const res = await fetchImpl(probe, { headers: { accept: 'application/json' } });
     if (!res.ok) throw new Error('blocked');
     const markets = [];

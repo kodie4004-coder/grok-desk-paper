@@ -168,6 +168,7 @@ export function placePick(state, market, side, now) {
   state.game ||= { xp: 0, days: {} };
   const m = normalizeMarket(market);
   if (state.arenaPausedDay === dayKey(now)) return { ok: false, reason: 'Arena is paused for the day. Chip stays $2.' };
+  if (!(Date.parse(m.closeTime) > now)) return { ok: false, reason: 'That window has closed.' };
   if ((state.picksOpen || []).some((p) => p.ticker === m.ticker)) return { ok: false, reason: 'Already picked this market.' };
   const ask = side === 'yes' ? Number(m.yesAsk) : Number(m.noAsk);
   const deal = arenaFee(ask);

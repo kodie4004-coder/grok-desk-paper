@@ -49,6 +49,8 @@ test('arena bets stay at $2 and out of the edge book after a loss', () => {
   const again = placePick(st, { ...market, result: '', ticker: 'KXBTC15M-T2', closeTime: '2026-11-18T12:30:00Z' }, 'yes', now + 120000);
   assert.equal(again.ok, true);
   assert.equal(st.picksOpen[0].sizeUsd, 2);
+  const late = placePick(st, { ...market, ticker: 'KXBTC15M-T3', closeTime: '2026-11-18T12:11:00Z' }, 'yes', now + 120000);
+  assert.equal(late.ok, false);
 });
 
 test('xp does not grow because a settlement made money', () => {
