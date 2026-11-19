@@ -658,10 +658,59 @@ function settingsView(st) {
   <div class="note" style="text-align:center;margin-bottom:10px">Grok Desk paper v1 · not financial advice</div>`;
 }
 
+function loadBrain() {
+  if (ui.brainState === 'ready' || ui.brainState === 'loading') return;
+  ui.brainState = 'loading';
+  Promise.all([
+    fetch('data/lessons.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('lessons unavailable'); return r.json(); }),
+    fetch('data/journal-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }),
+  ]).then(([lessons, open]) => {
+    ui.lessons = lessons;
+    ui.journalOpen = open;
+    ui.brainState = 'ready';
+    if (ui.tab === 'brain') render();
+  }).catch((e) => {
+    ui.brainState = 'error';
+    ui.brainError = e.message;
+    if (ui.tab === 'brain') render();
+  });
+}
+function brainView() {
+  if (ui.brainState !== 'ready') {
+    loadBrain();
+    if (ui.brainState === 'error') return `<div class="card"><h2>Bot brain</h2><p class="empty">${esc(ui.brainError || 'The lessons file did not load.')}</p></div>`;
+    return `<section class="card arcade" aria-busy="true" aria-label="Bot brain"><h2>Bot brain</h2><div class="skel"></div><p class="note">Loading the paper journal.</p></section>`;
+  }
+  const doc = ui.lessons || {};
+  const bots = doc.bots || [];
+  const openN = (ui.journalOpen?.entries || []).length;
+  const share = (bot) => {
+    if (bot.benched) return 'benched';
+    const mates = bots.filter((b) => b.family === bot.family && !b.benched);
+    const total = mates.reduce((a, b) => a + (b.weight || 0), 0);
+    if (!total) return 'no new bets';
+    return Math.round((100 * (bot.weight || 0)) / total) + '% of new paper bets';
+  };
+  const cards = bots.map((bot) => `<li class="slot"><div class="row"><b>${esc(bot.label)}</b><span class="tag ${bot.benched ? 'off' : bot.role === 'champion' ? 'normal' : 'explore'}">${bot.benched ? 'benched' : esc(bot.role)}</span></div><p class="note">Level ${bot.level} · ${share(bot)} · n ${bot.n} · mean ${bot.mean == null ? '—' : money(bot.mean, true)} after fees · low ${bot.lo == null ? '—' : money(bot.lo, true)}</p><p class="note">${bot.graduated ? 'Gate cleared on this journal. Live execution stays off.' : `Gate progress ${bot.gateWindows || 0}/3 windows of 20+. Not ready for real money.`}</p></li>`).join('');
+  const learned = (doc.lessons || []).slice(0, 6).map((l) => `<li>${esc(l.text)}</li>`).join('');
+  const frozen = (doc.frozen || []).map((l) => `<li>${esc(l.text)}</li>`).join('');
+  const decisions = (doc.decisions || []).map((l) => `<li>${esc(l)}</li>`).join('');
+  return `<section class="card arcade" aria-label="Bot brain">
+    <div class="row"><h2 style="margin:0">Bot brain</h2><span class="tag explore">PAPER · after fees</span></div>
+    <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result. One line per family is the bandit's pick. The others are recorded so the comparison is not biased.</p>
+    <h2>Bots</h2>
+    <ul class="feed">${cards || '<li><span class="empty">No bot roster in this lessons file.</span></li>'}</ul>
+    <h2>Learned from settled trades</h2>
+    <ul class="feed">${learned || '<li><span class="empty">No feature bucket has 8 settled paper trades yet. Nothing was retuned.</span></li>'}</ul>
+    <h2>What changed</h2>
+    <ul class="feed">${decisions || '<li><span class="empty">No holdout has been judged yet.</span></li>'}</ul>
+    <details class="fold"><summary>Frozen studies</summary><div class="fold-body"><ul class="feed">${frozen}</ul><p class="note">${esc(doc.note || '')}</p></div></details>
+  </section>`;
+}
 function render() {
   if (!state) return;
   const v = $('#view');
-  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'score' ? scoreView(state) : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'score' ? scoreView(state) : ui.tab === 'brain' ? brainView() : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   const badge = $('#modeBadge');
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   paintTicker(state);

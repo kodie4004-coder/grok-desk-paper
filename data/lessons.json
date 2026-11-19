@@ -1,0 +1,199 @@
+{
+  "generatedAt": "2026-11-19T04:28:04.538Z",
+  "paper": true,
+  "note": "Paper only, after fees. Lessons do not move the edge gate, raise size, or turn on live execution.",
+  "lessons": [],
+  "frozen": [
+    {
+      "source": "gate-v6",
+      "text": "Crypto micro-momentum on the frozen study: n 195, mean −$0.04 after costs, 90% low −$0.04. Not ready for real money."
+    },
+    {
+      "source": "gate-v6",
+      "text": "Crypto VWAP revert on the frozen study: n 78, mean −$0.03 after costs, 90% low −$0.03. Not ready for real money."
+    },
+    {
+      "source": "gate-v6",
+      "text": "Kalshi intra-window scalp on the frozen study: n 105, mean −$0.06 after costs, 90% low −$0.12. Not ready for real money."
+    },
+    {
+      "source": "gate-v6",
+      "text": "Maker quote on the frozen study: n 113, mean −$0.20 after costs, 90% low −$0.26. Not ready for real money."
+    },
+    {
+      "source": "gate-v6",
+      "text": "Book imbalance on the frozen study: n 0, mean — after costs, 90% low —. Not ready for real money. No historical book, so this rule cannot graduate."
+    },
+    {
+      "source": "gate-v6",
+      "text": "Berkshire 13F copy on the frozen study: n 36, mean +$4.98 after costs, 90% low +$1.25. Not ready for real money."
+    },
+    {
+      "source": "gate-v6",
+      "text": "Congressional filings on the frozen study: n 0, mean — after costs, 90% low —. Not ready for real money. House periodic transaction reports: the 2025 zip returned HTTP 404, and the annual disclosure XML has no trades. Senate eFD is an HTML search, not a trade file."
+    }
+  ],
+  "bots": [
+    {
+      "id": "late",
+      "family": "late",
+      "label": "Late favorite",
+      "role": "champion",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "late-loose",
+      "family": "late",
+      "label": "Late favorite, looser ask",
+      "role": "challenger",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "late-tight",
+      "family": "late",
+      "label": "Late favorite, tighter ask",
+      "role": "challenger",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "late-early",
+      "family": "late",
+      "label": "Late favorite, earlier",
+      "role": "challenger",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "mom",
+      "family": "mom",
+      "label": "Momentum vs target",
+      "role": "champion",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "mom-strict",
+      "family": "mom",
+      "label": "Momentum, 0.05% past the strike",
+      "role": "challenger",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "revert",
+      "family": "revert",
+      "label": "Mean revert",
+      "role": "champion",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "revert-wide",
+      "family": "revert",
+      "label": "Mean revert, wider band",
+      "role": "challenger",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "scalp",
+      "family": "scalp",
+      "label": "Intra-window scalp",
+      "role": "champion",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "scalp-tight",
+      "family": "scalp",
+      "label": "Scalp, larger jump",
+      "role": "challenger",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    },
+    {
+      "id": "flip",
+      "family": "flip",
+      "label": "Coin-flip control",
+      "role": "control",
+      "n": 0,
+      "mean": null,
+      "lo": null,
+      "benched": false,
+      "weight": 1,
+      "level": 1,
+      "gateWindows": 0,
+      "graduated": false
+    }
+  ],
+  "decisions": [
+    "Late favorite keeps late. No finished holdout day yet.",
+    "Momentum vs target keeps mom. No finished holdout day yet.",
+    "Mean revert keeps revert. No finished holdout day yet.",
+    "Intra-window scalp keeps scalp. No finished holdout day yet."
+  ],
+  "holdout": null
+}

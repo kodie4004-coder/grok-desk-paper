@@ -220,6 +220,18 @@ The phone may paper-trade these ideas at $2 between snapshots, including a Coinb
 
 Active mode loosens live thresholds so the phone shows paper trades, skips, and exits. Those fills live in their own book, labeled Active (exploration), at a fixed $5. They are not added to slot books, the edge book, or this protocol's graduation rule. A busy Active feed is not evidence of an edge.
 
+## v7 paper learning loop (frozen before any journal settlement)
+
+The phone journal in `data/journal.jsonl` is append-only and is written by the snapshot job, not by a threshold search. These paper variants are fixed before that file has any settlements:
+
+- Late favorite stays ask at least 0.85 with 180 to 300 seconds left. Challengers are ask 0.80 in that same window, ask 0.90 with 180 to 360 seconds, and ask 0.85 with 300 to 480 seconds.
+- Momentum vs target stays any side of the strike with 120 to 600 seconds left. The challenger requires the spot to be at least 0.05% past the strike. This is not a change to the S1 crypto study.
+- Mean revert stays YES ask 0.15 to 0.40 or 0.60 to 0.85, with 360 to 720 seconds left. The challenger widens that to 0.10 to 0.45 or 0.55 to 0.90.
+- The scalp stays a 4 cent ask jump and a spread of 3 cents or less. The challenger requires a 6 cent jump and a 2 cent spread.
+- The coin-flip control is not promoted and is not benched.
+
+A finished UTC day is the holdout once, then it becomes train. A challenger replaces the champion only when both have at least 20 holdout trades and the challenger's mean after fees is positive and higher. Weights and benching use train days only. A variant with 20 train trades, a mean that is not positive, and a 90% lower bound that is not positive is benched. Size stays $2. The v6 gate in `graduates()` is unchanged. Clearing it still does not enable `live_execution`.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

@@ -1,0 +1,32 @@
+name: Paper lessons
+
+# Once a day, describe the journal. This job does not edit strategy thresholds.
+# Minute 15 avoids the top-of-hour schedule pileup. workflow_dispatch still works
+# when the cron is dropped.
+on:
+  schedule:
+    - cron: '15 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  lessons:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node runner/learn-nightly.mjs
+      - name: Commit lessons when they changed
+        run: |
+          git config user.name "paper-lessons"
+          git config user.email "paper-lessons@users.noreply.github.com"
+          git add data/lessons.json data/brain.json LESSONS.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Update the paper lessons"
+          git push
