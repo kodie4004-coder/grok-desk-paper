@@ -13,12 +13,12 @@ import { GATE_PRIOR } from './engine/gate-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
-import { bestPair, scoreCoin, memeGate } from './engine/meme.js';
+import { bestPair, scoreCoin, memeGate, tokenMint } from './engine/meme.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const money = (x, sign) => (x == null ? '–' : (sign && x > 0 ? '+' : x < 0 ? '−' : '') + '$' + Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-function eqHtml(x) {
+function eqParts(x) {
   const parts = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).formatToParts(Math.abs(x));
   let head = '', cents = '';
   let seen = false;
@@ -27,7 +27,47 @@ function eqHtml(x) {
     if (seen && p.type === 'fraction') cents += p.value;
     else head += p.value;
   }
-  return `<span class="eq ${x < 0 ? 'r' : ''}">${x < 0 ? '−' : ''}$${head}<small>${cents}</small></span>`;
+  return `${x < 0 ? '−' : ''}$${head}<small>${cents}</small>`;
+}
+function eqHtml(x) {
+  return `<span class="eq count ${x < 0 ? 'r' : ''}" data-count="${x}" data-count-key="equity">${eqParts(x)}</span>`;
+}
+function countSpan(n, signed, key, raw) {
+  const shown = raw != null ? '$' + raw : money(n, signed);
+  return `<span class="count" data-count="${n}" data-count-key="${key}"${signed ? ' data-sign="1"' : ''}${raw != null ? ` data-raw="${esc(String(raw))}"` : ''}>${shown}</span>`;
+}
+function runCounts() {
+  if (!ui.counts) ui.counts = new Map();
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('[data-count]').forEach((el) => {
+    const key = el.dataset.countKey;
+    const target = Number(el.dataset.count);
+    if (!key || !Number.isFinite(target)) return;
+    const prev = ui.counts.get(key);
+    ui.counts.set(key, target);
+    if (prev == null || reduce || Math.abs(target - prev) < 0.0000001) return;
+    const from = prev;
+    const t0 = performance.now();
+    const paint = (val, done) => {
+      if (!el.isConnected) return;
+      if (el.classList.contains('eq')) {
+        el.classList.toggle('r', val < 0);
+        el.innerHTML = eqParts(done ? target : val);
+      } else if (el.dataset.raw != null && !done) {
+        const digits = (el.dataset.raw.split('.')[1] || '').length;
+        el.textContent = (val < 0 ? '−' : '') + '$' + Math.abs(val).toFixed(Math.min(8, Math.max(2, digits)));
+      } else if (done && el.dataset.raw != null) {
+        el.textContent = '$' + el.dataset.raw;
+      } else el.textContent = money(done ? target : val, el.dataset.sign === '1');
+    };
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / 420);
+      const eased = 1 - (1 - p) ** 3;
+      paint(from + (target - from) * eased, p === 1);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
 }
 const tm = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const dur = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m ${String(s % 60).padStart(2, '0')}s`; };
@@ -51,10 +91,11 @@ async function persist() { if (live) await idb.set('state', serialize(live)); }
 // ---------- toasts / notifications ----------
 function toast(e) {
   const el = document.createElement('div');
-  el.className = 'toast ' + (e.side === 'buy' ? 'buy' : e.pnl > 0 ? 'win' : e.pnl < 0 ? 'loss' : '');
+  const copy = e.kind === 'copy';
+  el.className = 'toast ' + (copy ? 'copied' : e.side === 'buy' ? 'buy' : e.pnl > 0 ? 'win' : e.pnl < 0 ? 'loss' : '');
   el.setAttribute('role', 'status');
-  el.textContent = (state?.mode === 'replay' ? '[REPLAY] ' : '[PAPER] ') + e.text;
-  $('#toasts').prepend(el); setTimeout(() => el.remove(), 5000);
+  el.textContent = copy ? 'Copied' : (state?.mode === 'replay' ? '[REPLAY] ' : '[PAPER] ') + e.text;
+  $('#toasts').prepend(el); setTimeout(() => el.remove(), copy ? 1400 : 5000);
   if (ui.notify && state?.mode !== 'replay' && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
     try { new Notification('Grok Desk (paper)', { body: e.text, icon: 'icons/icon-192.png' }); } catch {}
   }
@@ -510,6 +551,7 @@ function home(st) {
   const isReplay = st.mode === 'replay';
   return `
   ${cockpit(st)}
+  ${allocCard()}
   ${morningCard()}
   <section class="card" aria-label="Live signals"><h2>Live signals</h2><p class="note">${ui.coinsState === 'ready' ? `${(ui.coins || []).filter((c) => c.pass).length} paper buy${(ui.coins || []).filter((c) => c.pass).length === 1 ? '' : 's'} in the latest Solana list.` : 'Open Coins for the live Solana list. Only a paper buy shows a contract address to copy.'}</p><button type="button" class="btn wide" data-tabjump="coins">Open coins</button></section>
   ${activeCard(st)}
@@ -517,7 +559,7 @@ function home(st) {
   <div class="card hero ${net < 0 ? 'down' : ''}">
     <div class="row"><h2 style="margin:0">${isReplay ? 'Replay balance' : 'Paper balance'}</h2><span class="note" id="timer"></span></div>
     ${eqHtml(eq)}
-    <div class="row" style="margin-top:8px"><span class="pnlchip ${net < 0 ? 'dn' : 'up'}">${money(net, true)} · ${((eq / st.startBank - 1) * 100).toFixed(2)}%</span><span class="note">${(eq / st.startBank).toFixed(3)}× of ${money(st.startBank)} paper</span></div>
+    <div class="row" style="margin-top:8px"><span class="pnlchip ${net < 0 ? 'dn' : 'up'}">${countSpan(net, true, 'session-net')} · ${((eq / st.startBank - 1) * 100).toFixed(2)}%</span><span class="note">${(eq / st.startBank).toFixed(3)}× of ${money(st.startBank)} paper</span></div>
     <div class="grid" style="margin-top:10px">
       <div class="stat"><small>Closed trades</small><b>${st.closed.length}</b><span class="note">${st.open.length} open</span></div>
       <div class="stat"><small>Green / red</small><b><span class="g">${wins}</span> / <span class="r">${losses}</span></b></div>
@@ -669,12 +711,51 @@ function loadMorning() {
   Promise.all([
     fetch('data/morning.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
     fetch('data/heartbeat.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
-  ]).then(([morning, heartbeat]) => {
+    fetch('data/alloc-curve.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
+  ]).then(([morning, heartbeat, curve]) => {
     ui.morning = morning;
     ui.heartbeat = heartbeat;
+    ui.allocCurve = curve;
     ui.morningState = 'ready';
     if (ui.tab === 'home') render();
   }).catch(() => { ui.morningState = 'error'; if (ui.tab === 'home') render(); });
+}
+function allocCard() {
+  const curve = ui.allocCurve;
+  const net = curve ? curve.net : 0;
+  const day = curve ? curve.day : 0;
+  const fees = curve ? curve.fees : 0;
+  const ready = curve && curve.n > 0;
+  return `<section class="card" aria-label="Allocated paper P and L"><h2>Allocated P&amp;L</h2><p class="note">Today ${countSpan(day, true, 'alloc-day')} after fees. All journaled allocated bets ${countSpan(net, true, 'alloc-net')}. Fees inside that result ${countSpan(fees, false, 'alloc-fees')}.</p><canvas id="allocChart" height="140" aria-label="Allocated paper P and L after fees"></canvas><p class="note">Allocated paper bets only, after fees. A falling line is a loss. This is not a promise.</p>${ready ? '' : '<p class="empty">No allocated journal trades have loaded. If this stays empty, the snapshot journal is missing.</p>'}</section>`;
+}
+function drawAlloc(cv) {
+  if (!cv) return;
+  const rows = ui.allocCurve?.points || [];
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 320;
+  const h = 140;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (rows.length < 2) return;
+  const ys = rows;
+  const min = Math.min(...ys, 0);
+  const max = Math.max(...ys, 0);
+  const span = max - min || 1;
+  g.strokeStyle = '#8b97a6';
+  g.beginPath();
+  const zero = h - 12 - ((0 - min) / span) * (h - 24);
+  g.moveTo(8, zero); g.lineTo(w - 8, zero); g.stroke();
+  g.strokeStyle = ys[ys.length - 1] < 0 ? '#ff6b7d' : '#3dff9a';
+  g.lineWidth = 2;
+  g.beginPath();
+  ys.forEach((val, i) => {
+    const x = 8 + (i / (ys.length - 1)) * (w - 16);
+    const py = h - 12 - ((val - min) / span) * (h - 24);
+    if (i === 0) g.moveTo(x, py); else g.lineTo(x, py);
+  });
+  g.stroke();
 }
 function morningCard() {
   if (ui.morningState !== 'ready') loadMorning();
@@ -734,7 +815,8 @@ function brainView() {
     <div class="row"><h2 style="margin:0">Bot brain</h2><span class="tag explore">PAPER · after fees</span></div>
     <p class="lvl" id="runFor">${esc(since)}</p>
     <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. A bot that loses $6 of its own allocated paper goes to shadow. The others keep trading. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result.</p>
-    <h2>Last night</h2>
+    <h2>What the bots learned today</h2>
+    <ul class="feed">${(bots.filter((b) => b.shadow || b.benched).map((b) => `<li>benched ${esc(b.id)}: ${b.mean == null ? '—' : money(b.mean)}/trade over n ${b.n}. Shadow only until the shadow record turns positive.</li>`).join('')) || '<li><span class="empty">No bot was moved to shadow in this lessons file.</span></li>'}</ul>
     <ul class="feed">${summary || '<li><span class="empty">No summary yet.</span></li>'}</ul>
     <h2>Bots</h2>
     <ul class="feed">${cards || '<li><span class="empty">No bot roster in this lessons file.</span></li>'}</ul>
@@ -770,13 +852,19 @@ async function loadCoins() {
       await new Promise((r) => setTimeout(r, 1100));
     }
     ui.coins = prelim.map(({ b, pair }) => {
-      const score = scoreCoin(pair, info[b.tokenAddress] || null, now);
+      const extra = info[b.tokenAddress] || null;
+      const score = scoreCoin(pair, extra, now);
+      const ca = tokenMint(pair) || b.tokenAddress;
       return {
-        ca: b.tokenAddress,
+        ca,
         symbol: pair?.baseToken?.symbol || '?',
         name: pair?.baseToken?.name || 'Unknown',
         priceUsd: Number(pair?.priceUsd),
-        dexUrl: pair?.url || `https://dexscreener.com/solana/${b.tokenAddress}`,
+        liq: pair?.liquidity?.usd ?? null,
+        vol: pair?.volume?.h24 ?? null,
+        ageMin: score.features?.ageMin ?? null,
+        imageUrl: pair?.info?.imageUrl || extra?.image_url || null,
+        dexUrl: pair?.url || `https://dexscreener.com/solana/${ca}`,
         ...score,
       };
     });
@@ -798,25 +886,63 @@ function coinsView() {
   const note = `<p class="note">Signals are paper-tested ideas, not advice. You buy in your own pump.fun or fomo account. This app has no wallet and cannot place an order.</p>`;
   const alert = `<button type="button" id="coinAlert" class="switch ${ui.coinAlerts ? 'on' : ''}" aria-pressed="${!!ui.coinAlerts}">${ui.coinAlerts ? 'Alerts on' : 'Alerts off'}</button>`;
   if (ui.coinsState !== 'ready') {
-    return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">${esc(ui.coinsError)}</p>` : '<div class="skel" aria-busy="true"></div><p class="note">Loading the public Solana feed.</p>'}</section>`;
+    const bones = [0, 1, 2].map(() => '<div class="skel-card" aria-hidden="true"><div class="skel logo"></div><div class="skel-col"><div class="skel"></div><div class="skel short"></div><div class="skel wide"></div></div></div>').join('');
+    return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">${esc(ui.coinsError)}</p>` : `<div aria-busy="true" aria-label="Loading coins">${bones}</div><p class="note">Loading the public Solana feed.</p>`}</section>`;
   }
-  const cards = (ui.coins || []).map((coin) => {
-    const why = coin.reasons.map((r) => `<li><span class="tag ${r.ok === true ? 'normal' : r.ok === false ? 'off' : ''}">${r.ok === true ? 'pass' : r.ok === false ? 'fail' : 'missing'}</span> ${esc(r.name)} · ${esc(r.detail)}</li>`).join('');
-    const actions = coin.pass ? `<p class="ca" aria-label="Contract address">${esc(coin.ca)}</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn pri" data-copy="${esc(coin.ca)}">Copy CA</button><a class="btn" href="https://pump.fun/coin/${esc(coin.ca)}" target="_blank" rel="noopener">Pump.fun</a><a class="btn" href="https://fomo.family/tokens/solana/${esc(coin.ca)}" target="_blank" rel="noopener">FOMO</a><a class="btn" href="${esc(coin.dexUrl)}" target="_blank" rel="noopener">DexScreener</a></div>` : '';
-    return `<article class="card"><div class="row"><h2 style="margin:0">${esc(coin.symbol)} · ${esc(coin.name)}</h2><span class="tag ${coin.pass ? 'normal' : 'off'}">${coin.pass ? 'paper buy' : 'no buy'}</span></div>${actions}<ul class="feed">${why}</ul></article>`;
-  }).join('');
+  const cards = (ui.coins || []).map((coin) => coinCard(coin)).join('');
+  const justOpened = !!(ui.coinOpen && ui.coinOpen !== ui.sheetFor);
+  ui.sheetFor = ui.coinOpen || null;
+  const sheet = ui.coinOpen ? coinSheet(ui.coins.find((c) => c.ca === ui.coinOpen), justOpened) : '';
   const gate = memeGate(ui.memeJournal || []);
   const net = (ui.memeJournal || []).reduce((sum, row) => sum + (row.pnl || 0), 0);
-  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">pump.fun's API did not answer from this network. Prices are DexScreener. Holder, mint, and freeze checks are GeckoTerminal when it answers. FOMO opens https://fomo.family/tokens/solana/&lt;CA&gt;.</p></div>${cards || '<div class="card"><p class="empty">No Solana coins in the latest public boost list.</p></div>'}</section>`;
+  const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
+  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} pump.fun's API did not answer here. Prices are DexScreener. Holder, mint, and freeze checks are GeckoTerminal when it answers.</p></div>${cards || '<div class="card"><p class="empty">No Solana coins in the latest public boost list. Pull down to try again.</p></div>'}${sheet}</section>`;
+}
+function coinLinks(ca, dexUrl) {
+  const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;
+  return `<div class="linkrow">${item(`https://pump.fun/coin/${ca}`, 'icons/pump.svg', 'Pump.fun')}${item(`https://fomo.family/tokens/solana/${ca}`, 'icons/fomo.svg', 'FOMO')}${item(dexUrl, 'icons/dex.svg', 'DexScreener')}${item(`https://solscan.io/token/${ca}`, 'icons/solscan.svg', 'Solscan')}</div>`;
+}
+function coinLogo(coin) {
+  const initials = esc(String(coin.symbol || '?').replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || '?');
+  const hue = [...String(coin.ca || '')].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+  if (!coin.imageUrl) return `<span class="logo fallback" style="--h:${hue}" aria-hidden="true">${initials}</span>`;
+  return `<img class="logo" alt="" loading="lazy" data-initials="${initials}" data-h="${hue}" src="${esc(coin.imageUrl)}">`;
+}
+function caChip(ca) {
+  const short = ca.length > 12 ? `${ca.slice(0, 4)}…${ca.slice(-4)}` : ca;
+  return `<button type="button" class="ca-chip" data-expand-ca aria-expanded="false" aria-label="Contract address, tap to expand"><span class="ca-short">${esc(short)}</span><span class="ca-full">${esc(ca)}</span></button><button type="button" class="btn pri" data-copy="${esc(ca)}">Copy</button>`;
+}
+function coinCard(coin) {
+  return `<article class="card coin"><button type="button" class="coin-open" data-open-coin="${esc(coin.ca)}">${coinLogo(coin)}<span class="coin-id"><b>${esc(coin.name)}</b><small>$${esc(coin.symbol)}</small></span><span class="tag ${coin.pass ? 'normal' : 'off'}">${coin.pass ? 'paper buy' : 'no buy'}</span></button><div class="row">${caChip(coin.ca)}</div>${coinLinks(coin.ca, coin.dexUrl)}</article>`;
+}
+function coinSheet(coin, animate) {
+  if (!coin) return '';
+  const why = (coin.reasons || []).map((r) => `<li><span class="tag ${r.ok === true ? 'normal' : r.ok === false ? 'off' : ''}">${r.ok === true ? 'pass' : r.ok === false ? 'fail' : 'unknown'}</span> ${esc(r.name)} · ${esc(r.detail)}</li>`).join('');
+  const paper = (ui.memeJournal || []).find((row) => row.ca === coin.ca);
+  const paperLine = paper ? `Paper ${paper.exit || 'open'} · ${money(paper.pnl, true)} after fees` : 'No paper trade on this coin yet.';
+  const age = coin.ageMin == null ? 'age unknown' : `${Math.round(coin.ageMin)} min old`;
+  const liq = coin.liq == null ? 'liquidity unknown' : `liquidity $${Math.round(Number(coin.liq)).toLocaleString('en-US')}`;
+  const vol = coin.vol == null ? 'volume unknown' : `24h volume $${Math.round(Number(coin.vol)).toLocaleString('en-US')}`;
+  return `<div class="sheet${animate ? ' in' : ''}" role="dialog" aria-label="${esc(coin.name)}"><div class="card">${coinLogo(coin)}<h2>${esc(coin.name)} · $${esc(coin.symbol)}</h2><div class="row">${caChip(coin.ca)}</div>${coinLinks(coin.ca, coin.dexUrl)}<p class="note">${esc(liq)} · ${esc(vol)} · ${esc(age)} · price ${coin.priceUsd ? countSpan(Number(coin.priceUsd), false, 'px-' + coin.ca, coin.priceUsd) : 'unknown'}</p><p class="note">${paperLine}</p><ul class="feed">${why}</ul><button type="button" class="btn wide" data-close-sheet>Close</button></div></div>`;
 }
 function render() {
   if (!state) return;
   const v = $('#view');
+  const tabChanged = ui.paintedTab !== ui.tab;
   v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? scoreView(state) : ui.tab === 'brain' ? brainView() : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  if (tabChanged) {
+    ui.paintedTab = ui.tab;
+    if (ui.didPaint) {
+      v.classList.add('enter');
+      clearTimeout(ui.enterTimer);
+      ui.enterTimer = setTimeout(() => v.classList.remove('enter'), 560);
+    }
+  }
+  ui.didPaint = true;
   const badge = $('#modeBadge');
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   paintTicker(state);
-  if (ui.tab === 'home') { drawChart($('#chart'), state); updateTimer(); }
+  if (ui.tab === 'home') { drawChart($('#chart'), state); drawAlloc($('#allocChart')); updateTimer(); }
   document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-current', b.classList.contains('on') ? 'page' : 'false'));
   bind();
 }
@@ -890,12 +1016,33 @@ function bind() {
     localStorage.setItem('gd.coinAlerts', ui.coinAlerts ? '1' : '0');
     render();
   };
-  document.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = async () => {
+  document.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = async (e) => {
+    e.stopPropagation();
     const ca = b.dataset.copy;
     try { await navigator.clipboard.writeText(ca); } catch { /* the address stays on screen */ }
     if (navigator.vibrate) navigator.vibrate(12);
-    toast({ text: 'Contract address copied. Buy it in your own account.' });
+    b.classList.add('is-copied');
+    b.textContent = 'Copied';
+    toast({ kind: 'copy' });
+    setTimeout(() => { if (b.isConnected) { b.textContent = 'Copy'; b.classList.remove('is-copied'); } }, 1200);
   }));
+  document.querySelectorAll('[data-expand-ca]').forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const open = b.getAttribute('aria-expanded') === 'true';
+    b.setAttribute('aria-expanded', open ? 'false' : 'true');
+  }));
+  document.querySelectorAll('[data-open-coin]').forEach((b) => (b.onclick = () => { ui.coinOpen = b.dataset.openCoin; render(); }));
+  document.querySelectorAll('[data-close-sheet]').forEach((b) => (b.onclick = () => { ui.coinOpen = null; render(); }));
+  runCounts();
+  document.querySelectorAll('img.logo').forEach((img) => {
+    img.onerror = () => {
+      const fallback = document.createElement('span');
+      fallback.className = 'logo fallback';
+      fallback.style.setProperty('--h', img.dataset.h || '200');
+      fallback.textContent = img.dataset.initials || '?';
+      img.replaceWith(fallback);
+    };
+  });
   document.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = async () => {
     const market = (live.kalshiBoard?.markets || []).find((m) => m.ticker === b.dataset.ticker);
     if (!market) return;

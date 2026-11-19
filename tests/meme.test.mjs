@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreCoin, memePnl, stepMeme, MEME_SIZE } from '../engine/meme.js';
+import { scoreCoin, memePnl, stepMeme, MEME_SIZE, tokenMint, bestPair } from '../engine/meme.js';
 
 const now = Date.parse('2026-11-19T18:00:00Z');
 
@@ -35,6 +35,14 @@ test('missing mint authority fails the buy even when liquidity is deep', () => {
   assert.equal(good.pass, true);
   const thin = scoreCoin(pair({ liquidity: { usd: 1000 } }), safe, now);
   assert.equal(thin.pass, false);
+});
+
+test('the contract address is the token mint, never the pair address', () => {
+  const pair = { chainId: 'solana', pairAddress: 'PAIR111', baseToken: { address: 'MINT222', symbol: 'T', name: 'Token' }, liquidity: { usd: 1 } };
+  assert.equal(tokenMint(pair), 'MINT222');
+  assert.notEqual(tokenMint(pair), pair.pairAddress);
+  assert.equal(tokenMint({ pairAddress: 'SAME', baseToken: { address: 'SAME' } }), null);
+  assert.equal(bestPair([pair, { chainId: 'solana', pairAddress: 'OTHER', baseToken: { address: 'NOPE' }, liquidity: { usd: 99 } }], 'MINT222').pairAddress, 'PAIR111');
 });
 
 test('a 15% drop stops the paper meme trade at the same $2 size', () => {

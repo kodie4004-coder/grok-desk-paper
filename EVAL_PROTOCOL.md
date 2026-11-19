@@ -270,6 +270,18 @@ Solana meme coins come from DexScreener's public boost list and pair data. Gecko
 
 The paper fill is $2. The buy price is marked up 1% and the sell price is marked down 1%. Each side pays 1.25%, the public pump.fun early-trade fee. A flat price is a loss. Exits are a 15% stop, a 25% take-profit, or 30 minutes, using the next observed price. The position does not get larger after a loss. These trades are their own journal. They use the same `graduates()` gate and do not change it. The app never holds a key, connects a wallet, or sends an order. The person copies the contract address and buys in their own pump.fun or fomo account.
 
+## v10 allocation (frozen before the replay)
+
+These rules do not change `graduates()` or the holdout. A loss does not raise size.
+
+- A control, including the coin-flip, is shadow forever. It is logged and never allocated.
+- A variant already in the shadow or benched list gets $0 on every new entry. The flag is applied after every other decision, so a weight or a cap cannot turn it back on.
+- A variant whose own allocated paper is down $6 on the current UTC day goes to shadow.
+- A variant whose last 30 allocated trades have a negative mean and a 90% upper bound below zero goes to shadow. The line is logged.
+- It returns only when the last 30 shadow trades opened after that bench have a positive mean. The holdout is not used for this.
+- If a variant has at least 8 shadow trades, a new allocated entry is vetoed when their mean after fees does not exceed this contract's taker fee plus half the spread in dollars. The veto is journaled as a skip.
+- Allocation weight is the 90% lower bound in dollars divided by $0.50, capped at 1 and floored at 0. With fewer than 8 allocated trades the weight is 0.25. If that variant's allocated paper is down today, the weight is not raised above the previous weight.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

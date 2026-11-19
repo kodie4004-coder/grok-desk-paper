@@ -53,7 +53,7 @@ export function settleExit(entry, bid, why, now) {
   };
 }
 
-export function reviewRoles({ variant, market, sig, quiet, settledRows, room }) {
+export function reviewRoles({ variant, market, sig, quiet, settledRows, room, feeVeto = null }) {
   const logs = [];
   const close = Date.parse(market?.closeTime);
   const live = !!(market && market.result !== 'yes' && market.result !== 'no' && Number.isFinite(close) && close > 0);
@@ -69,6 +69,7 @@ export function reviewRoles({ variant, market, sig, quiet, settledRows, room }) 
   if (!(sig.ask > 0 && sig.ask < 1)) veto = 'risk: ask is outside 0 to 1';
   else if (spread != null && spread > RISK_MAX_SPREAD) veto = `risk: spread ${spread} is wider than ${RISK_MAX_SPREAD}`;
   else if (onCooldown(settledRows, market.series, market.closeTime)) veto = `risk: ${market.series} cooldown, next ${COOLDOWN_WINDOWS} windows after a loss`;
+  else if (feeVeto) veto = feeVeto;
   else if (!room) veto = 'risk: this snapshot is at its bet cap';
   if (veto) {
     logs.push({ role: 'risk', action: 'veto', reason: veto });

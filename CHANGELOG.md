@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Every scanned coin shows its logo, name, ticker, and mint address, with copy and links to pump.fun, fomo, DexScreener, and Solscan. A tap opens the safety checklist. Controls and benched bots get no allocated paper. A variant with 30 allocated losses whose 90% upper bound is below zero goes to shadow.
+- Tab changes, cards, the coin sheet, and the copy confirmation move with transform and opacity. Loading coins uses a shimmer. P&amp;L counts up only after the first number is on screen. Reduced motion turns the motion off. Icon and splash slots are ready for later artwork.
 - First-run onboarding, a light theme, pull-to-refresh, an offline note, and a Pro screen that stores an optional email only on the phone. No payment is collected.
 - A Coins tab lists Solana meme signals from DexScreener and GeckoTerminal. A paper buy shows the contract address, a copy button, and links to pump.fun, fomo, and DexScreener. The app does not hold a key or send an order.
 - The snapshot journal runs scanner, analyst, brain, executor, and risk, and each writes a reason. A blocked signal stays in the journal so a lesson can say whether the filter saved or cost money. Scalp challengers can take profit, stop, or time-stop at the bid after a second fee. A losing series sits out the next two windows. Home shows the morning report and the heartbeat.

@@ -56,6 +56,7 @@ jobs:
           git add data/kalshi-15m.json data/journal.jsonl data/journal-open.json data/journal-quotes.json data/lessons.json data/brain.json data/filings.json LESSONS.md
           [ -f data/morning.json ] && git add data/morning.json
           [ -f data/heartbeat.json ] && git add data/heartbeat.json
+          [ -f data/alloc-curve.json ] && git add data/alloc-curve.json
           [ -f data/meme-board.json ] && git add data/meme-board.json data/meme-open.json data/meme-journal.jsonl
           if git diff --cached --quiet; then
             echo "snapshot unchanged"

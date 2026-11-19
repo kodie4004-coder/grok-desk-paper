@@ -10,9 +10,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Grok Desk · Paper</title>
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/icon.svg">
+<!-- Artwork slots. The next art PR drops icons/app-icon.png and icons/splash.png,
+     then points #app-icon-slot, #splash-slot, and manifest.json icons[] at them.
+     These links stay on the current mark so nothing 404s until that art lands. -->
+<link id="app-icon-slot" rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="apple-touch-startup-image" href="icons/icon-512.png">
+<link id="splash-slot" rel="apple-touch-startup-image" href="icons/icon-512.png">
 <meta name="apple-mobile-web-app-title" content="Grok Desk">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -37,6 +40,6 @@
   <button data-tab="predict"><span>◎</span>Predict</button>
   <button data-tab="settings"><span>⚙</span>Set</button>
 </nav>
-<script type="module" src="app.js?v=15"></script>
+<script type="module" src="app.js?v=16"></script>
 </body>
 </html>

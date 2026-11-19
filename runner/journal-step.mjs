@@ -1,6 +1,6 @@
 // Append paper journal rows from the Kalshi snapshot. Never rewrites old lines.
 import fs from 'node:fs';
-import { stepJournal, defaultBrain } from '../engine/learn.js';
+import { stepJournal, defaultBrain, allocCurve } from '../engine/learn.js';
 import { loadSpots } from '../engine/arena.js';
 
 const board = JSON.parse(fs.readFileSync('data/kalshi-15m.json', 'utf8'));
@@ -23,6 +23,8 @@ if (next.settled.length) {
 fs.writeFileSync('data/journal-open.json', JSON.stringify({ updatedAt: board.fetchedAt, entries: next.open }, null, 2));
 fs.writeFileSync('data/journal-quotes.json', JSON.stringify(next.quotes));
 if (next.brain) fs.writeFileSync('data/brain.json', JSON.stringify({ ...brain, ...next.brain, experimentSince: brain.experimentSince || null }, null, 2));
+const allSettled = settledRows.concat(next.settled);
+fs.writeFileSync('data/alloc-curve.json', JSON.stringify(allocCurve(allSettled, new Date(now).toISOString().slice(0, 10))));
 fs.writeFileSync('data/heartbeat.json', JSON.stringify({
   paper: true,
   at: new Date(now).toISOString(),

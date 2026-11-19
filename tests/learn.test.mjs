@@ -105,7 +105,7 @@ test('a longshot ask is skipped by the new revert filter, and shadow does not re
   const later = Array.from({ length: 8 }, (_, i) => row('late-loose', '2026-11-19', 0.05, { family: 'late', ticker: 'l' + i }));
   const train = Array.from({ length: 8 }, (_, i) => row('late-loose', '2026-11-20', 0.02, { family: 'late', ticker: 't' + i }));
   const freed = riskShadow(brain, [...sameDay, ...later, ...train], Date.parse('2026-11-21T12:00:00Z'));
-  assert.equal(freed.shadow.includes('late-loose'), false);
+  assert.ok(freed.shadow.includes('late-loose'));
 });
 
 test('feature lessons wait for 8 trades and the gate still needs three windows', () => {

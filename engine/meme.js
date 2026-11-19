@@ -72,8 +72,14 @@ export function scoreCoin(pair, info, now) {
   };
 }
 
+export function tokenMint(pair) {
+  const mint = pair?.baseToken?.address || null;
+  if (!mint || mint === pair?.pairAddress) return null;
+  return mint;
+}
+
 export function bestPair(pairs, token) {
-  const rows = (pairs || []).filter((p) => p?.chainId === 'solana' && p?.baseToken?.address === token);
+  const rows = (pairs || []).filter((p) => p?.chainId === 'solana' && tokenMint(p) === token);
   return rows.sort((a, b) => (num(b?.liquidity?.usd) || 0) - (num(a?.liquidity?.usd) || 0))[0] || null;
 }
 
