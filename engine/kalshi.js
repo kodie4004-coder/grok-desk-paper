@@ -20,6 +20,21 @@ export const K1 = Object.freeze({
   freshMs: 120000,
 });
 
+// The board is stale once the snapshot is older than 15 minutes.
+export const KALSHI_STALE_MS = 15 * 60 * 1000;
+
+export function quoteAge(fetchedAt, now) {
+  const t = Date.parse(fetchedAt || '');
+  if (!Number.isFinite(t)) return { ms: null, stale: true, label: 'unknown age' };
+  const ms = now - t;
+  const stale = !(ms >= 0 && ms <= KALSHI_STALE_MS);
+  const abs = Math.abs(ms);
+  const minutes = Math.floor(abs / 60000);
+  const hours = Math.floor(minutes / 60);
+  const label = hours >= 1 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+  return { ms, stale, label };
+}
+
 export function kalshiTakerFee(price, contracts) {
   if (!(price > 0 && price < 1) || !(contracts >= 1)) return 0;
   const raw = 0.07 * contracts * price * (1 - price);

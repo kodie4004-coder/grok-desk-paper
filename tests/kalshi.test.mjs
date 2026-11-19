@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { kalshiTakerFee, favoriteSide, candleInWindow, asksFromCandle, settlePnl, coinFlipSide, liveK1, K1, loadKalshiBoard, reviewKalshi } from '../engine/kalshi.js';
+import { kalshiTakerFee, favoriteSide, candleInWindow, asksFromCandle, settlePnl, coinFlipSide, liveK1, K1, loadKalshiBoard, reviewKalshi, quoteAge } from '../engine/kalshi.js';
 
 test('taker fee matches the one-contract column of the July 2026 schedule', () => {
   assert.equal(kalshiTakerFee(0.5, 1), 0.02);
@@ -46,6 +46,17 @@ test('live K1 waits for a fresh quote inside the last three to five minutes', ()
   assert.equal(liveK1({ ...market, closeTime: '2026-11-18T05:00:00Z' }, now, now).action, 'skip');
   assert.equal(liveK1({ ...market, yesAsk: 0.5, noAsk: 0.52 }, now, now).action, 'skip');
   assert.ok(K1.minAsk === 0.85);
+});
+
+test('a Kalshi quote older than 15 minutes is stale', () => {
+  const now = Date.parse('2026-11-18T12:40:00Z');
+  const fresh = quoteAge('2026-11-18T12:30:00Z', now);
+  const stale = quoteAge('2026-11-18T09:39:46Z', now);
+  assert.equal(fresh.stale, false);
+  assert.equal(fresh.label, '10m');
+  assert.equal(stale.stale, true);
+  assert.equal(stale.label, '3h 0m');
+  assert.equal(quoteAge('', now).stale, true);
 });
 
 test('a blocked browser falls back to the snapshot and a paper bet stays out of the coin book', async () => {
