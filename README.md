@@ -140,6 +140,8 @@ flowchart TD
 
 The coin desk and the arena do not share a book. A loss never increases size. `live_execution` is a disabled checkbox.
 
+The Bot brain screen reads `data/lessons.json`. That file is written by the nightly lesson job from `data/journal.jsonl`. The snapshot job appends the journal when a market it entered earlier resolves. Challenger parameters are frozen in `EVAL_PROTOCOL.md`. A challenger becomes champion only after a holdout day both bots traded at least 20 times and the challenger's after-fee mean is positive and higher. The v6 edge gate is a separate check and is not edited by that job.
+
 ## Changelog
 
 See `CHANGELOG.md`.

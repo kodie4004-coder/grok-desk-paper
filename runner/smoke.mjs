@@ -37,6 +37,10 @@ try {
   await page.locator('button[data-arena="pick"]').click();
   const pick = await page.locator('#view').innerText();
   if (!/pick a side/i.test(pick)) fails.push('pick\n' + pick.slice(0, 240));
+  await page.locator('nav.tabs button[data-tab="brain"]').click();
+  await page.waitForSelector('text=/after fees/i', { timeout: 8000 }).catch((e) => logs.push(e.message));
+  const brain = await page.locator('#view').innerText();
+  if (!/bot brain/i.test(brain) || !/after fees/i.test(brain)) fails.push('brain\n' + brain.slice(0, 400) + '\n' + logs.join('\n'));
   await page.locator('nav.tabs button[data-tab="score"]').click();
   const score = await page.locator('#view').innerText();
   if (!/ready for real money/i.test(score) || !/hype check/i.test(score)) fails.push('score\n' + score.slice(0, 240));
