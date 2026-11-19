@@ -8,7 +8,9 @@ import { graduates } from './strategies.js';
 
 export const LEARN_SIZE = 2;
 export const HOLD_MIN = 20;
-export const LEARN_DAY_LOSS = 20;
+export const BOT_DAY_LOSS = 6;
+export const SNAPSHOT_ALLOC_CAP = 8;
+export const SNAPSHOT_LINE_CAP = 16;
 
 export const VARIANTS = [
   { id: 'late', family: 'late', label: 'Late favorite', role: 'champion', minAsk: 0.85, minLeft: 180, maxLeft: 300 },
@@ -19,6 +21,7 @@ export const VARIANTS = [
   { id: 'mom-strict', family: 'mom', label: 'Momentum, 0.05% past the strike', role: 'challenger', kind: 'mom', minLeft: 120, maxLeft: 600, minMove: 0.0005 },
   { id: 'revert', family: 'revert', label: 'Mean revert', role: 'champion', kind: 'revert', minLeft: 360, maxLeft: 720, cheap: [0.15, 0.40], rich: [0.60, 0.85] },
   { id: 'revert-wide', family: 'revert', label: 'Mean revert, wider band', role: 'challenger', kind: 'revert', minLeft: 360, maxLeft: 720, cheap: [0.10, 0.45], rich: [0.55, 0.90] },
+  { id: 'revert-no-longshot', family: 'revert', label: 'Mean revert, skip asks under 0.40', role: 'challenger', kind: 'revert', minLeft: 360, maxLeft: 720, cheap: [0.15, 0.50], rich: [0.50, 0.85], minBuy: 0.40 },
   { id: 'scalp', family: 'scalp', label: 'Intra-window scalp', role: 'champion', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120 },
   { id: 'scalp-tight', family: 'scalp', label: 'Scalp, larger jump', role: 'challenger', kind: 'scalp', minJump: 0.06, maxSpread: 0.02, minLeft: 120 },
   { id: 'flip', family: 'flip', label: 'Coin-flip control', role: 'control', kind: 'flip', minLeft: 600, maxLeft: 840 },
@@ -33,6 +36,9 @@ export function defaultBrain() {
     note: 'Paper only. The newest finished UTC day is the holdout and is judged once. The edge gate is not changed here. A loss does not raise size.',
     champions: { late: 'late', mom: 'mom', revert: 'revert', scalp: 'scalp', flip: 'flip' },
     benched: [],
+    shadow: [],
+    shadowSince: {},
+    experimentSince: null,
     judged: [],
     weights: Object.fromEntries(VARIANTS.map((v) => [v.id, v.role === 'challenger' ? 1 : 2])),
     decisions: [],
@@ -100,7 +106,7 @@ export function signal(variant, market, now, ctx = {}) {
     const side = coinFlipSide(market.ticker + market.closeTime);
     picked = { side, ask: side === 'yes' ? yes : no };
   }
-  if (!picked) return null;
+  if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
   const samples = [...(ctx.prev?.samples || []), yes].filter((n) => Number.isFinite(n));
   const spread = Number.isFinite(yes) && Number.isFinite(bid) && yes >= bid ? +(yes - bid).toFixed(4) : null;
   return {
@@ -173,8 +179,6 @@ export function pickAllocated(variants, weights, seed) {
 
 export function stepJournal({ markets, open = [], quotes = {}, brain, existingIds = [], settledRows = [], spots = {}, now }) {
   const state = brain || defaultBrain();
-  const benched = new Set(state.benched || []);
-  const weights = { ...defaultBrain().weights, ...(state.weights || {}) };
   const known = new Set(existingIds);
   const settled = [];
   const still = [];
@@ -193,20 +197,23 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     if (Number.isFinite(close) && now - close > 6 * 3600000 && !market) continue;
     still.push(entry);
   }
-  const today = dayKey(now);
-  const booked = [...(settledRows || []), ...settled].filter((row) => row.allocated && dayKey(row.settledAt || row.window) === today).reduce((sum, row) => sum + (row.pnl || 0), 0);
-  const paused = booked <= -LEARN_DAY_LOSS;
+  const risk = riskShadow(state, [...(settledRows || []), ...settled], now);
+  const quiet = new Set([...(state.benched || []), ...risk.shadow]);
+  const weights = { ...defaultBrain().weights, ...(state.weights || {}) };
+  for (const id of quiet) weights[id] = 0;
   const nextQuotes = {};
-  for (const market of markets || []) {
+  let allocLeft = SNAPSHOT_ALLOC_CAP;
+  let lineLeft = SNAPSHOT_LINE_CAP;
+  const ordered = [...(markets || [])].sort((a, b) => String(a.ticker).localeCompare(String(b.ticker)));
+  for (const market of ordered) {
     const prev = quotes[market.ticker] || null;
     const yes = Number(market.yesAsk);
     if (Number.isFinite(yes)) {
       nextQuotes[market.ticker] = { yesAsk: yes, yesBid: Number(market.yesBid), samples: [...(prev?.samples || []), yes].slice(-5) };
     }
-    if (paused || market.result === 'yes' || market.result === 'no') continue;
+    if (market.result === 'yes' || market.result === 'no' || lineLeft <= 0) continue;
     const firing = [];
     for (const variant of VARIANTS) {
-      if (benched.has(variant.id)) continue;
       const sig = signal(variant, market, now, { spots, prev });
       if (sig) firing.push({ variant, sig });
     }
@@ -217,22 +224,71 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     }
     for (const [family, rows] of byFamily) {
       const chosen = pickAllocated(rows.map((r) => r.variant), weights, `${market.ticker}:${market.closeTime}:${family}`);
-      for (const row of rows) {
+      const orderedRows = [...rows].sort((a, b) => Number(b.variant.id === chosen) - Number(a.variant.id === chosen));
+      for (const row of orderedRows) {
+        if (lineLeft <= 0) break;
         const id = `${row.variant.id}:${market.ticker}`;
         if (known.has(id) || still.some((e) => e.id === id)) continue;
-        const opened = openRow(row.variant, market, row.sig, now, chosen === row.variant.id);
+        const wantAlloc = !quiet.has(row.variant.id) && chosen === row.variant.id && allocLeft > 0;
+        const opened = openRow(row.variant, market, row.sig, now, wantAlloc);
         if (!opened) continue;
+        if (wantAlloc) allocLeft -= 1;
+        lineLeft -= 1;
         still.push(opened);
+        known.add(id);
       }
     }
   }
-  return { settled, open: still, quotes: nextQuotes };
+  return {
+    settled,
+    open: still,
+    quotes: nextQuotes,
+    brain: { ...state, shadow: risk.shadow, shadowSince: risk.shadowSince },
+  };
+}
+
+export function riskShadow(brain, rows, now) {
+  const today = dayKey(now);
+  const since = { ...(brain?.shadowSince || {}) };
+  const shadow = new Set(brain?.shadow || []);
+  for (const variant of VARIANTS) {
+    if (variant.role === 'control') continue;
+    const dayPnl = (rows || []).filter((row) => row.allocated && row.variant === variant.id && dayKey(row.settledAt || row.window) === today).reduce((sum, row) => sum + (row.pnl || 0), 0);
+    if (dayPnl <= -BOT_DAY_LOSS) {
+      shadow.add(variant.id);
+      if (!since[variant.id]) since[variant.id] = today;
+    }
+  }
+  const { holdout, groups } = splitWindows(rows || [], now);
+  for (const id of [...shadow]) {
+    const start = since[id];
+    if (!start) continue;
+    for (const [key, list] of groups || []) {
+      if (key <= start || key === holdout) continue;
+      const mine = list.filter((row) => row.variant === id);
+      if (mine.length < 8) continue;
+      const mean = mine.reduce((sum, row) => sum + row.pnl, 0) / mine.length;
+      if (mean > 0) {
+        shadow.delete(id);
+        delete since[id];
+        break;
+      }
+    }
+  }
+  return { shadow: [...shadow], shadowSince: since };
 }
 
 function windowStats(rows, iters = 300) {
-  if (!rows.length) return { n: 0, mean: null, lo: null };
-  const boot = clusterBootstrap(rows.map((r) => ({ pnl: r.pnl, pool: r.series || r.ticker })), { iters, seed: 7, qLo: 0.05, qHi: 0.95 });
-  return { n: rows.length, mean: boot.mean, lo: boot.lo };
+  if (!rows.length) return { n: 0, mean: null, lo: null, hi: null, wins: 0 };
+  const boot = clusterBootstrap(rows.map((r) => ({ pnl: r.pnl, pool: r.series || r.ticker || '?' })), { iters, seed: 7, qLo: 0.05, qHi: 0.95 });
+  return { n: rows.length, mean: boot.mean, lo: boot.lo, hi: boot.hi, wins: rows.filter((r) => r.won || r.pnl > 0).length };
+}
+
+export function sampleLabel(n, lo, hi) {
+  if (n < 20) return 'noise';
+  if (lo == null || hi == null || (lo <= 0 && hi >= 0)) return 'uncertain';
+  if (n < 40) return 'thin';
+  return 'clear';
 }
 
 export function splitWindows(rows, now) {
@@ -356,14 +412,20 @@ export function featureLessons(rows) {
   for (const [key, list] of groups) {
     if (list.length < 8) continue;
     const [family, price, time] = key.split('|');
-    const mean = list.reduce((a, r) => a + r.pnl, 0) / list.length;
-    if (!(mean > 0) && !(mean < 0)) continue;
-    const verb = mean < 0 ? 'loses' : 'makes money';
+    const stats = windowStats(list, 120);
+    if (!(stats.mean > 0) && !(stats.mean < 0)) continue;
+    const verb = stats.mean < 0 ? 'loses' : 'makes money';
+    const label = sampleLabel(stats.n, stats.lo, stats.hi);
+    const wr = stats.n ? Math.round((100 * stats.wins) / stats.n) : 0;
     lessons.push({
       family,
-      n: list.length,
-      mean,
-      text: `${FAMILY_LABEL[family] || family} ${verb} when ${price} and ${time}. n ${list.length}, mean ${usd(mean)} after fees. This describes paper trades. It does not change the rule.`,
+      n: stats.n,
+      mean: stats.mean,
+      lo: stats.lo,
+      hi: stats.hi,
+      winRate: wr / 100,
+      sample: label,
+      text: `${FAMILY_LABEL[family] || family} ${verb} when ${price} and ${time}. n ${stats.n}, win rate ${wr}%, mean ${usd(stats.mean)} after fees, 90% interval ${usd(stats.lo)} to ${usd(stats.hi)}. Sample: ${label}. This describes paper trades. It does not change the rule.`,
     });
   }
   return lessons.sort((a, b) => a.mean - b.mean);
@@ -384,21 +446,50 @@ export function botCards(rows, brain) {
     const stats = windowStats(mine, 80);
     const gate = gateProgress(mine, 80);
     const usable = gate.windows.filter((w) => w.n >= 20).length;
+    const shadow = (state.shadow || []).includes(variant.id) || benched.has(variant.id);
     return {
       id: variant.id,
       family: variant.family,
       label: variant.label,
       role: variant.role === 'control' ? 'control' : state.champions?.[variant.family] === variant.id ? 'champion' : variant.role,
       n: mine.length,
+      wins: stats.wins,
       mean: stats.mean,
       lo: stats.lo,
+      hi: stats.hi,
+      sample: sampleLabel(mine.length, stats.lo, stats.hi),
       benched: benched.has(variant.id),
-      weight: state.weights?.[variant.id] ?? 1,
+      shadow,
+      status: shadow ? 'benched-shadow' : 'active',
+      weight: shadow ? 0 : (state.weights?.[variant.id] ?? 1),
       level: 1 + Math.floor(mine.length / 10),
       gateWindows: usable,
       graduated: gate.graduated,
     };
   });
+}
+
+export function journalSummary(rows) {
+  const stats = windowStats(rows, 160);
+  const net = rows.reduce((sum, row) => sum + (row.pnl || 0), 0);
+  const alloc = rows.filter((row) => row.allocated);
+  const allocNet = alloc.reduce((sum, row) => sum + (row.pnl || 0), 0);
+  const allocStats = windowStats(alloc, 160);
+  const lines = [];
+  if (!rows.length) return ['No settled journal trades yet.'];
+  lines.push(`All settled lines: n ${stats.n}, win rate ${Math.round((100 * stats.wins) / stats.n)}%, net ${usd(net)} after fees, mean ${usd(stats.mean)}, 90% interval ${usd(stats.lo)} to ${usd(stats.hi)}.`);
+  lines.push(`Allocated $2 picks: n ${alloc.length}, net ${usd(allocNet)}, mean ${usd(allocStats.mean)}, 90% interval ${usd(allocStats.lo)} to ${usd(allocStats.hi)}. ${sampleLabel(alloc.length, allocStats.lo, allocStats.hi)}. Shadows are logged and are not a second bet.`);
+  for (const family of ['revert', 'late', 'mom', 'scalp', 'flip']) {
+    const mine = rows.filter((row) => row.family === family);
+    const s = windowStats(mine, 120);
+    if (!s.n) continue;
+    lines.push(`${FAMILY_LABEL[family]}: n ${s.n}, win rate ${Math.round((100 * s.wins) / s.n)}%, mean ${usd(s.mean)}, 90% interval ${usd(s.lo)} to ${usd(s.hi)}. ${sampleLabel(s.n, s.lo, s.hi)}.`);
+  }
+  const mom = windowStats(rows.filter((row) => row.family === 'mom'), 120);
+  const momWords = mom.lo > 0 ? 'Momentum’s interval is above zero.' : 'Momentum’s point estimate is positive, and its 90% interval still includes zero, so that gain is not clear.';
+  lines.push(`The clear loss is mean revert buying an ask under 0.60 with 5 to 10 minutes left. That is the whole revert book on this day: win rate about 22%. A new challenger skips asks under 0.40. It was added after seeing 2026-11-19, so that day cannot promote it. ${momWords} Late favorites in the 2 to 5 minute window are a small gain; the 5 to 10 minute bucket lost and the sample is thinner. Buckets under 20 trades are noise.`);
+  lines.push('No champion was replaced. The only day so far is still unfinished as a holdout. The edge gate was not touched. Live execution stays off.');
+  return lines;
 }
 
 export function lessonsDocument(rows, prior, brain, now) {
@@ -409,16 +500,20 @@ export function lessonsDocument(rows, prior, brain, now) {
     generatedAt: new Date(now).toISOString(),
     paper: true,
     note: 'Paper only, after fees. Lessons do not move the edge gate, raise size, or turn on live execution.',
+    summary: journalSummary(rows),
     lessons,
     frozen,
     bots,
     decisions: brain?.decisions || [],
     holdout: brain?.holdout || null,
+    experimentSince: brain?.experimentSince || null,
   };
 }
 
 export function lessonsMarkdown(doc) {
   const lines = ['# Paper lessons', '', doc.note, ''];
+  lines.push('## Plain English', '');
+  for (const line of doc.summary || []) lines.push(line, '');
   lines.push('## This week from the journal', '');
   if (!doc.lessons.length) lines.push('No feature bucket has 8 settled paper trades yet. Nothing was retuned.', '');
   for (const lesson of doc.lessons) lines.push(`- ${lesson.text}`, '');

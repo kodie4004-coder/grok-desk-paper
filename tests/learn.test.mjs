@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stepJournal, reviewBrain, featureLessons, gateProgress, settleRow, LEARN_SIZE, defaultBrain } from '../engine/learn.js';
+import { stepJournal, reviewBrain, featureLessons, gateProgress, settleRow, LEARN_SIZE, defaultBrain, riskShadow, signal, VARIANTS, SNAPSHOT_ALLOC_CAP, SNAPSHOT_LINE_CAP } from '../engine/learn.js';
 import { graduates } from '../engine/strategies.js';
 
 const now = Date.parse('2026-11-20T12:00:00Z');
@@ -66,8 +66,9 @@ test('train losses bench a bot and do not raise its paper size', () => {
     existingIds: [],
     now: Date.parse('2026-11-20T12:02:00Z'),
   });
-  assert.equal(next.open.some((r) => r.variant === 'late-loose'), false);
-  assert.ok(next.open.filter((r) => r.family === 'late').every((r) => r.sizeUsd === 2));
+  const loose = next.open.filter((r) => r.variant === 'late-loose');
+  assert.ok(loose.every((r) => r.allocated === false && r.sizeUsd === 2));
+  assert.ok(next.open.some((r) => r.variant === 'late' && r.allocated));
 });
 
 test('a good train and a bad holdout does not replace the champion', () => {
@@ -78,10 +79,33 @@ test('a good train and a bad holdout does not replace the champion', () => {
   assert.equal(brain.champions.late, 'late');
 });
 
-test('a $20 allocated paper loss pauses new lines without raising size', () => {
-  const settledRows = [{ allocated: true, settledAt: '2026-11-20T01:00:00Z', window: '2026-11-20', pnl: -20, sizeUsd: 2 }];
-  const next = stepJournal({ markets: [market()], open: [], quotes: {}, brain: defaultBrain(), existingIds: [], settledRows, now: Date.parse('2026-11-20T12:02:00Z') });
-  assert.equal(next.open.length, 0);
+test('one bot shadow does not stop the others, and one snapshot cannot flood', () => {
+  const settledRows = [{ variant: 'late-loose', allocated: true, settledAt: '2026-11-20T01:00:00Z', window: '2026-11-20', pnl: -6, sizeUsd: 2 }];
+  const markets = Array.from({ length: 12 }, (_, i) => market({ ticker: 'KXBTC15M-' + i }));
+  const when = Date.parse('2026-11-20T12:02:00Z');
+  const next = stepJournal({ markets, open: [], quotes: {}, brain: defaultBrain(), existingIds: [], settledRows, now: when });
+  const loose = next.open.filter((r) => r.variant === 'late-loose');
+  assert.ok(loose.length > 0);
+  assert.ok(loose.every((r) => r.allocated === false && r.sizeUsd === 2));
+  const taken = next.open.filter((r) => r.variant === 'late' && r.allocated);
+  assert.ok(taken.length > 0 && taken.length <= SNAPSHOT_ALLOC_CAP);
+  assert.ok(next.open.length <= SNAPSHOT_LINE_CAP);
+  const ids = next.open.map((r) => r.id);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test('a longshot ask is skipped by the new revert filter, and shadow does not return on the holdout', () => {
+  const variant = VARIANTS.find((v) => v.id === 'revert-no-longshot');
+  const cheap = { ticker: 'T', series: 'KXBTC15M', yesAsk: 0.25, noAsk: 0.8, yesBid: 0.24, closeTime: new Date(now + 500000).toISOString(), floorStrike: 1, result: '' };
+  assert.equal(signal(variant, cheap, now), null);
+  assert.ok(signal(variant, { ...cheap, yesAsk: 0.42, yesBid: 0.41 }, now));
+  const brain = { ...defaultBrain(), shadow: ['late-loose'], shadowSince: { 'late-loose': '2026-11-18' } };
+  const sameDay = Array.from({ length: 8 }, (_, i) => row('late-loose', '2026-11-18', 0.05, { family: 'late', ticker: 'h' + i }));
+  assert.ok(riskShadow(brain, sameDay, Date.parse('2026-11-19T12:00:00Z')).shadow.includes('late-loose'));
+  const later = Array.from({ length: 8 }, (_, i) => row('late-loose', '2026-11-19', 0.05, { family: 'late', ticker: 'l' + i }));
+  const train = Array.from({ length: 8 }, (_, i) => row('late-loose', '2026-11-20', 0.02, { family: 'late', ticker: 't' + i }));
+  const freed = riskShadow(brain, [...sameDay, ...later, ...train], Date.parse('2026-11-21T12:00:00Z'));
+  assert.equal(freed.shadow.includes('late-loose'), false);
 });
 
 test('feature lessons wait for 8 trades and the gate still needs three windows', () => {

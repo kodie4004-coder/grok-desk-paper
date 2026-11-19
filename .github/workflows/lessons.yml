@@ -1,8 +1,8 @@
 name: Paper lessons
 
-# Once a day, describe the journal. This job does not edit strategy thresholds.
-# Minute 15 avoids the top-of-hour schedule pileup. workflow_dispatch still works
-# when the cron is dropped.
+# Backup for the snapshot chain. The chain runs this same script once per UTC
+# day. This cron is only there if that chain stops. Minute 15 avoids the
+# top-of-hour schedule pileup. This job does not edit strategy thresholds.
 on:
   schedule:
     - cron: '15 7 * * *'
