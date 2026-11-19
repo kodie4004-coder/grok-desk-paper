@@ -253,6 +253,23 @@ Scalp exits are challengers. They use the champion's entry, a 4 cent ask jump an
 
 A loss does not raise size. The next two 15-minute windows of that series take no new allocated bet.
 
+## v9 meme signals (frozen before a live pass)
+
+Solana meme coins come from DexScreener's public boost list and pair data. GeckoTerminal's public token info supplies holder concentration, mint authority, and freeze authority when it answers. pump.fun's API is not used when it answers with a challenge. A coin is a paper buy only when every check below is true:
+
+- Liquidity at least $20,000.
+- 24 hour volume at least $5,000.
+- Pair age at least 30 minutes and at most 14 days.
+- Quote asset is SOL, WSOL, USDC, or USDT.
+- Top 10 holders are 40% or less. Missing holder data is a fail.
+- Mint authority is off. Missing is a fail.
+- Freeze authority is off. Missing is a fail.
+- One hour move is between -80% and +400% when the field exists.
+- Fully diluted value over liquidity is at most 50 when both exist. Missing does not block.
+- Dev wallet share is not in this free payload. It is shown as missing and does not count as a pass.
+
+The paper fill is $2. The buy price is marked up 1% and the sell price is marked down 1%. Each side pays 1.25%, the public pump.fun early-trade fee. A flat price is a loss. Exits are a 15% stop, a 25% take-profit, or 30 minutes, using the next observed price. The position does not get larger after a loss. These trades are their own journal. They use the same `graduates()` gate and do not change it. The app never holds a key, connects a wallet, or sends an order. The person copies the contract address and buys in their own pump.fun or fomo account.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.
