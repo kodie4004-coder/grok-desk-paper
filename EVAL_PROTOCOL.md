@@ -226,11 +226,11 @@ The phone journal in `data/journal.jsonl` is append-only and is written by the s
 
 - Late favorite stays ask at least 0.85 with 180 to 300 seconds left. Challengers are ask 0.80 in that same window, ask 0.90 with 180 to 360 seconds, and ask 0.85 with 300 to 480 seconds.
 - Momentum vs target stays any side of the strike with 120 to 600 seconds left. The challenger requires the spot to be at least 0.05% past the strike. This is not a change to the S1 crypto study.
-- Mean revert stays YES ask 0.15 to 0.40 or 0.60 to 0.85, with 360 to 720 seconds left. The challenger widens that to 0.10 to 0.45 or 0.55 to 0.90.
+- Mean revert stays YES ask 0.15 to 0.40 or 0.60 to 0.85, with 360 to 720 seconds left. The wider challenger is 0.10 to 0.45 or 0.55 to 0.90. After the 2026-11-19 journal, a third challenger skips any buy whose ask is under 0.40. That day described the loss. It is not allowed to promote the new challenger.
 - The scalp stays a 4 cent ask jump and a spread of 3 cents or less. The challenger requires a 6 cent jump and a 2 cent spread.
 - The coin-flip control is not promoted and is not benched.
 
-A finished UTC day is the holdout once, then it becomes train. A challenger replaces the champion only when both have at least 20 holdout trades and the challenger's mean after fees is positive and higher. Weights and benching use train days only. A variant with 20 train trades, a mean that is not positive, and a 90% lower bound that is not positive is benched. Size stays $2. The v6 gate in `graduates()` is unchanged. Clearing it still does not enable `live_execution`.
+A finished UTC day is the holdout once, then it becomes train. A challenger replaces the champion only when both have at least 20 holdout trades and the challenger's mean after fees is positive and higher. Weights and the permanent bench use train days only. A variant with 20 train trades, a mean that is not positive, and a 90% lower bound that is not positive is benched. Separately, a bot whose own allocated paper is down $6 in a UTC day goes to shadow: it keeps a log and gets $0 of new bets, and the other bots keep trading. There is no desk-wide daily halt. A snapshot may open at most 8 allocated bets and 16 lines. One variant still bets a market at most once. A shadow bot returns only when a later finished train day, not the holdout, has at least 8 trades and a positive mean. Size stays $2. The v6 gate in `graduates()` is unchanged. Clearing it still does not enable `live_execution`.
 
 ## What would falsify a cheerful reading
 

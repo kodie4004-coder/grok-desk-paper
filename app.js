@@ -684,20 +684,28 @@ function brainView() {
   const doc = ui.lessons || {};
   const bots = doc.bots || [];
   const openN = (ui.journalOpen?.entries || []).length;
+  const quiet = (bot) => bot.shadow || bot.benched || bot.status === 'benched-shadow';
   const share = (bot) => {
-    if (bot.benched) return 'benched';
-    const mates = bots.filter((b) => b.family === bot.family && !b.benched);
+    if (quiet(bot)) return 'shadow, $0 allocation';
+    const mates = bots.filter((b) => b.family === bot.family && !quiet(b));
     const total = mates.reduce((a, b) => a + (b.weight || 0), 0);
     if (!total) return 'no new bets';
     return Math.round((100 * (bot.weight || 0)) / total) + '% of new paper bets';
   };
-  const cards = bots.map((bot) => `<li class="slot"><div class="row"><b>${esc(bot.label)}</b><span class="tag ${bot.benched ? 'off' : bot.role === 'champion' ? 'normal' : 'explore'}">${bot.benched ? 'benched' : esc(bot.role)}</span></div><p class="note">Level ${bot.level} · ${share(bot)} · n ${bot.n} · mean ${bot.mean == null ? '—' : money(bot.mean, true)} after fees · low ${bot.lo == null ? '—' : money(bot.lo, true)}</p><p class="note">${bot.graduated ? 'Gate cleared on this journal. Live execution stays off.' : `Gate progress ${bot.gateWindows || 0}/3 windows of 20+. Not ready for real money.`}</p></li>`).join('');
+  const started = Date.parse(doc.experimentSince || '');
+  const hours = Number.isFinite(started) ? Math.max(0, Math.floor((Date.now() - started) / 3600000)) : null;
+  const since = Number.isFinite(started) ? `Experiment running nonstop since ${new Date(started).toISOString().slice(0, 16).replace('T', ' ')} UTC · ${hours}h` : 'Experiment clock starts with the first journal line.';
+  const cards = bots.map((bot) => `<li class="slot"><div class="row"><b>${esc(bot.label)}</b><span class="tag ${quiet(bot) ? 'off' : bot.role === 'champion' ? 'normal' : 'explore'}">${quiet(bot) ? 'benched-shadow' : esc(bot.role)}</span></div><p class="note">Level ${bot.level} · ${share(bot)} · n ${bot.n} · mean ${bot.mean == null ? '—' : money(bot.mean, true)} after fees · 90% ${bot.lo == null ? '—' : money(bot.lo, true)} to ${bot.hi == null ? '—' : money(bot.hi, true)} · ${esc(bot.sample || '')}</p><p class="note">${bot.graduated ? 'Gate cleared on this journal. Live execution stays off.' : `Gate progress ${bot.gateWindows || 0}/3 windows of 20+. Not ready for real money.`}</p></li>`).join('');
+  const summary = (doc.summary || []).map((l) => `<li>${esc(l)}</li>`).join('');
   const learned = (doc.lessons || []).slice(0, 6).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const frozen = (doc.frozen || []).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const decisions = (doc.decisions || []).map((l) => `<li>${esc(l)}</li>`).join('');
   return `<section class="card arcade" aria-label="Bot brain">
     <div class="row"><h2 style="margin:0">Bot brain</h2><span class="tag explore">PAPER · after fees</span></div>
-    <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result. One line per family is the bandit's pick. The others are recorded so the comparison is not biased.</p>
+    <p class="lvl" id="runFor">${esc(since)}</p>
+    <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. A bot that loses $6 of its own allocated paper goes to shadow. The others keep trading. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result.</p>
+    <h2>Last night</h2>
+    <ul class="feed">${summary || '<li><span class="empty">No summary yet.</span></li>'}</ul>
     <h2>Bots</h2>
     <ul class="feed">${cards || '<li><span class="empty">No bot roster in this lessons file.</span></li>'}</ul>
     <h2>Learned from settled trades</h2>
