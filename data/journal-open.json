@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-19T18:19:07.904Z",
+  "updatedAt": "2026-11-19T18:22:32.114Z",
   "entries": [
     {
       "id": "revert:KXCRYPTOLEAD15M-26NOV191215-BTC",
@@ -1236,6 +1236,886 @@
           "role": "analyst",
           "action": "score",
           "reason": "analyst: ask 0.21 with 652s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "late-early:KXAUDUSD15M-26NOV191330-30",
+      "family": "late",
+      "variant": "late-early",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV191330-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.9,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.9,
+      "secondsLeft": 448,
+      "spread": 0.02,
+      "momentum": 0.23,
+      "volatility": 0.1650252505931542,
+      "strategy": "late-early",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.9 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.9, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-early:KXBNB15M-26NOV191330-30",
+      "family": "late",
+      "variant": "late-early",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "late-early",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "mom:KXBNB15M-26NOV191330-30",
+      "family": "mom",
+      "variant": "mom",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "mom",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "mom-strict:KXBNB15M-26NOV191330-30",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "mom-strict",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-stop:KXBNB15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-stop",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": "stop",
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "scalp-stop",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp:KXBNB15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "scalp",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-tight:KXBNB15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-tight",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "scalp-tight",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-tp:KXBNB15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-tp",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": "tp",
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "scalp-tp",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-time:KXBNB15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-time",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191330-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": "time",
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.006,
+      "momentum": 0.338,
+      "volatility": 0.20435589869962972,
+      "strategy": "scalp-time",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBNB15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "revert-wide:KXBRENT15M-26NOV191330-30",
+      "family": "revert",
+      "variant": "revert-wide",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBRENT15M-26NOV191330-30",
+      "series": "KXBRENT15M",
+      "title": "Brent Crude Oil price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.44,
+      "contracts": 4,
+      "sizeUsd": 2,
+      "fee": 0.07,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.44,
+      "secondsLeft": 448,
+      "spread": 0.02,
+      "momentum": 0.12,
+      "volatility": 0.06110100926607784,
+      "strategy": "revert-wide",
+      "market": "KXBRENT15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBRENT15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.44 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-time:KXBRENT15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-time",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBRENT15M-26NOV191330-30",
+      "series": "KXBRENT15M",
+      "title": "Brent Crude Oil price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.58,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": "time",
+      "price": 0.58,
+      "secondsLeft": 448,
+      "spread": 0.02,
+      "momentum": 0.12,
+      "volatility": 0.06110100926607784,
+      "strategy": "scalp-time",
+      "market": "KXBRENT15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBRENT15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.58 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp:KXBRENT15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXBRENT15M-26NOV191330-30",
+      "series": "KXBRENT15M",
+      "title": "Brent Crude Oil price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.58,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.58,
+      "secondsLeft": 448,
+      "spread": 0.02,
+      "momentum": 0.12,
+      "volatility": 0.06110100926607784,
+      "strategy": "scalp",
+      "market": "KXBRENT15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBRENT15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.58 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-tight:KXBRENT15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-tight",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBRENT15M-26NOV191330-30",
+      "series": "KXBRENT15M",
+      "title": "Brent Crude Oil price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.58,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.58,
+      "secondsLeft": 448,
+      "spread": 0.02,
+      "momentum": 0.12,
+      "volatility": 0.06110100926607784,
+      "strategy": "scalp-tight",
+      "market": "KXBRENT15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBRENT15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.58 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-tp:KXBRENT15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-tp",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBRENT15M-26NOV191330-30",
+      "series": "KXBRENT15M",
+      "title": "Brent Crude Oil price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.58,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": "tp",
+      "price": 0.58,
+      "secondsLeft": 448,
+      "spread": 0.02,
+      "momentum": 0.12,
+      "volatility": 0.06110100926607784,
+      "strategy": "scalp-tp",
+      "market": "KXBRENT15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBRENT15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.58 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-stop:KXBRENT15M-26NOV191330-30",
+      "family": "scalp",
+      "variant": "scalp-stop",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBRENT15M-26NOV191330-30",
+      "series": "KXBRENT15M",
+      "title": "Brent Crude Oil price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.58,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": "stop",
+      "price": 0.58,
+      "secondsLeft": 448,
+      "spread": 0.02,
+      "momentum": 0.12,
+      "volatility": 0.06110100926607784,
+      "strategy": "scalp-stop",
+      "market": "KXBRENT15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBRENT15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.58 with 448s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBRENT15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "late-early:KXBTC15M-26NOV191330-30",
+      "family": "late",
+      "variant": "late-early",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV191330-30",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.968,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-19T18:22:32.114Z",
+      "closeTime": "2026-11-19T18:30:00Z",
+      "exit": null,
+      "price": 0.968,
+      "secondsLeft": 448,
+      "spread": 0.001,
+      "momentum": 0.168,
+      "volatility": 0.2424898623310536,
+      "strategy": "late-early",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV191330-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.968 with 448s left"
         },
         {
           "role": "brain",
