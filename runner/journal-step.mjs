@@ -23,4 +23,11 @@ if (next.settled.length) {
 fs.writeFileSync('data/journal-open.json', JSON.stringify({ updatedAt: board.fetchedAt, entries: next.open }, null, 2));
 fs.writeFileSync('data/journal-quotes.json', JSON.stringify(next.quotes));
 if (next.brain) fs.writeFileSync('data/brain.json', JSON.stringify({ ...brain, ...next.brain, experimentSince: brain.experimentSince || null }, null, 2));
+fs.writeFileSync('data/heartbeat.json', JSON.stringify({
+  paper: true,
+  at: new Date(now).toISOString(),
+  fetchedAt: board.fetchedAt || null,
+  open: next.open.length,
+  settled: settledRows.length + next.settled.length,
+}));
 console.log('journal settled', next.settled.length, 'open', next.open.length);

@@ -53,6 +53,8 @@ jobs:
           git config user.name "kalshi-snapshot"
           git config user.email "kalshi-snapshot@users.noreply.github.com"
           git add data/kalshi-15m.json data/journal.jsonl data/journal-open.json data/journal-quotes.json data/lessons.json data/brain.json data/filings.json LESSONS.md
+          [ -f data/morning.json ] && git add data/morning.json
+          [ -f data/heartbeat.json ] && git add data/heartbeat.json
           if git diff --cached --quiet; then
             echo "snapshot unchanged"
           else

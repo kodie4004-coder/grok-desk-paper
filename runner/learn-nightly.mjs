@@ -1,6 +1,6 @@
 // Nightly paper post-mortem. Writes lessons. Does not edit strategy thresholds.
 import fs from 'node:fs';
-import { reviewBrain, riskShadow, lessonsDocument, lessonsMarkdown, defaultBrain } from '../engine/learn.js';
+import { reviewBrain, riskShadow, lessonsDocument, lessonsMarkdown, morningReport, defaultBrain } from '../engine/learn.js';
 import { GATE_PRIOR } from '../engine/gate-prior.js';
 
 const rows = fs.existsSync('data/journal.jsonl')
@@ -22,4 +22,5 @@ fs.mkdirSync('data', { recursive: true });
 fs.writeFileSync('data/brain.json', JSON.stringify(reviewed, null, 2));
 fs.writeFileSync('data/lessons.json', JSON.stringify(doc, null, 2));
 fs.writeFileSync('LESSONS.md', lessonsMarkdown(doc));
+fs.writeFileSync('data/morning.json', JSON.stringify(morningReport(rows, reviewed, doc.summary, now), null, 2));
 console.log('lessons', doc.lessons.length, 'frozen', doc.frozen.length);

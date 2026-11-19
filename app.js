@@ -509,6 +509,7 @@ function home(st) {
   const isReplay = st.mode === 'replay';
   return `
   ${cockpit(st)}
+  ${morningCard()}
   ${activeCard(st)}
   ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card hero ${net < 0 ? 'down' : ''}">
@@ -658,6 +659,31 @@ function settingsView(st) {
   <div class="note" style="text-align:center;margin-bottom:10px">Grok Desk paper v1 · not financial advice</div>`;
 }
 
+function loadMorning() {
+  if (ui.morningState === 'ready' || ui.morningState === 'loading') return;
+  ui.morningState = 'loading';
+  Promise.all([
+    fetch('data/morning.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
+    fetch('data/heartbeat.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
+  ]).then(([morning, heartbeat]) => {
+    ui.morning = morning;
+    ui.heartbeat = heartbeat;
+    ui.morningState = 'ready';
+    if (ui.tab === 'home') render();
+  }).catch(() => { ui.morningState = 'error'; if (ui.tab === 'home') render(); });
+}
+function morningCard() {
+  if (ui.morningState !== 'ready') loadMorning();
+  const report = ui.morning;
+  const beat = ui.heartbeat;
+  const beatLine = beat?.at ? `Heartbeat ${beat.at.slice(0, 16).replace('T', ' ')} UTC · ${beat.open ?? 0} open · ${beat.settled ?? 0} settled` : 'Heartbeat waiting for the next snapshot.';
+  if (!report) return `<section class="card" aria-label="Morning report"><h2>Morning report</h2><p class="note">${esc(beatLine)}</p><p class="note">The report is written with the daily lesson job. Paper only.</p></section>`;
+  const best = report.best ? `${report.best.id} ${money(report.best.mean, true)}` : '—';
+  const worst = report.worst ? `${report.worst.id} ${money(report.worst.mean, true)}` : '—';
+  const lessons = (report.lessons || []).slice(0, 2).map((l) => `<li>${esc(l)}</li>`).join('');
+  const changed = (report.changed || []).slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join('');
+  return `<section class="card" aria-label="Morning report"><h2>Morning report</h2><p class="note">${esc(beatLine)}</p><p class="note">${esc(report.day || '')} · n ${report.trades ?? 0} · net ${money(report.net, true)} after fees</p><p class="note">Best ${esc(best)} · Worst ${esc(worst)}</p><ul class="feed">${lessons}</ul>${changed ? `<ul class="feed">${changed}</ul>` : ''}</section>`;
+}
 function loadBrain() {
   if (ui.brainState === 'ready' || ui.brainState === 'loading') return;
   ui.brainState = 'loading';
