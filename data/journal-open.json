@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-19T19:20:57.257Z",
+  "updatedAt": "2026-11-19T19:24:19.284Z",
   "entries": [
     {
       "id": "revert:KXCRYPTOLEAD15M-26NOV191215-BTC",
@@ -1972,61 +1972,6 @@
       "skipReason": null
     },
     {
-      "id": "scalp-time:KXBNB15M-26NOV191430-30",
-      "family": "scalp",
-      "variant": "scalp-time",
-      "role": "challenger",
-      "allocated": true,
-      "ticker": "KXBNB15M-26NOV191430-30",
-      "series": "KXBNB15M",
-      "title": "BNB price up in next 15 mins?",
-      "side": "yes",
-      "ask": 0.6,
-      "contracts": 3,
-      "sizeUsd": 2,
-      "fee": 0.06,
-      "openedAt": "2026-11-19T19:20:57.257Z",
-      "closeTime": "2026-11-19T19:30:00Z",
-      "exit": "time",
-      "price": 0.6,
-      "secondsLeft": 543,
-      "spread": 0.01,
-      "momentum": 0.25,
-      "volatility": null,
-      "strategy": "scalp-time",
-      "market": "KXBNB15M",
-      "paper": true,
-      "roles": [
-        {
-          "role": "scanner",
-          "action": "pass",
-          "reason": "scanner: KXBNB15M-26NOV191430-30 is still open"
-        },
-        {
-          "role": "analyst",
-          "action": "score",
-          "reason": "analyst: ask 0.6 with 543s left"
-        },
-        {
-          "role": "brain",
-          "action": "allocate",
-          "reason": "brain: $2 paper. Size is not raised."
-        },
-        {
-          "role": "risk",
-          "action": "pass",
-          "reason": "risk: no veto"
-        },
-        {
-          "role": "executor",
-          "action": "fill",
-          "reason": "executor: paper fill at ask 0.6, fee included"
-        }
-      ],
-      "skipped": false,
-      "skipReason": null
-    },
-    {
       "id": "scalp:KXBNB15M-26NOV191430-30",
       "family": "scalp",
       "variant": "scalp",
@@ -2575,6 +2520,886 @@
       ],
       "skipped": true,
       "skipReason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-time:KXAUDUSD15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-time",
+      "role": "challenger",
+      "allocated": true,
+      "ticker": "KXAUDUSD15M-26NOV191430-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.38,
+      "contracts": 5,
+      "sizeUsd": 2,
+      "fee": 0.09,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "time",
+      "price": 0.38,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.13,
+      "volatility": 0.08504900548115382,
+      "strategy": "scalp-time",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.38 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "fill",
+          "reason": "executor: paper fill at ask 0.38, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "scalp:KXAUDUSD15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV191430-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.38,
+      "contracts": 5,
+      "sizeUsd": 2,
+      "fee": 0.09,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.38,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.13,
+      "volatility": 0.08504900548115382,
+      "strategy": "scalp",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.38 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: this snapshot is at its bet cap"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: this snapshot is at its bet cap"
+    },
+    {
+      "id": "scalp-tp:KXAUDUSD15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-tp",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV191430-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.38,
+      "contracts": 5,
+      "sizeUsd": 2,
+      "fee": 0.09,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "tp",
+      "price": 0.38,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.13,
+      "volatility": 0.08504900548115382,
+      "strategy": "scalp-tp",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.38 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: this snapshot is at its bet cap"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: this snapshot is at its bet cap"
+    },
+    {
+      "id": "scalp-stop:KXAUDUSD15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-stop",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV191430-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.38,
+      "contracts": 5,
+      "sizeUsd": 2,
+      "fee": 0.09,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "stop",
+      "price": 0.38,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.13,
+      "volatility": 0.08504900548115382,
+      "strategy": "scalp-stop",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.38 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: this snapshot is at its bet cap"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: this snapshot is at its bet cap"
+    },
+    {
+      "id": "mom-strict:KXBNB15M-26NOV191430-30",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV191430-30",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.81,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.81,
+      "secondsLeft": 341,
+      "spread": 0.01,
+      "momentum": 0.21,
+      "volatility": 0.23028967265887837,
+      "strategy": "mom-strict",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.81 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: this snapshot is at its bet cap"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: this snapshot is at its bet cap"
+    },
+    {
+      "id": "mom-strict:KXBTC15M-26NOV191430-30",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV191430-30",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.81,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.81,
+      "secondsLeft": 341,
+      "spread": 0.01,
+      "momentum": 0.22,
+      "volatility": 0.24027761721253468,
+      "strategy": "mom-strict",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.81 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp:KXBTC15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV191430-30",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.81,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.81,
+      "secondsLeft": 341,
+      "spread": 0.01,
+      "momentum": 0.22,
+      "volatility": 0.24027761721253468,
+      "strategy": "scalp",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.81 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-tight:KXBTC15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-tight",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV191430-30",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.81,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.81,
+      "secondsLeft": 341,
+      "spread": 0.01,
+      "momentum": 0.22,
+      "volatility": 0.24027761721253468,
+      "strategy": "scalp-tight",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.81 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-stop:KXBTC15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-stop",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV191430-30",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.81,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "stop",
+      "price": 0.81,
+      "secondsLeft": 341,
+      "spread": 0.01,
+      "momentum": 0.22,
+      "volatility": 0.24027761721253468,
+      "strategy": "scalp-stop",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.81 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "scalp-time:KXBTC15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-time",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV191430-30",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.81,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "time",
+      "price": 0.81,
+      "secondsLeft": 341,
+      "spread": 0.01,
+      "momentum": 0.22,
+      "volatility": 0.24027761721253468,
+      "strategy": "scalp-time",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.81 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: KXBTC15M cooldown, next 2 windows after a loss"
+    },
+    {
+      "id": "late-tight:KXCOPPER15M-26NOV191430-30",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "challenger",
+      "allocated": true,
+      "ticker": "KXCOPPER15M-26NOV191430-30",
+      "series": "KXCOPPER15M",
+      "title": "Copper price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.92,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.92,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.43,
+      "volatility": 0.3306055050963308,
+      "strategy": "late-tight",
+      "market": "KXCOPPER15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCOPPER15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.92 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "fill",
+          "reason": "executor: paper fill at ask 0.92, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-early:KXCOPPER15M-26NOV191430-30",
+      "family": "late",
+      "variant": "late-early",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXCOPPER15M-26NOV191430-30",
+      "series": "KXCOPPER15M",
+      "title": "Copper price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.92,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.92,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.43,
+      "volatility": 0.3306055050963308,
+      "strategy": "late-early",
+      "market": "KXCOPPER15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCOPPER15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.92 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.92, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "scalp-tp:KXCOPPER15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-tp",
+      "role": "challenger",
+      "allocated": true,
+      "ticker": "KXCOPPER15M-26NOV191430-30",
+      "series": "KXCOPPER15M",
+      "title": "Copper price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.92,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "tp",
+      "price": 0.92,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.43,
+      "volatility": 0.3306055050963308,
+      "strategy": "scalp-tp",
+      "market": "KXCOPPER15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCOPPER15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.92 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "fill",
+          "reason": "executor: paper fill at ask 0.92, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "scalp:KXCOPPER15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXCOPPER15M-26NOV191430-30",
+      "series": "KXCOPPER15M",
+      "title": "Copper price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.92,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": null,
+      "price": 0.92,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.43,
+      "volatility": 0.3306055050963308,
+      "strategy": "scalp",
+      "market": "KXCOPPER15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCOPPER15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.92 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: this snapshot is at its bet cap"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: this snapshot is at its bet cap"
+    },
+    {
+      "id": "scalp-stop:KXCOPPER15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-stop",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXCOPPER15M-26NOV191430-30",
+      "series": "KXCOPPER15M",
+      "title": "Copper price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.92,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "stop",
+      "price": 0.92,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.43,
+      "volatility": 0.3306055050963308,
+      "strategy": "scalp-stop",
+      "market": "KXCOPPER15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCOPPER15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.92 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: this snapshot is at its bet cap"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: this snapshot is at its bet cap"
+    },
+    {
+      "id": "scalp-time:KXCOPPER15M-26NOV191430-30",
+      "family": "scalp",
+      "variant": "scalp-time",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXCOPPER15M-26NOV191430-30",
+      "series": "KXCOPPER15M",
+      "title": "Copper price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.92,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-19T19:24:19.284Z",
+      "closeTime": "2026-11-19T19:30:00Z",
+      "exit": "time",
+      "price": 0.92,
+      "secondsLeft": 341,
+      "spread": 0.02,
+      "momentum": 0.43,
+      "volatility": 0.3306055050963308,
+      "strategy": "scalp-time",
+      "market": "KXCOPPER15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCOPPER15M-26NOV191430-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.92 with 341s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: this snapshot is at its bet cap"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: this snapshot is at its bet cap"
     }
   ]
 }
