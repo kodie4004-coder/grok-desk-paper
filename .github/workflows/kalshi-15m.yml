@@ -48,6 +48,7 @@ jobs:
       - run: node runner/snapshot-kalshi.mjs
       - run: node runner/journal-step.mjs
       - run: node runner/daily-jobs.mjs
+      - run: node runner/snapshot-meme.mjs || echo 'meme snapshot skipped'
       - name: Commit the snapshot when it changed
         run: |
           git config user.name "kalshi-snapshot"
@@ -55,6 +56,7 @@ jobs:
           git add data/kalshi-15m.json data/journal.jsonl data/journal-open.json data/journal-quotes.json data/lessons.json data/brain.json data/filings.json LESSONS.md
           [ -f data/morning.json ] && git add data/morning.json
           [ -f data/heartbeat.json ] && git add data/heartbeat.json
+          [ -f data/meme-board.json ] && git add data/meme-board.json data/meme-open.json data/meme-journal.jsonl
           if git diff --cached --quiet; then
             echo "snapshot unchanged"
           else
