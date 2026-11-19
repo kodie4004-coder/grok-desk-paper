@@ -172,6 +172,50 @@ Controls, same candle, not K1, and they cannot graduate: always buy YES at the Y
 
 Live K1 uses the same favorite cut and the same fee. It may bet only when the snapshot is at most 120 seconds old and time left is between 180 and 300 seconds. One bet per ticker.
 
+## v6 arena, scalpers, maker, and filings (frozen before testing)
+
+These rules are new. They are not K1 and they are not the meme-coin slots. Live arena bets are exploration at a fixed $2. They do not enter the edge book. A rule graduates only from the backtest below. Live execution stays off either way.
+
+Graduation, except the filings rule: at least three non-overlapping windows, each with 20 or more trades, a positive mean after costs, and a 90% cluster-bootstrap lower bound above zero. Otherwise the Ready panel says not ready.
+
+Costs chosen now:
+
+- Crypto uses the US Coinbase Advanced intro taker fee, 0.90% of notional on the way in and 0.90% on the way out, effective 16 September 2026 (https://help.coinbase.com/en/coinbase/trading-and-funding/advanced-trade/advanced-trade-fees). A new account is not assumed to have a volume discount. Each fill also pays 1 basis point for the spread.
+- Kalshi taker fees stay the July 2026 formula rounded up to the next cent. A maker entry on a standard series pays no fee and no rebate. The exit, if it lifts the bid, pays the taker fee.
+- Stock copies pay no commission and 5 basis points per side. That spread was chosen before the results.
+
+### S1 Crypto micro-momentum
+
+BTC-USD, ETH-USD, and SOL-USD, one-minute Coinbase candles from 2026-11-17T00:00:00Z. A signal needs the three-minute return in [0.20%, 1.00%] and each of the last three closes at or above the prior close. Enter the next minute's open. Stop 0.30%. Take-profit 0.45%. Hold at most 5 minutes. If stop and target print in one bar, the stop fills. One position per product, then a 5-minute cooldown. Windows are 12-hour blocks.
+
+### S2 Crypto mean-reversion to VWAP
+
+Same bars and costs. The VWAP is the last 30 minutes of typical price, weighted by volume. Enter when the close is 0.40% to 1.50% under that VWAP and the target back to VWAP is at least 0.30%. Stop 0.50%. Hold at most 15 minutes. Same windows.
+
+### S3 Book imbalance
+
+Coinbase's public level-2 book is live only. This sample has no historical book, so S3 cannot graduate. A live paper quote may still be shown and labeled as exploration.
+
+### S4 Kalshi intra-window scalp
+
+Series KXBTC15M, KXETH15M, and KXSOL15M. Settled markets with close_time on or after 2026-11-17T00:00:00Z, at most 40 per series. Buy YES at the ask when the ask is at least 4 cents above the ask two minutes earlier and the spread is 3 cents or less. Sell at the bid when the bid is at least 3 cents above the entry ask, or when the bid is 4 cents under it, or on the candle that ends two minutes before the close. Two taker fees. Size is $2. Windows are UTC days.
+
+### S5 Maker, quote the spread
+
+Same Kalshi sample. One attempt per market, on the candle nearest eight minutes before the close and inside six to ten minutes before it. The paper bid is that candle's YES bid. It fills only if the next candle's low trade price is at or below that bid. The exit sells at the next candle's YES bid and pays the taker fee. No maker rebate. This is the adverse-selection rule. It is not a claim that quoting is profitable.
+
+### F1 Berkshire 13F
+
+CIK 0001067983. The four 13F-HR filings dated 2026-02-17, 2026-05-15, 2026-08-14, and 2026-11-16. Entry is the close on the filing date, or the next session if that date is closed. Never the quarter's report date. Duplicate CUSIPs are summed. Only common stock. A name is used only when it matches one SEC company-ticker title after stripping punctuation and the suffixes INC, CORP, CO, LTD, PLC, SA, and AG. The 25 largest by reported value. Each is a $100 paper position. Exit on the next filing date, and the last filing exits on the latest close. Benchmarks are SPY and QQQ over the same dates and the same 5 basis point sides. A window is one filing, not a day. It still needs 20 matched names, a positive mean, and a lower bound above zero, and three filings must clear.
+
+### F2 Congressional disclosures
+
+The House annual disclosure index has member filings, not periodic trades. The periodic-transaction zip for 2025 returned HTTP 404. Senate eFD is an HTML search, not a trade file. F2 is registered and is not tested. It cannot graduate.
+
+### What the live arena is allowed to do
+
+The phone may paper-trade these ideas at $2 between snapshots, including a Coinbase spot estimate versus a Kalshi strike. Those fills are exploration. They are not added to the windows above. Binance returned HTTP 451 from this network. Bybit returned HTTP 403. OKX's ticker allows this page's origin, and it is only a backup estimate if Coinbase fails. Yahoo daily bars are end-of-day and are used for F1, not for a stock scalp.
+
 ## Active mode is not a study
 
 Active mode loosens live thresholds so the phone shows paper trades, skips, and exits. Those fills live in their own book, labeled Active (exploration), at a fixed $5. They are not added to slot books, the edge book, or this protocol's graduation rule. A busy Active feed is not evidence of an edge.

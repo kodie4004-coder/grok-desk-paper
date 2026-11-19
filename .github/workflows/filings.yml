@@ -1,0 +1,30 @@
+name: Filings snapshot
+
+# EDGAR requires a descriptive User-Agent. The browser does not send one we control,
+# so this job writes data/filings.json. 13Fs change quarterly, so once a day is enough.
+on:
+  schedule:
+    - cron: '20 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node runner/collect-filings.mjs
+      - name: Commit the filings snapshot when it changed
+        run: |
+          git config user.name "filings-snapshot"
+          git config user.email "filings-snapshot@users.noreply.github.com"
+          git add data/filings.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update the public filings snapshot"
+          git push
