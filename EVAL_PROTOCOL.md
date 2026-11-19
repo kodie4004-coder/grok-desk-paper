@@ -232,6 +232,27 @@ The phone journal in `data/journal.jsonl` is append-only and is written by the s
 
 A finished UTC day is the holdout once, then it becomes train. A challenger replaces the champion only when both have at least 20 holdout trades and the challenger's mean after fees is positive and higher. Weights and the permanent bench use train days only. A variant with 20 train trades, a mean that is not positive, and a 90% lower bound that is not positive is benched. Separately, a bot whose own allocated paper is down $6 in a UTC day goes to shadow: it keeps a log and gets $0 of new bets, and the other bots keep trading. There is no desk-wide daily halt. A snapshot may open at most 8 allocated bets and 16 lines. One variant still bets a market at most once. A shadow bot returns only when a later finished train day, not the holdout, has at least 8 trades and a positive mean. Size stays $2. The v6 gate in `graduates()` is unchanged. Clearing it still does not enable `live_execution`.
 
+## v8 paper roles (frozen before testing these rules)
+
+These rules were written down before any run that uses them. They do not change the v6 gate or the holdout rule. Size stays $2. `live_execution` stays off.
+
+The snapshot journal passes each candidate through five roles. Each role writes a reason:
+
+- Scanner keeps a market only when it has no result yet and the close is still in the future.
+- Analyst scores the frozen variant. No match means there was no signal.
+- Brain allocates $2 or $0. $0 is a shadow. The size never rises.
+- Executor fills a paper bet at the ask and charges the Kalshi taker fee. A veto is not a fill.
+- Risk can block any entry and can exit an open scalp. It blocks a spread wider than 0.10. It blocks the same series for the next 2 windows of 15 minutes after an allocated loss. It blocks a new line once the snapshot has 8 allocated bets or 16 lines. A blocked signal is still journaled as a skip and settled later, so a lesson can say whether the filter saved or cost money.
+
+Scalp exits are challengers. They use the champion's entry, a 4 cent ask jump and a spread of 3 cents or less. They sell at the bid and pay a second taker fee:
+
+- Take-profit when the bid is at least 3 cents above the entry ask.
+- Stop when the bid is at least 4 cents below the entry ask.
+- Time-stop when 120 seconds have passed and a bid exists.
+- The champion scalp still holds to the Kalshi result.
+
+A loss does not raise size. The next two 15-minute windows of that series take no new allocated bet.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

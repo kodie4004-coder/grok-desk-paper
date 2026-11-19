@@ -22,6 +22,10 @@ The clear loss is mean revert buying an ask under 0.60 with 5 to 10 minutes left
 
 No champion was replaced. The only day so far is still unfinished as a holdout. The edge gate was not touched. Live execution stays off.
 
+## Filters
+
+No skipped-signal bucket has 8 settled counterfactuals yet.
+
 ## This week from the journal
 
 - Mean revert loses when the ask is below 0.60 and 5 to 10 minutes are left. n 73, win rate 22%, mean −$0.73 after fees, 90% interval −$1.35 to −$0.07. Sample: clear. This describes paper trades. It does not change the rule.

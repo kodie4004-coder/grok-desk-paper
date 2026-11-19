@@ -3,6 +3,7 @@
 // The v6 edge gate is not modified here. Size stays $2. Nothing here is real money.
 
 import { kalshiTakerFee, coinFlipSide } from './kalshi.js';
+import { reviewRoles, shouldExit, settleExit } from './roles.js';
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 
@@ -24,6 +25,9 @@ export const VARIANTS = [
   { id: 'revert-no-longshot', family: 'revert', label: 'Mean revert, skip asks under 0.40', role: 'challenger', kind: 'revert', minLeft: 360, maxLeft: 720, cheap: [0.15, 0.50], rich: [0.50, 0.85], minBuy: 0.40 },
   { id: 'scalp', family: 'scalp', label: 'Intra-window scalp', role: 'champion', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120 },
   { id: 'scalp-tight', family: 'scalp', label: 'Scalp, larger jump', role: 'challenger', kind: 'scalp', minJump: 0.06, maxSpread: 0.02, minLeft: 120 },
+  { id: 'scalp-tp', family: 'scalp', label: 'Scalp, 3c take-profit', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'tp' },
+  { id: 'scalp-stop', family: 'scalp', label: 'Scalp, 4c stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'stop' },
+  { id: 'scalp-time', family: 'scalp', label: 'Scalp, 2-minute time-stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'time' },
   { id: 'flip', family: 'flip', label: 'Coin-flip control', role: 'control', kind: 'flip', minLeft: 600, maxLeft: 840 },
 ];
 
@@ -160,6 +164,7 @@ function openRow(variant, market, sig, now, allocated) {
     fee: kalshiTakerFee(sig.ask, contracts),
     openedAt: new Date(now).toISOString(),
     closeTime: market.closeTime,
+    exit: variant.exit || null,
     ...sig.features,
     paper: true,
   };
@@ -197,6 +202,16 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     if (Number.isFinite(close) && now - close > 6 * 3600000 && !market) continue;
     still.push(entry);
   }
+  for (let i = still.length - 1; i >= 0; i -= 1) {
+    const entry = still[i];
+    const market = byTicker.get(entry.ticker);
+    if (!market || entry.skipped) continue;
+    const hit = shouldExit(entry, market, now);
+    if (!hit || known.has(entry.id)) continue;
+    settled.push(settleExit(entry, hit.bid, hit.why, now));
+    known.add(entry.id);
+    still.splice(i, 1);
+  }
   const risk = riskShadow(state, [...(settledRows || []), ...settled], now);
   const quiet = new Set([...(state.benched || []), ...risk.shadow]);
   const weights = { ...defaultBrain().weights, ...(state.weights || {}) };
@@ -229,10 +244,23 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
         if (lineLeft <= 0) break;
         const id = `${row.variant.id}:${market.ticker}`;
         if (known.has(id) || still.some((e) => e.id === id)) continue;
-        const wantAlloc = !quiet.has(row.variant.id) && chosen === row.variant.id && allocLeft > 0;
-        const opened = openRow(row.variant, market, row.sig, now, wantAlloc);
+        const quietBot = quiet.has(row.variant.id);
+        const room = !quietBot && chosen === row.variant.id && allocLeft > 0;
+        const decision = reviewRoles({
+          variant: row.variant,
+          market,
+          sig: row.sig,
+          quiet: quietBot || !room,
+          settledRows: [...(settledRows || []), ...settled],
+          room: room || quietBot,
+        });
+        if (!decision.take && !decision.skipped) continue;
+        const opened = openRow(row.variant, market, row.sig, now, decision.allocated && room);
         if (!opened) continue;
-        if (wantAlloc) allocLeft -= 1;
+        opened.roles = decision.logs;
+        opened.skipped = decision.skipped;
+        opened.skipReason = decision.skipReason || null;
+        if (opened.allocated) allocLeft -= 1;
         lineLeft -= 1;
         still.push(opened);
         known.add(id);
@@ -492,8 +520,49 @@ export function journalSummary(rows) {
   return lines;
 }
 
+export function filterLessons(rows) {
+  const skipped = (rows || []).filter((row) => row.skipped && row.pnl != null);
+  if (skipped.length < 8) return [];
+  const stats = windowStats(skipped, 80);
+  const net = skipped.reduce((sum, row) => sum + row.pnl, 0);
+  const label = sampleLabel(stats.n, stats.lo, stats.hi);
+  return [{
+    n: skipped.length,
+    mean: stats.mean,
+    saved: net < 0,
+    text: `Skipped signals: n ${skipped.length}, mean ${usd(stats.mean)} after fees, 90% interval ${usd(stats.lo)} to ${usd(stats.hi)}. Taking them would have ${net < 0 ? 'lost' : 'made'} ${usd(Math.abs(net))}, so the filters ${net < 0 ? 'saved' : 'cost'} that amount. Sample: ${label}.`,
+  }];
+}
+
+export function morningReport(rows, brain, summary, now) {
+  const day = [...new Set((rows || []).map((row) => row.window).filter(Boolean))].sort().pop() || dayKey(now);
+  const dayRows = (rows || []).filter((row) => row.window === day && row.pnl != null);
+  const net = dayRows.reduce((sum, row) => sum + row.pnl, 0);
+  const by = new Map();
+  for (const row of dayRows) {
+    const cur = by.get(row.variant) || { n: 0, pnl: 0 };
+    cur.n += 1;
+    cur.pnl += row.pnl;
+    by.set(row.variant, cur);
+  }
+  const ranked = [...by.entries()].map(([id, v]) => ({ id, ...v, mean: v.n ? v.pnl / v.n : 0 })).sort((a, b) => b.mean - a.mean);
+  return {
+    paper: true,
+    day,
+    generatedAt: new Date(now).toISOString(),
+    trades: dayRows.length,
+    net,
+    best: ranked[0] || null,
+    worst: ranked.length ? ranked[ranked.length - 1] : null,
+    lessons: (summary || []).slice(0, 3),
+    changed: (brain?.decisions || []).slice(0, 6),
+    shadow: brain?.shadow || [],
+  };
+}
+
 export function lessonsDocument(rows, prior, brain, now) {
   const lessons = featureLessons(rows);
+  const filters = filterLessons(rows);
   const frozen = frozenLessons(prior);
   const bots = botCards(rows, brain);
   return {
@@ -502,6 +571,7 @@ export function lessonsDocument(rows, prior, brain, now) {
     note: 'Paper only, after fees. Lessons do not move the edge gate, raise size, or turn on live execution.',
     summary: journalSummary(rows),
     lessons,
+    filters,
     frozen,
     bots,
     decisions: brain?.decisions || [],
@@ -514,6 +584,9 @@ export function lessonsMarkdown(doc) {
   const lines = ['# Paper lessons', '', doc.note, ''];
   lines.push('## Plain English', '');
   for (const line of doc.summary || []) lines.push(line, '');
+  lines.push('## Filters', '');
+  if (!(doc.filters || []).length) lines.push('No skipped-signal bucket has 8 settled counterfactuals yet.', '');
+  for (const lesson of doc.filters || []) lines.push(`- ${lesson.text}`, '');
   lines.push('## This week from the journal', '');
   if (!doc.lessons.length) lines.push('No feature bucket has 8 settled paper trades yet. Nothing was retuned.', '');
   for (const lesson of doc.lessons) lines.push(`- ${lesson.text}`, '');
