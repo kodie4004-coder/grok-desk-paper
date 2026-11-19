@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Meme safety checks read the Solana mint account and the largest token accounts. A revoked mint or freeze authority and a real top-10 share are required at the same bars. A failed lookup still fails that check and the screen says why. Dev wallet share stays unknown and does not block. The scan adds newer Solana pairs, capped at 24. Paper only.
 - Every scanned coin shows its logo, name, ticker, and mint address, with copy and links to pump.fun, fomo, DexScreener, and Solscan. A tap opens the safety checklist. Controls and benched bots get no allocated paper. A variant with 30 allocated losses whose 90% upper bound is below zero goes to shadow.
 - Tab changes, cards, the coin sheet, and the copy confirmation move with transform and opacity. Loading coins uses a shimmer. P&amp;L counts up only after the first number is on screen. Reduced motion turns the motion off. Icon and splash slots are ready for later artwork.
 - First-run onboarding, a light theme, pull-to-refresh, an offline note, and a Pro screen that stores an optional email only on the phone. No payment is collected.

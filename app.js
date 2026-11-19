@@ -13,7 +13,7 @@ import { GATE_PRIOR } from './engine/gate-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
-import { bestPair, scoreCoin, memeGate, tokenMint } from './engine/meme.js';
+import { memeGate } from './engine/meme.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -827,49 +827,21 @@ function brainView() {
     <details class="fold"><summary>Frozen studies</summary><div class="fold-body"><ul class="feed">${frozen}</ul><p class="note">${esc(doc.note || '')}</p></div></details>
   </section>`;
 }
-function dexReady(pair, now) {
-  const scored = scoreCoin(pair, { holders: { distribution_percentage: { top_10: '0' } }, mint_authority: 'no', freeze_authority: 'no' }, now);
-  return scored.reasons.filter((r) => ['liquidity', 'volume', 'age', 'quote', '1h move'].includes(r.name)).every((r) => r.ok === true);
-}
 async function loadCoins() {
   if (ui.coinsState === 'loading') return;
   ui.coinsState = 'loading';
   if (ui.tab === 'coins') render();
   try {
-    const boosts = await fetch('https://api.dexscreener.com/token-boosts/latest/v1', { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('DexScreener ' + r.status); return r.json(); });
-    const sols = (Array.isArray(boosts) ? boosts : []).filter((b) => b.chainId === 'solana' && b.tokenAddress).slice(0, 8);
-    const joined = sols.map((b) => b.tokenAddress).join(',');
-    const book = joined ? await fetch('https://api.dexscreener.com/latest/dex/tokens/' + joined, { cache: 'no-store' }).then((r) => r.json()) : { pairs: [] };
-    const now = Date.now();
-    const prelim = sols.map((b) => ({ b, pair: bestPair(book.pairs, b.tokenAddress) }));
-    const need = prelim.filter((row) => dexReady(row.pair, now)).slice(0, 4);
-    const info = {};
-    for (const row of need) {
-      try {
-        const res = await fetch('https://api.geckoterminal.com/api/v2/networks/solana/tokens/' + row.b.tokenAddress + '/info', { cache: 'no-store' });
-        if (res.ok) info[row.b.tokenAddress] = (await res.json())?.data?.attributes || null;
-      } catch { info[row.b.tokenAddress] = null; }
-      await new Promise((r) => setTimeout(r, 1100));
-    }
-    ui.coins = prelim.map(({ b, pair }) => {
-      const extra = info[b.tokenAddress] || null;
-      const score = scoreCoin(pair, extra, now);
-      const ca = tokenMint(pair) || b.tokenAddress;
-      return {
-        ca,
-        symbol: pair?.baseToken?.symbol || '?',
-        name: pair?.baseToken?.name || 'Unknown',
-        priceUsd: Number(pair?.priceUsd),
-        liq: pair?.liquidity?.usd ?? null,
-        vol: pair?.volume?.h24 ?? null,
-        ageMin: score.features?.ageMin ?? null,
-        imageUrl: pair?.info?.imageUrl || extra?.image_url || null,
-        dexUrl: pair?.url || `https://dexscreener.com/solana/${ca}`,
-        ...score,
-      };
-    });
+    const [board, openDoc, journalText] = await Promise.all([
+      fetch('data/meme-board.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('Coin board ' + r.status); return r.json(); }),
+      fetch('data/meme-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }).catch(() => ({ entries: [] })),
+      fetch('data/meme-journal.jsonl?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.text() : '').catch(() => ''),
+    ]);
+    ui.memeOpen = openDoc.entries || [];
+    ui.memeJournal = String(journalText || '').trim() ? String(journalText).trim().split('\n').filter(Boolean).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean) : [];
+    ui.coins = Array.isArray(board?.coins) ? board.coins : [];
     ui.coinsState = 'ready';
-    ui.coinsAt = now;
+    ui.coinsAt = Date.parse(board?.fetchedAt) || Date.now();
     const fresh = ui.coins.filter((c) => c.pass && !(ui.seenCoins || new Set()).has(c.ca));
     if (ui.coinAlerts && fresh.length && 'Notification' in window && Notification.permission === 'granted' && !document.hidden) {
       try { new Notification('Grok Desk paper signal', { body: fresh.map((c) => c.symbol).join(', ') + ' passed the paper safety list. Not advice.' }); } catch {}
@@ -887,7 +859,7 @@ function coinsView() {
   const alert = `<button type="button" id="coinAlert" class="switch ${ui.coinAlerts ? 'on' : ''}" aria-pressed="${!!ui.coinAlerts}">${ui.coinAlerts ? 'Alerts on' : 'Alerts off'}</button>`;
   if (ui.coinsState !== 'ready') {
     const bones = [0, 1, 2].map(() => '<div class="skel-card" aria-hidden="true"><div class="skel logo"></div><div class="skel-col"><div class="skel"></div><div class="skel short"></div><div class="skel wide"></div></div></div>').join('');
-    return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">${esc(ui.coinsError)}</p>` : `<div aria-busy="true" aria-label="Loading coins">${bones}</div><p class="note">Loading the public Solana feed.</p>`}</section>`;
+    return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">${esc(ui.coinsError)}</p>` : `<div aria-busy="true" aria-label="Loading coins">${bones}</div><p class="note">Reading mint accounts and holders.</p>`}</section>`;
   }
   const cards = (ui.coins || []).map((coin) => coinCard(coin)).join('');
   const justOpened = !!(ui.coinOpen && ui.coinOpen !== ui.sheetFor);
@@ -896,7 +868,7 @@ function coinsView() {
   const gate = memeGate(ui.memeJournal || []);
   const net = (ui.memeJournal || []).reduce((sum, row) => sum + (row.pnl || 0), 0);
   const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
-  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} pump.fun's API did not answer here. Prices are DexScreener. Holder, mint, and freeze checks are GeckoTerminal when it answers.</p></div>${cards || '<div class="card"><p class="empty">No Solana coins in the latest public boost list. Pull down to try again.</p></div>'}${sheet}</section>`;
+  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${cards || '<div class="card"><p class="empty">No Solana coins in the latest public boost list. Pull down to try again.</p></div>'}${sheet}</section>`;
 }
 function coinLinks(ca, dexUrl) {
   const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;
@@ -918,8 +890,8 @@ function coinCard(coin) {
 function coinSheet(coin, animate) {
   if (!coin) return '';
   const why = (coin.reasons || []).map((r) => `<li><span class="tag ${r.ok === true ? 'normal' : r.ok === false ? 'off' : ''}">${r.ok === true ? 'pass' : r.ok === false ? 'fail' : 'unknown'}</span> ${esc(r.name)} · ${esc(r.detail)}</li>`).join('');
-  const paper = (ui.memeJournal || []).find((row) => row.ca === coin.ca);
-  const paperLine = paper ? `Paper ${paper.exit || 'open'} · ${money(paper.pnl, true)} after fees` : 'No paper trade on this coin yet.';
+  const paper = (ui.memeOpen || []).find((row) => row.ca === coin.ca) || (ui.memeJournal || []).find((row) => row.ca === coin.ca);
+  const paperLine = !paper ? 'No paper trade on this coin yet.' : paper.pnl == null ? `Paper open · $${paper.sizeUsd || 2}` : `Paper ${paper.exit || 'open'} · ${money(paper.pnl, true)} after fees`;
   const age = coin.ageMin == null ? 'age unknown' : `${Math.round(coin.ageMin)} min old`;
   const liq = coin.liq == null ? 'liquidity unknown' : `liquidity $${Math.round(Number(coin.liq)).toLocaleString('en-US')}`;
   const vol = coin.vol == null ? 'volume unknown' : `24h volume $${Math.round(Number(coin.vol)).toLocaleString('en-US')}`;
