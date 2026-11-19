@@ -28,6 +28,8 @@ page.on('pageerror', (e) => logs.push('pageerror ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') logs.push('console ' + m.text()); });
 try {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
+  const intro = page.locator('#introSkip');
+  if (await intro.count()) await intro.click();
   await page.waitForSelector('text=Cockpit', { timeout: 4000 }).catch((e) => logs.push(e.message));
   const home = await page.locator('body').innerText();
   if (!/paper/i.test(home) || !/cockpit/i.test(home)) fails.push('home cockpit missing\n' + home.slice(0, 400) + '\n' + logs.join('\n'));

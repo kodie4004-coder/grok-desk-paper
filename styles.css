@@ -8,6 +8,10 @@
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 }
+html[data-theme="light"]{
+  --bg:#f3f5f8;--card:#ffffff;--card2:#eef2f6;--line:#c5ced8;--txt:#12161c;--mut:#3a4553;
+  --g:#0c7a45;--r:#b4233c;--y:#8a5a00;--b:#1d4e89;
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--txt);font:var(--text-md)/1.45 var(--sans)}
 body{background:radial-gradient(900px 380px at 50% -12%,#12302455,transparent 62%),var(--bg);min-height:100dvh}
@@ -155,8 +159,22 @@ details.fold > .fold-body{padding:0 14px 14px}
 .skel{height:14px;border-radius:8px;background:linear-gradient(90deg,#1a222c,#2a3442,#1a222c);background-size:200% 100%;margin:8px 0}
 @media (prefers-reduced-motion:no-preference){.skel{animation:sheen 1.2s linear infinite}}
 @keyframes sheen{to{background-position:-200% 0}}
-.ca{font:600 12px/1.45 var(--mono);word-break:break-all;background:#0b0f14;border:1px solid var(--line);border-radius:12px;padding:8px}
+.ca{font:600 12px/1.45 var(--mono);word-break:break-all;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:8px}
 a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 .note{font-size:12px;color:var(--mut)}
 .recap{border-color:#2a3a4a}
 code{font-family:var(--mono);font-size:12px;background:#0b0f14;padding:1px 4px;border-radius:4px}
+#intro{position:fixed;inset:0;z-index:30;background:#07090cf2;display:grid;place-items:end center;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
+html[data-theme="light"] #intro{background:#f3f5f8f2}
+html[data-theme="light"] .top{background:#f3f5f8ee;border-bottom-color:var(--line)}
+html[data-theme="light"] .card,
+html[data-theme="light"] .stat,
+html[data-theme="light"] .tabs,
+html[data-theme="light"] .seg button,
+html[data-theme="light"] .btn{background:var(--card);color:var(--txt)}
+html[data-theme="light"] .btn.pri{background:var(--g);color:#fff}
+html[data-theme="light"] .hero{background:var(--card)}
+.intro-card{width:min(420px,100%);margin:0}
+#view{animation:viewin var(--dur) var(--ease)}
+@keyframes viewin{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#view{animation:none}}
