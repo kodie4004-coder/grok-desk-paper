@@ -156,10 +156,36 @@ label.f input[type=checkbox]{width:22px;height:22px}
 details.fold{padding:0;overflow:hidden}
 details.fold > summary{cursor:pointer;font-weight:800;min-height:var(--tap);display:flex;align-items:center;padding:14px}
 details.fold > .fold-body{padding:0 14px 14px}
-.skel{height:14px;border-radius:8px;background:linear-gradient(90deg,#1a222c,#2a3442,#1a222c);background-size:200% 100%;margin:8px 0}
-@media (prefers-reduced-motion:no-preference){.skel{animation:sheen 1.2s linear infinite}}
-@keyframes sheen{to{background-position:-200% 0}}
+.skel{position:relative;overflow:hidden;height:14px;border-radius:8px;background:#1a222c;margin:8px 0}
+.skel::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#2a3442,transparent);transform:translateX(-100%)}
+@media (prefers-reduced-motion:no-preference){.skel::after{animation:sheen 1.15s ease-in-out infinite}}
+@keyframes sheen{to{transform:translateX(100%)}}
+.skel-card{display:flex;gap:10px;align-items:center;padding:4px 0}
+.skel-col{flex:1;min-width:0}
+.skel.logo{width:44px;height:44px;border-radius:50%;margin:0;flex:none}
+.skel.short{width:42%}
+.skel.wide{height:44px}
 .ca{font:600 12px/1.45 var(--mono);word-break:break-all;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:8px}
+.coin-open{display:flex;gap:10px;align-items:center;width:100%;background:transparent;border:0;color:inherit;text-align:left;min-height:44px;padding:0}
+.coin-id{flex:1;min-width:0}
+.coin-id b,.coin-id small{display:block}
+.coin-id small{color:var(--mut)}
+.logo{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none;background:#1a222c}
+.logo.fallback{display:grid;place-items:center;background:hsl(var(--h),42%,38%);color:#fff;font:800 14px var(--sans)}
+.ca-chip{flex:1;min-height:44px;text-align:left;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:8px 10px;font:600 13px/1.4 var(--mono)}
+.ca-chip[aria-expanded="false"] .ca-full{display:none}
+.ca-chip[aria-expanded="true"] .ca-short{display:none}
+.ca-full{word-break:break-all}
+.linkrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.coin-link{min-height:44px;gap:6px;padding:8px 10px}
+.sheet{position:fixed;inset:0;z-index:25;background:transparent;display:flex;align-items:flex-end;padding:12px 12px calc(18px + env(safe-area-inset-bottom))}
+.sheet::before{content:"";position:absolute;inset:0;background:#000;opacity:.66}
+.sheet.in::before{opacity:0;animation:dim .28s var(--ease) forwards}
+.sheet .card{position:relative;z-index:1;width:100%;max-height:86vh;overflow:auto;margin:0}
+.sheet.in .card{animation:sheetup .48s cubic-bezier(.18,1.28,.32,1) both}
+.sheet .logo{width:72px;height:72px;font-size:22px}
+@keyframes dim{to{opacity:.66}}
+@keyframes sheetup{from{transform:translateY(108%)}to{transform:translateY(0)}}
 a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 .note{font-size:12px;color:var(--mut)}
 .recap{border-color:#2a3a4a}
@@ -175,6 +201,26 @@ html[data-theme="light"] .btn{background:var(--card);color:var(--txt)}
 html[data-theme="light"] .btn.pri{background:var(--g);color:#fff}
 html[data-theme="light"] .hero{background:var(--card)}
 .intro-card{width:min(420px,100%);margin:0}
-#view{animation:viewin var(--dur) var(--ease)}
-@keyframes viewin{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){#view{animation:none}}
+@media (prefers-reduced-motion:no-preference){
+  button,a.btn,.ca-chip,.coin-open,summary{transition:transform .12s var(--ease)}
+  button:active,a.btn:active,.ca-chip:active,.coin-open:active,summary:active{transform:scale(.97)}
+  button:disabled:active{transform:none}
+  .btn.is-copied{transform:scale(1.05)}
+  #view.enter{animation:viewin .28s var(--ease)}
+  #view.enter .card{animation:cardin .42s var(--ease) both}
+  #view.enter .card:nth-child(2){animation-delay:40ms}
+  #view.enter .card:nth-child(3){animation-delay:80ms}
+  #view.enter .card:nth-child(4){animation-delay:120ms}
+  #view.enter .card:nth-child(5){animation-delay:160ms}
+  #view.enter .card:nth-child(6){animation-delay:200ms}
+  #view.enter .card:nth-child(n+7){animation-delay:240ms}
+  #view.enter .sheet .card{animation:none}
+  #view.enter .sheet.in .card{animation:sheetup .48s cubic-bezier(.18,1.28,.32,1) both}
+  .toast.copied{animation:copied .42s cubic-bezier(.18,1.35,.32,1)}
+}
+@keyframes viewin{from{transform:translateY(8px)}to{transform:none}}
+@keyframes cardin{from{transform:translateY(12px)}to{transform:none}}
+@keyframes copied{0%{transform:translateY(-10px) scale(.9);opacity:0}70%{transform:translateY(0) scale(1.04);opacity:1}100%{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

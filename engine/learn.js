@@ -212,9 +212,11 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     known.add(entry.id);
     still.splice(i, 1);
   }
-  const risk = riskShadow(state, [...(settledRows || []), ...settled], now);
-  const quiet = new Set([...(state.benched || []), ...risk.shadow]);
-  const weights = { ...defaultBrain().weights, ...(state.weights || {}) };
+  const history = [...(settledRows || []), ...settled];
+  const risk = riskShadow(state, history, now);
+  const demoted = rollingDemote(history, 40);
+  const quiet = new Set([...(state.benched || []), ...risk.shadow, ...demoted.map((d) => d.id), ...controls()]);
+  const weights = evidenceWeights(history, state, now, 40);
   for (const id of quiet) weights[id] = 0;
   const nextQuotes = {};
   let allocLeft = SNAPSHOT_ALLOC_CAP;
@@ -244,18 +246,19 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
         if (lineLeft <= 0) break;
         const id = `${row.variant.id}:${market.ticker}`;
         if (known.has(id) || still.some((e) => e.id === id)) continue;
-        const quietBot = quiet.has(row.variant.id);
+        const quietBot = quiet.has(row.variant.id) || row.variant.role === 'control';
         const room = !quietBot && chosen === row.variant.id && allocLeft > 0;
         const decision = reviewRoles({
           variant: row.variant,
           market,
           sig: row.sig,
           quiet: quietBot || !room,
-          settledRows: [...(settledRows || []), ...settled],
+          settledRows: history,
           room: room || quietBot,
+          feeVeto: quietBot ? null : feeVeto(row.variant.id, row.sig, history),
         });
         if (!decision.take && !decision.skipped) continue;
-        const opened = openRow(row.variant, market, row.sig, now, decision.allocated && room);
+        const opened = openRow(row.variant, market, row.sig, now, !!(decision.allocated && room && !quietBot));
         if (!opened) continue;
         opened.roles = decision.logs;
         opened.skipped = decision.skipped;
@@ -271,7 +274,13 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     settled,
     open: still,
     quotes: nextQuotes,
-    brain: { ...state, shadow: risk.shadow, shadowSince: risk.shadowSince },
+    brain: {
+      ...state,
+      shadow: [...quiet].filter((id) => !controls().has(id)),
+      shadowSince: { ...risk.shadowSince, ...Object.fromEntries(demoted.map((d) => [d.id, risk.shadowSince[d.id] || dayKey(now)])) },
+      weights,
+      lessons: demoted.map((d) => `benched ${d.id}: ${usd(d.mean)}/trade over 30`),
+    },
   };
 }
 
@@ -287,23 +296,108 @@ export function riskShadow(brain, rows, now) {
       if (!since[variant.id]) since[variant.id] = today;
     }
   }
-  const { holdout, groups } = splitWindows(rows || [], now);
   for (const id of [...shadow]) {
     const start = since[id];
     if (!start) continue;
-    for (const [key, list] of groups || []) {
-      if (key <= start || key === holdout) continue;
-      const mine = list.filter((row) => row.variant === id);
-      if (mine.length < 8) continue;
-      const mean = mine.reduce((sum, row) => sum + row.pnl, 0) / mine.length;
-      if (mean > 0) {
-        shadow.delete(id);
-        delete since[id];
-        break;
-      }
+    const shadows = (rows || []).filter((row) => row.variant === id && !row.allocated && row.pnl != null && String(row.openedAt || row.settledAt || '') > start);
+    const last = shadows.slice(-30);
+    if (last.length < 30) continue;
+    const mean = last.reduce((sum, row) => sum + row.pnl, 0) / last.length;
+    if (mean > 0) {
+      shadow.delete(id);
+      delete since[id];
     }
   }
   return { shadow: [...shadow], shadowSince: since };
+}
+
+function controls() {
+  return new Set(VARIANTS.filter((v) => v.role === 'control').map((v) => v.id));
+}
+
+export function rollingDemote(rows, iters = 80) {
+  const by = new Map();
+  for (const row of rows || []) {
+    if (!row.allocated || row.pnl == null || !row.variant || controls().has(row.variant)) continue;
+    if (!by.has(row.variant)) by.set(row.variant, []);
+    by.get(row.variant).push(row);
+  }
+  const out = [];
+  for (const [id, list] of by) {
+    const last = list.slice(-30);
+    if (last.length < 30) continue;
+    const stats = windowStats(last, iters);
+    if (stats.mean < 0 && stats.hi != null && stats.hi < 0) out.push({ id, mean: stats.mean, n: last.length });
+  }
+  return out;
+}
+
+export function feeVeto(variantId, sig, rows) {
+  const shadows = (rows || []).filter((row) => row.variant === variantId && row.pnl != null && !row.allocated).slice(-30);
+  if (shadows.length < 8 || !(sig?.ask > 0)) return null;
+  const mean = shadows.reduce((sum, row) => sum + row.pnl, 0) / shadows.length;
+  const contracts = Math.max(1, Math.floor(LEARN_SIZE / sig.ask));
+  const fee = kalshiTakerFee(sig.ask, contracts);
+  const half = Math.max(0, Number(sig.features?.spread) || 0) / 2 * contracts;
+  if (mean > fee + half) return null;
+  return `risk: shadow mean ${mean.toFixed(2)} does not clear fee ${fee.toFixed(2)} plus half-spread ${half.toFixed(2)}`;
+}
+
+export function evidenceWeights(rows, brain, now, iters = 40) {
+  const weights = {};
+  const today = dayKey(now);
+  for (const variant of VARIANTS) {
+    if (variant.role === 'control') { weights[variant.id] = 0; continue; }
+    const mine = (rows || []).filter((row) => row.allocated && row.variant === variant.id && row.pnl != null).slice(-30);
+    let weight = 0.25;
+    if (mine.length >= 8) {
+      const stats = windowStats(mine, iters);
+      weight = stats.lo > 0 ? Math.min(1, stats.lo / 0.5) : 0;
+    }
+    const dayPnl = (rows || []).filter((row) => row.allocated && row.variant === variant.id && dayKey(row.settledAt || row.window) === today).reduce((sum, row) => sum + (row.pnl || 0), 0);
+    const prev = brain?.weights?.[variant.id];
+    if (dayPnl < 0 && prev != null) weight = Math.min(weight, prev);
+    weights[variant.id] = weight;
+  }
+  return weights;
+}
+
+export function allocCurve(rows, today = new Date().toISOString().slice(0, 10)) {
+  const settled = [...(rows || [])].filter((row) => row.allocated && row.pnl != null).sort((a, b) => String(a.settledAt || '').localeCompare(String(b.settledAt || '')));
+  let net = 0;
+  let fees = 0;
+  let day = 0;
+  const raw = [0];
+  for (const row of settled) {
+    net += row.pnl;
+    fees += row.fees || row.fee || 0;
+    if (String(row.settledAt || row.window || '').slice(0, 10) === today) day += row.pnl;
+    raw.push(Math.round(net * 100) / 100);
+  }
+  const points = raw.length <= 80 ? raw : raw.filter((_, i) => i === raw.length - 1 || i % Math.ceil(raw.length / 80) === 0);
+  return {
+    today,
+    n: settled.length,
+    net: Math.round(net * 100) / 100,
+    fees: Math.round(fees * 100) / 100,
+    day: Math.round(day * 100) / 100,
+    points,
+  };
+}
+
+export function replayAllocated(rows) {
+  const sorted = [...(rows || [])].filter((row) => row.pnl != null).sort((a, b) => String(a.openedAt || '').localeCompare(String(b.openedAt || '')));
+  let before = 0;
+  let after = 0;
+  let nBefore = 0;
+  let nAfter = 0;
+  const kept = [];
+  for (const row of sorted) {
+    if (row.allocated) { before += row.pnl; nBefore += 1; }
+    const quiet = new Set([...controls(), ...(riskShadow({ shadow: [], shadowSince: {} }, kept, Date.parse(row.openedAt) || 0).shadow), ...rollingDemote(kept, 20).map((d) => d.id)]);
+    if (row.allocated && !quiet.has(row.variant)) { after += row.pnl; nAfter += 1; kept.push(row); }
+  }
+  return { before, after, nBefore, nAfter, inSample: true };
 }
 
 function windowStats(rows, iters = 300) {
