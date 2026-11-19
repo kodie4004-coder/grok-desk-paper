@@ -9,8 +9,16 @@ name: Kalshi 15-minute snapshot
 # The reliable path is workflow_dispatch. GITHUB_TOKEN cannot start a push
 # workflow, but it can start workflow_dispatch:
 # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
-# Each successful pass waits three minutes and queues the next pass. The cron
-# below is only a restart if that chain stops. It avoids minute 0.
+# Each successful pass waits three minutes and queues the next pass.
+#
+# Run 44441797302 (2026-11-19T02:09:20Z) logged queued=0 in_progress=0 while
+# the step was still running. The old guard required in_progress==1, treated
+# that miss as "someone else is running", and exited 0. The chain stopped.
+# runner/queue-next.mjs dispatches whenever no OTHER run is queued or running,
+# and runner/queue-snapshot.sh fails the job if the dispatch does not stick.
+# kalshi-15m-kick.yml starts a run when this one finished and nothing else is
+# active, so a missed dispatch does not wait on the cron below. The cron is
+# only a last resort. GitHub still drops most of those events.
 on:
   workflow_dispatch:
   schedule:
@@ -31,6 +39,7 @@ concurrency:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,12 +63,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           sleep 180
-          queued=$(gh run list --workflow kalshi-15m.yml --status queued --json databaseId --jq 'length')
-          active=$(gh run list --workflow kalshi-15m.yml --status in_progress --json databaseId --jq 'length')
-          echo "queued=$queued in_progress=$active"
-          # in_progress includes this run. Queue another only when nothing else is waiting.
-          if [ "$queued" = "0" ] && [ "$active" = "1" ]; then
-            gh workflow run kalshi-15m.yml --ref main
-          else
-            echo "another run is already queued or in progress"
-          fi
+          bash runner/queue-snapshot.sh
