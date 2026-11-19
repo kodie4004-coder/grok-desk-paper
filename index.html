@@ -11,6 +11,8 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-startup-image" href="icons/icon-512.png">
+<meta name="apple-mobile-web-app-title" content="Grok Desk">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -23,14 +25,15 @@
 <p id="linkState" class="link" hidden></p>
 <div id="ticker" class="ticker" hidden><div class="ticker-track" id="tickerTrack"></div></div>
 <main id="view" tabindex="-1"></main>
-<div id="toasts"></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="fx" class="fx" aria-hidden="true"></div>
 <nav class="tabs" aria-label="Primary">
   <button data-tab="home" class="on"><span>◉</span>Home</button>
+  <button data-tab="arena"><span>▶</span>Arena</button>
+  <button data-tab="score"><span>★</span>Score</button>
   <button data-tab="predict"><span>◎</span>Predict</button>
-  <button data-tab="agents"><span>⛓</span>Agents</button>
-  <button data-tab="activity"><span>≡</span>Activity</button>
-  <button data-tab="settings"><span>⚙</span>Settings</button>
+  <button data-tab="settings"><span>⚙</span>Set</button>
 </nav>
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=10"></script>
 </body>
 </html>

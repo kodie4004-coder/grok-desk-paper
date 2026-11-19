@@ -120,6 +120,28 @@ The runner writes a JSON state file. The phone app doesn't read that file, becau
 
 ## Results
 
-See `RESULTS.md`, which has only numbers from sessions that actually ran.
+See `RESULTS.md`, which has only numbers from sessions that actually ran. The arena gate is in `GATE_REPORT.md`. None of those rules are cleared for real money.
+
+## Architecture
+
+```mermaid
+flowchart TD
+  phone["Phone PWA · app.js"] --> cockpit["Cockpit, arena, score, settings"]
+  cockpit --> arena["engine/arena.js · $2 paper book"]
+  cockpit --> game["engine/game.js · XP and badges"]
+  cockpit --> store["engine/store.js · schema and export"]
+  arena --> kalshi["engine/kalshi.js · snapshot, age, K1"]
+  arena --> scalp["engine/scalp.js · frozen costs"]
+  phone --> desk["engine/engine.js · coin desk and edge gate"]
+  desk --> data["data/*.json snapshots"]
+  kalshi --> data
+  filings["engine/filings.js"] --> data
+```
+
+The coin desk and the arena do not share a book. A loss never increases size. `live_execution` is a disabled checkbox.
+
+## Changelog
+
+See `CHANGELOG.md`.
 
 Not financial advice. Paper only.
