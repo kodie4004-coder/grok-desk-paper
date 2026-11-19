@@ -108,6 +108,7 @@ The runner writes a JSON state file. The phone app doesn't read that file, becau
 ## Known limits (read these)
 
 - **No 30-day wallet history from free APIs.** Pool trades only cover recent trades in pools this desk looks at. The video's rules (55%+ win rate, 30+ trades in 30 days, average hold over 10 minutes, positive 30-day P&L) are applied to *observed* round trips instead, with the trade-count rule changed to "≥ 5 observed round trips". Early in a session, few or no wallets qualify, so Copy often shows 0. That's expected and honest. Getting real wallet history would need a paid indexer (Birdeye, Helius, etc.), which this build doesn't use.
+- **Meme mint, freeze, and top 10** come from a public Solana RPC, not from the GeckoTerminal token blurb. A missed lookup fails that check. Dev wallet share is unknown and does not block. The bars are unchanged. See `EVAL_PROTOCOL.md`.
 - **LP lock/burn status isn't in the free data.** It's shown as "missing" and doesn't block, because the spec says "if known".
 - **Holders now vs 1 hour ago** comes from the desk's own snapshots. GeckoTerminal refreshes holder counts slowly, so this is often "missing". It's an optional input.
 - **Social/mention proxy** is weak: it only checks whether the token lists a Twitter, Telegram or website.

@@ -255,7 +255,13 @@ A loss does not raise size. The next two 15-minute windows of that series take n
 
 ## v9 meme signals (frozen before a live pass)
 
-Solana meme coins come from DexScreener's public boost list and pair data. GeckoTerminal's public token info supplies holder concentration, mint authority, and freeze authority when it answers. pump.fun's API is not used when it answers with a challenge. A coin is a paper buy only when every check below is true:
+Solana meme coins come from DexScreener's public boost list and pair data, plus newer Solana mints from DexScreener profiles and GeckoTerminal's new-pool list. The scan keeps every boosted mint that fits and reserves up to 8 spots for those newer mints, capped at 24 so the public RPC stays small. pump.fun's API is not used when it answers with a challenge.
+
+Mint authority and freeze authority are read from the mint account (`getMultipleAccounts`, jsonParsed). Null means the authority is off. A pubkey means it is on, and the coin fails. Top 10 holder share is the sum of the ten largest token accounts (`getTokenLargestAccounts`) divided by the mint supply. That supply is the same amount `getTokenSupply` returns, so the snapshot does not make a second call for it. The pool vault is left out when its token-account owner is the pair address, or when the account address is the pair address. If that owner is missing, one account is left out only when it matches the pair's token reserve within 3% and no second account is that close. If the vault cannot be identified it stays in the top 10, which can only make the share higher. Holder calls are paced at about one every 700ms so a public rate limit does not fail the rest of the list. The lookup stops at its time budget instead of holding the snapshot chain.
+
+A lookup that times out, is rate limited, or returns no mint fails that check. The screen names the failure. It is not a pass. The public endpoint that answers `getTokenLargestAccounts` is tried first. The official mainnet endpoint is the fallback. It currently refuses that method with HTTP 429 even on a first call. GeckoTerminal's token info is not the source for these three checks: the old snapshot asked it for at most four coins, and its holder share can stay stale for hours after a pool migrates.
+
+A coin is a paper buy only when every check below is true:
 
 - Liquidity at least $20,000.
 - 24 hour volume at least $5,000.
@@ -266,7 +272,7 @@ Solana meme coins come from DexScreener's public boost list and pair data. Gecko
 - Freeze authority is off. Missing is a fail.
 - One hour move is between -80% and +400% when the field exists.
 - Fully diluted value over liquidity is at most 50 when both exist. Missing does not block.
-- Dev wallet share is not in this free payload. It is shown as missing and does not count as a pass.
+- Dev wallet share is unknown. It does not count as a pass and it does not block the coin. GeckoTerminal's developer percentage can sit for hours after migration, and walking the mint's signatures back to the creator would stall the snapshot. No free source here is current enough to use as a bar.
 
 The paper fill is $2. The buy price is marked up 1% and the sell price is marked down 1%. Each side pays 1.25%, the public pump.fun early-trade fee. A flat price is a loss. Exits are a 15% stop, a 25% take-profit, or 30 minutes, using the next observed price. The position does not get larger after a loss. These trades are their own journal. They use the same `graduates()` gate and do not change it. The app never holds a key, connects a wallet, or sends an order. The person copies the contract address and buys in their own pump.fun or fomo account.
 
