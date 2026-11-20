@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07090C">
+<script>try{if(localStorage.getItem('gd.intro')==='1')document.documentElement.classList.add('intro-done')}catch(e){}</script>
 <meta name="description" content="Paper-only market desk. Signals are not advice. No wallet and no orders.">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -43,8 +44,39 @@
 </header>
 <div id="replayBanner" class="replay hidden"></div>
 <p id="linkState" class="link" hidden></p>
-<div id="ticker" class="ticker" hidden><div class="ticker-track" id="tickerTrack"></div></div>
+<div id="ptr" class="ptr" hidden><div class="ptr-spin" aria-hidden="true"></div><p id="ptrText">Pull to refresh</p></div>
+<div id="ticker" class="ticker" hidden><button type="button" id="tickerPause" class="ticker-pause">Pause</button><div class="ticker-clip"><div class="ticker-track" id="tickerTrack"></div></div></div>
 <main id="view" tabindex="-1"></main>
+<section id="intro" role="dialog" aria-modal="true" aria-label="Welcome">
+  <div class="card intro-card">
+    <div class="intro-track" id="introTrack" tabindex="0">
+      <article class="intro-page" id="introTitle">
+        <p class="note">Card 1 of 3</p>
+        <h2>Paper mode</h2>
+        <p>Grok Desk uses fake money on public data. It does not connect a wallet, hold a key, or send an order. The numbers are a paper record. They are not advice and they are not a promise.</p>
+      </article>
+      <article class="intro-page">
+        <p class="note">Card 2 of 3</p>
+        <h2>What the bots do</h2>
+        <p>The bots record paper bets on 15-minute markets and on coins that pass a fixed safety list. A loss does not make the next bet bigger. A larger paper size needs three separate windows, enough trades, a positive average after fees, and a lower bound above zero. Live execution stays off.</p>
+      </article>
+      <article class="intro-page">
+        <p class="note">Card 3 of 3</p>
+        <h2>Buying a coin is on you</h2>
+        <p>If you want the coin, you buy it in your own pump.fun or fomo account. Open Coins, copy the contract address with the Copy button, and paste it there yourself. This app cannot do that step. There is no sample address on this card, so you do not paste the wrong mint.</p>
+        <button type="button" class="btn" id="introCopy">Copy the reminder</button>
+      </article>
+    </div>
+    <div class="intro-dots">
+      <button type="button" data-intro="0" aria-current="true" aria-label="Card 1 of 3">1</button>
+      <button type="button" data-intro="1" aria-label="Card 2 of 3">2</button>
+      <button type="button" data-intro="2" aria-label="Card 3 of 3">3</button>
+    </div>
+    <p class="note">Swipe sideways, or use Next.</p>
+    <button type="button" class="btn pri wide" id="introNext">Next</button>
+    <button type="button" class="btn wide" id="introSkip">Skip</button>
+  </div>
+</section>
 <div id="toasts" aria-live="polite"></div>
 <div id="fx" class="fx" aria-hidden="true"></div>
 <nav class="tabs" aria-label="Primary">
@@ -54,8 +86,10 @@
   <button data-tab="score"><span>★</span>Score</button>
   <button data-tab="brain"><span>✦</span>Brain</button>
   <button data-tab="predict"><span>◎</span>Predict</button>
+  <button data-tab="train"><span>◷</span>Train</button>
   <button data-tab="settings"><span>⚙</span>Set</button>
+  <span class="tab-indicator" aria-hidden="true"></span>
 </nav>
-<script type="module" src="app.js?v=17"></script>
+<script type="module" src="app.js?v=19"></script>
 </body>
 </html>

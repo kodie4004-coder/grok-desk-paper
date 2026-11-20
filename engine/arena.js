@@ -26,7 +26,7 @@ function leftSec(market, now) {
   return (Date.parse(market.closeTime) - now) / 1000;
 }
 
-function plans(market, now, spots, prev) {
+export function arenaIdeas(market, now, spots, prev) {
   const out = [];
   const left = leftSec(market, now);
   const yes = Number(market.yesAsk), no = Number(market.noAsk);
@@ -105,7 +105,7 @@ export function reviewArena(state, board, now, spots, book) {
   const prev = state.arenaQuotes || {};
   for (const m of markets) {
     if (m.result === 'yes' || m.result === 'no') continue;
-    for (const idea of plans(m, now, spots, prev)) {
+    for (const idea of arenaIdeas(m, now, spots, prev)) {
       const key = idea.rule + ':' + m.ticker;
       if (state.arenaSeen[key]) continue;
       const deal = arenaFee(idea.ask);

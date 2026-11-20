@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 15-Min Trainer: a paper YES/NO call with confidence, scored after the Kalshi taker fee and a Brier score, with a lesson from the snapshot and the same 3-window bar the bots use. Motion, a clearer stale quote, swipeable onboarding, and a phone watchlist. No wallet and no change to the edge gate.
 - Official app art: maskable home-screen icons, a short splash that fades when the desk is ready, social preview images, and empty states for no trades, no coins past the safety checks, and a benched bot. Paper only.
 - Meme safety checks read the Solana mint account and the largest token accounts. A revoked mint or freeze authority and a real top-10 share are required at the same bars. A failed lookup still fails that check and the screen says why. Dev wallet share stays unknown and does not block. The scan adds newer Solana pairs, capped at 24. Paper only.
 - Every scanned coin shows its logo, name, ticker, and mint address, with copy and links to pump.fun, fomo, DexScreener, and Solscan. A tap opens the safety checklist. Controls and benched bots get no allocated paper. A variant with 30 allocated losses whose 90% upper bound is below zero goes to shadow.

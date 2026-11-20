@@ -41,8 +41,8 @@ test('social cards use the webp preview and a png fallback on the pages origin',
 });
 
 test('splash and empty states use the delivered art and the cache version moved', () => {
-  assert.match(sw, /grokdesk-v18/);
-  assert.doesNotMatch(sw, /grokdesk-v17/);
+  assert.match(sw, /grokdesk-v19/);
+  assert.doesNotMatch(sw, /grokdesk-v18/);
   assert.match(app, /splash\/splash\.webm/);
   assert.match(app, /splash\/splash\.mp4/);
   assert.match(app, /splash\/splash\.webp/);
