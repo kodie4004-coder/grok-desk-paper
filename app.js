@@ -601,8 +601,11 @@ function home(st) {
     ${st.open.length ? st.open.map((p) => { const ch = ((p.lastPrice ?? p.entryMid) / p.entryMid - 1) * 100; return `<div class="pos"><div><b>${esc(p.symbol)}</b> <span class="chip">${p.source}</span><br><span class="note">${money(p.sizeUsd)} @ ${fmtP(p.entryMid)} · stop ${fmtP(p.stop)} · tp ${fmtP(p.tp)}</span></div><div style="text-align:right"><b class="${ch >= 0 ? 'g' : 'r'}">${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%</b><br><span class="note">${fmtP(p.lastPrice)}</span></div></div>`; }).join('') : '<div class="note">None.</div>'}
   </div>
   <div class="card"><h2>Closed trades (${st.closed.length})</h2>
-    ${st.closed.slice().reverse().slice(0, 25).map((t) => `<div class="pos"><div><b>${esc(t.symbol)}</b> <span class="chip">${t.source}</span><br><span class="note">${esc(t.exitReason)} · ${tm(t.closedAt)}</span></div><div style="text-align:right"><b class="${t.pnl >= 0 ? 'g' : 'r'}">${money(t.pnl, true)}</b><br><span class="note">${t.retPct}%</span></div></div>`).join('') || '<div class="note">None yet.</div>'}
+    ${st.closed.length ? st.closed.slice().reverse().slice(0, 25).map((t) => `<div class="pos"><div><b>${esc(t.symbol)}</b> <span class="chip">${t.source}</span><br><span class="note">${esc(t.exitReason)} · ${tm(t.closedAt)}</span></div><div style="text-align:right"><b class="${t.pnl >= 0 ? 'g' : 'r'}">${money(t.pnl, true)}</b><br><span class="note">${t.retPct}%</span></div></div>`).join('') : (st.open.length ? '<div class="note">None yet.</div>' : emptyArt('empty-trades.webp', 'A quiet chart frame with a single mint dot, waiting for a paper trade.', 'No trades yet. Start a paper session and closed trades land here.'))}
   </div>`;
+}
+function emptyArt(file, alt, line) {
+  return `<figure class="empty-art"><img src="empty/${file}" alt="${esc(alt)}" width="640" height="640" loading="lazy" decoding="async"><figcaption>${esc(line)}</figcaption></figure>`;
 }
 
 function recapCard(r, isReplay) {
@@ -815,6 +818,7 @@ function brainView() {
     <div class="row"><h2 style="margin:0">Bot brain</h2><span class="tag explore">PAPER · after fees</span></div>
     <p class="lvl" id="runFor">${esc(since)}</p>
     <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. A bot that loses $6 of its own allocated paper goes to shadow. The others keep trading. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result.</p>
+    ${(bots.some(quiet) || bots.some((b) => !b.graduated) || !bots.length) ? emptyArt('empty-bot.webp', 'A small bot reading on a bench while a gold ring spins overhead.', bots.some(quiet) ? 'A bot is benched and still learning. Shadow only, until the paper record turns up.' : 'The bots are still learning on paper. None are benched.') : ''}
     <h2>What the bots learned today</h2>
     <ul class="feed">${(bots.filter((b) => b.shadow || b.benched).map((b) => `<li>benched ${esc(b.id)}: ${b.mean == null ? '—' : money(b.mean)}/trade over n ${b.n}. Shadow only until the shadow record turns positive.</li>`).join('')) || '<li><span class="empty">No bot was moved to shadow in this lessons file.</span></li>'}</ul>
     <ul class="feed">${summary || '<li><span class="empty">No summary yet.</span></li>'}</ul>
@@ -862,13 +866,17 @@ function coinsView() {
     return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">${esc(ui.coinsError)}</p>` : `<div aria-busy="true" aria-label="Loading coins">${bones}</div><p class="note">Reading mint accounts and holders.</p>`}</section>`;
   }
   const cards = (ui.coins || []).map((coin) => coinCard(coin)).join('');
+  const passed = (ui.coins || []).filter((c) => c.pass).length;
+  const coinEmpty = passed === 0
+    ? `<div class="card">${emptyArt('empty-coins.webp', 'A shield with a mint rim, for coins that have not cleared the safety checks.', cards ? 'Nothing passed the safety checks yet.' : 'Nothing passed the safety checks yet. Pull down to try the next scan.')}</div>`
+    : '';
   const justOpened = !!(ui.coinOpen && ui.coinOpen !== ui.sheetFor);
   ui.sheetFor = ui.coinOpen || null;
   const sheet = ui.coinOpen ? coinSheet(ui.coins.find((c) => c.ca === ui.coinOpen), justOpened) : '';
   const gate = memeGate(ui.memeJournal || []);
   const net = (ui.memeJournal || []).reduce((sum, row) => sum + (row.pnl || 0), 0);
   const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
-  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${cards || '<div class="card"><p class="empty">No Solana coins in the latest public boost list. Pull down to try again.</p></div>'}${sheet}</section>`;
+  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${cards}${sheet}</section>`;
 }
 function coinLinks(ca, dexUrl) {
   const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;
@@ -973,7 +981,7 @@ function bind() {
     document.documentElement.dataset.theme = next;
     localStorage.setItem('gd.theme', next);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = next === 'light' ? '#f4f6f8' : '#07090c';
+    if (meta) meta.content = next === 'light' ? '#f4f6f8' : '#07090C';
     render();
   };
   const pro = $('#proSave'); if (pro) pro.onclick = () => {
@@ -1054,13 +1062,54 @@ document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => { ui
 window.addEventListener('resize', () => ui.tab === 'home' && state && drawChart($('#chart'), state));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) liveTick(); });
 
+let splashSettled = false;
+function splashMotionOk() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  if (navigator.connection && navigator.connection.saveData) return false;
+  return true;
+}
+function mountSplash() {
+  const arm = () => {
+    if (splashSettled || document.getElementById('splash')) return;
+    const el = document.createElement('div');
+    el.id = 'splash';
+    el.setAttribute('aria-hidden', 'true');
+    const title = '<p class="splash-title">Grok Desk<span>Paper</span></p>';
+    if (splashMotionOk()) {
+      el.innerHTML = `<video class="splash-media" width="720" height="1280" poster="splash/splash.webp" muted autoplay loop playsinline preload="metadata" fetchpriority="low"><source src="splash/splash.webm" type="video/webm"><source src="splash/splash.mp4" type="video/mp4"></video>${title}`;
+      const video = el.querySelector('video');
+      video.muted = true;
+      video.defaultMuted = true;
+      video.playsInline = true;
+      video.setAttribute('webkit-playsinline', '');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+      reduced.addEventListener?.('change', () => { if (reduced.matches) { video.removeAttribute('autoplay'); video.pause(); } });
+      video.play?.().catch(() => {});
+    } else {
+      el.innerHTML = `<img class="splash-media" alt="" width="1080" height="1920" decoding="async" fetchpriority="low" src="splash/splash.webp">${title}`;
+    }
+    document.body.appendChild(el);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(arm));
+}
+function dismissSplash() {
+  splashSettled = true;
+  const el = document.getElementById('splash');
+  if (!el) return;
+  el.classList.add('out');
+  const drop = () => { if (el.isConnected) el.remove(); };
+  el.addEventListener('transitionend', drop, { once: true });
+  setTimeout(drop, 1200);
+}
 (async () => {
+  mountSplash();
   const saved = await idb.get('state');
   live = migrate(saved ? JSON.parse(saved) : newState(loadSettings(), Date.now()));
   if (live.settings && live.settings.activeMode == null) live.settings = { ...live.settings, activeMode: true, activeTickSec: ACTIVE.tickSec };
   if (!live.slots) live.slots = emptySlots();
   if (!Array.isArray(live.decisions)) live.decisions = [];
   state = live; render();
+  dismissSplash();
   refreshKalshi();
   setInterval(refreshKalshi, 20000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
