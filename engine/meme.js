@@ -2,6 +2,7 @@
 // Paper only. This module cannot sign, connect a wallet, or send an order.
 
 import { graduates } from './strategies.js';
+import { sleeveBenched } from './repair.js';
 
 export const MEME_SIZE = 2;
 export const MEME_FEE = 0.0125;
@@ -329,6 +330,14 @@ export function memePnl(entry, exit) {
   return { pnl: proceeds - MEME_SIZE - fees, fees, sizeUsd: MEME_SIZE };
 }
 
+// The take-profit has to clear the round trip, and then clear it again.
+// A target that only pays the fee back is not an edge.
+export function memeTargetClearsFees(tp = MEME_RULES.tp) {
+  const up = memePnl(1, tp);
+  const flat = memePnl(1, 1);
+  return !!(up && flat && up.pnl > 0 && up.pnl + 1e-9 >= -flat.pnl);
+}
+
 function check(name, ok, detail) {
   return { name, ok, detail };
 }
@@ -376,7 +385,7 @@ export function bestPair(pairs, token) {
   return rows.sort((a, b) => (num(b?.liquidity?.usd) || 0) - (num(a?.liquidity?.usd) || 0))[0] || null;
 }
 
-export function stepMeme({ coins, open = [], now }) {
+export function stepMeme({ coins, open = [], history = [], now }) {
   const settled = [];
   const still = [];
   const byCa = new Map((coins || []).map((c) => [c.ca, c]));
@@ -395,9 +404,13 @@ export function stepMeme({ coins, open = [], now }) {
     } else still.push(pos);
   }
   const known = new Set(still.map((p) => p.ca).concat(settled.map((p) => p.ca)));
+  const book = [...(history || []), ...settled];
+  const bench = sleeveBenched(book);
+  const feeOk = memeTargetClearsFees();
   for (const coin of coins || []) {
     if (!coin.pass || known.has(coin.ca) || !(coin.priceUsd > 0)) continue;
     if (still.length >= 8) break;
+    if (!feeOk) continue;
     still.push({
       id: `meme:${coin.ca}`,
       ca: coin.ca,
@@ -408,7 +421,8 @@ export function stepMeme({ coins, open = [], now }) {
       openedAt: new Date(now).toISOString(),
       variant: 'meme-safety',
       family: 'meme',
-      allocated: true,
+      allocated: !bench.benched,
+      shadow: bench.benched,
       paper: true,
       open: true,
     });

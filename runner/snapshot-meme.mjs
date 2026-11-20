@@ -59,7 +59,10 @@ try {
       };
     });
     const openDoc = fs.existsSync('data/meme-open.json') ? JSON.parse(fs.readFileSync('data/meme-open.json', 'utf8')) : { entries: [] };
-    const next = stepMeme({ coins, open: openDoc.entries || [], now });
+    const history = fs.existsSync('data/meme-journal.jsonl')
+      ? fs.readFileSync('data/meme-journal.jsonl', 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
+      : [];
+    const next = stepMeme({ coins, open: openDoc.entries || [], history, now });
     fs.mkdirSync('data', { recursive: true });
     if (next.settled.length) fs.appendFileSync('data/meme-journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
     else if (!fs.existsSync('data/meme-journal.jsonl')) fs.writeFileSync('data/meme-journal.jsonl', '');

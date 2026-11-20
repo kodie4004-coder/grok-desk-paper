@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreCoin, memePnl, stepMeme, MEME_SIZE, tokenMint, bestPair, parseMintAccount, topHolderShare, candidateMints, lookupMints } from '../engine/meme.js';
+import { scoreCoin, memePnl, stepMeme, memeTargetClearsFees, MEME_SIZE, MEME_RULES, tokenMint, bestPair, parseMintAccount, topHolderShare, candidateMints, lookupMints } from '../engine/meme.js';
+import { chaseBlocked } from '../engine/repair.js';
 
 const now = Date.parse('2026-11-19T18:00:00Z');
 
@@ -194,6 +195,23 @@ test('a 15% drop stops the paper meme trade at the same $2 size', () => {
   assert.equal(next.settled[0].exit, 'stop');
   assert.equal(next.settled[0].sizeUsd, 2);
   assert.ok(next.settled[0].pnl < 0);
+});
+
+test('a losing sleeve is benched to a $2 shadow', () => {
+  assert.equal(memeTargetClearsFees(MEME_RULES.tp), true);
+  assert.equal(memeTargetClearsFees(1.01), false);
+  const history = Array.from({ length: 20 }, (_, i) => ({
+    ca: 'OLD' + i, pnl: -0.2, allocated: true, exit: 'time-stop', settledAt: new Date(now - 3600000).toISOString(), openedAt: new Date(now - 7200000).toISOString(),
+  }));
+  const benched = stepMeme({ coins: [{ ca: 'CA', symbol: 'TEST', name: 'Test', priceUsd: 1, pass: true }], open: [], history, now });
+  assert.equal(benched.open.length, 1);
+  assert.equal(benched.open[0].allocated, false);
+  assert.equal(benched.open[0].sizeUsd, 2);
+  const recentStop = [{ ca: 'CA', exit: 'stop', pnl: -0.4, allocated: true, settledAt: new Date(now - 60000).toISOString(), openedAt: new Date(now - 120000).toISOString() }];
+  assert.equal(chaseBlocked(recentStop, 'CA', now), true);
+  const stillOpen = stepMeme({ coins: [{ ca: 'CA', symbol: 'TEST', priceUsd: 1, pass: true }], open: [], history: recentStop, now });
+  assert.equal(stillOpen.open.length, 1);
+  assert.equal(stillOpen.open[0].sizeUsd, 2);
 });
 
 test('a coin that passes the bars opens one $2 paper position', () => {

@@ -108,6 +108,21 @@ test('a longshot ask is skipped by the new revert filter, and shadow does not re
   assert.ok(freed.shadow.includes('late-loose'));
 });
 
+test('a finished day past the $6 loss shadows the next morning, and a cleared day does not come back', () => {
+  const loss = [{ variant: 'revert-wide', allocated: true, settledAt: '2026-11-19T22:00:00Z', window: '2026-11-19', pnl: -31.61, sizeUsd: 2, openedAt: '2026-11-19T21:00:00Z' }];
+  const next = riskShadow(defaultBrain(), loss, Date.parse('2026-11-20T00:01:00Z'));
+  assert.ok(next.shadow.includes('revert-wide'));
+  assert.equal(next.shadow.includes('flip'), false);
+  const control = [{ variant: 'flip', allocated: true, settledAt: '2026-11-19T22:00:00Z', window: '2026-11-19', pnl: -8.3, sizeUsd: 2 }];
+  assert.equal(riskShadow(defaultBrain(), control, Date.parse('2026-11-20T00:01:00Z')).shadow.includes('flip'), false);
+  const shadows = Array.from({ length: 30 }, (_, i) => ({
+    variant: 'revert-wide', allocated: false, pnl: 0.05, openedAt: `2026-11-20T01:${String(i).padStart(2, '0')}:00Z`, settledAt: `2026-11-20T01:${String(i).padStart(2, '0')}:30Z`,
+  }));
+  const freed = riskShadow({ ...defaultBrain(), shadow: next.shadow, shadowSince: next.shadowSince }, [...loss, ...shadows], Date.parse('2026-11-21T00:01:00Z'));
+  assert.equal(freed.shadow.includes('revert-wide'), false);
+  assert.equal(freed.shadowReturned['revert-wide'], '2026-11-20');
+});
+
 test('feature lessons wait for 8 trades and the gate still needs three windows', () => {
   const few = Array.from({ length: 7 }, () => ({ family: 'late', price: 0.96, secondsLeft: 60, pnl: -0.1 }));
   assert.equal(featureLessons(few).length, 0);

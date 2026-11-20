@@ -14,6 +14,7 @@ import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 import { memeGate } from './engine/meme.js';
+import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -607,6 +608,32 @@ function scoreView(st, tabs, sound) {
     <ul class="feed">${race || '<li><span class="empty">No settled arena bets on this phone yet.</span></li>'}</ul>
     ${tabs ? `<div class="seg">${tabs}</div>` : ''}</div>`;
 }
+function repairCard(st) {
+  const desk = ui.deskRepair;
+  const session = repairGate(st.repairClosed || []);
+  const halted = !!st.halted;
+  if (!halted && !(desk && desk.benched)) return '';
+  const gate = desk?.repair || session;
+  const n = gate.n || 0;
+  const need = gate.need || REPAIR_MIN_N;
+  const mean = gate.mean == null ? 'no shadow trades yet' : `${money(gate.mean, true)} per trade`;
+  const findings = (desk?.findings || []).map((line) => `<li>${esc(line)}</li>`).join('');
+  const note = desk?.note ? `<p>${esc(desk.note)}</p>` : '';
+  const sessionLine = halted
+    ? `<p>This session's loss cap is hit. Realized losses stay on the book. Shadow fills this session: ${session.n} of ${session.need}. They are not added to the balance.</p>`
+    : '';
+  return `<section class="card repair" role="status" aria-label="Repair mode">
+    <h2>Repair mode</h2>
+    <p><b>Live paper entries on the benched sleeve stay off.</b> The loss cap is unchanged. Shadow trades keep a log. A resume is ${REPAIR_SIZE_USD} dollars, and that size does not go up after a loss.</p>
+    ${note}
+    ${sessionLine}
+    <label for="repairProgress">Shadow trades toward resuming, ${n} of ${need}. Mean after fees: ${mean}.</label>
+    <progress id="repairProgress" max="${need}" value="${Math.min(n, need)}">${n} of ${need}</progress>
+    <h2>What went wrong</h2>
+    <ol class="findings">${findings || '<li>The trade log has not loaded yet.</li>'}</ol>
+    <p class="note">Paper only. live_execution stays off. This does not reset the balance.</p>
+  </section>`;
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -615,13 +642,14 @@ function home(st) {
   const unreal = st.open.reduce((a, p) => a + (p.qty * (p.lastPrice ?? p.entryMid) * (1 - st.settings.feePct / 200) - p.sizeUsd), 0);
   const isReplay = st.mode === 'replay';
   return `
+  ${repairCard(st)}
   ${cockpit(st)}
   ${reminderBanner()}
   ${allocCard()}
   ${morningCard()}
   <section class="card" aria-label="Live signals"><h2>Live signals</h2><p class="note">${ui.coinsState === 'ready' ? `${(ui.coins || []).filter((c) => c.pass).length} paper buy${(ui.coins || []).filter((c) => c.pass).length === 1 ? '' : 's'} in the latest Solana list.` : 'Open Coins for the live Solana list. Only a paper buy shows a contract address to copy.'}</p><button type="button" class="btn wide" data-tabjump="coins">Open coins</button></section>
   ${activeCard(st)}
-  ${st.halted ? `<div class="halt"><b>New entries halted.</b> ${esc(st.haltReason)}</div>` : ''}
+  ${st.halted ? `<div class="halt"><b>Repair mode.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card hero ${net < 0 ? 'down' : ''}">
     <div class="row"><h2 style="margin:0">${isReplay ? 'Replay balance' : 'Paper balance'}</h2><span class="note" id="timer"></span></div>
     ${eqHtml(eq)}
@@ -902,6 +930,16 @@ function brainView() {
     <ul class="feed">${decisions || '<li><span class="empty">No holdout has been judged yet.</span></li>'}</ul>
     <details class="fold"><summary>Frozen studies</summary><div class="fold-body"><ul class="feed">${frozen}</ul><p class="note">${esc(doc.note || '')}</p></div></details>
   </section>`;
+}
+async function loadDeskRepair() {
+  try {
+    const text = await fetch('data/meme-journal.jsonl?v=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.text() : ''));
+    const rows = String(text || '').trim() ? String(text).trim().split('\n').filter(Boolean).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean) : [];
+    ui.deskRepair = diagnoseMeme(rows);
+  } catch {
+    ui.deskRepair = null;
+  }
+  if (state && ui.tab === 'home') render();
 }
 async function loadCoins() {
   if (ui.coinsState === 'loading') return;
@@ -1508,6 +1546,7 @@ function dismissSplash() {
   if (!live.slots) live.slots = emptySlots();
   if (!Array.isArray(live.decisions)) live.decisions = [];
   state = live; render();
+  loadDeskRepair();
   dismissSplash();
   const q = new URLSearchParams(location.search);
   if (q.get('shot')) ui.shotLock = true;

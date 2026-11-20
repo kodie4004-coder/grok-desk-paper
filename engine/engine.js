@@ -8,6 +8,7 @@ import { PREDICT_PRIOR } from './predict-prior.js';
 import { isMajor, MAJOR_FEE } from './majors.js';
 import { MAJORS_PRIOR } from './majors-prior.js';
 import { ACTIVE, ACTIVE_COIN_RULES, ACTIVE_PREDICT_RULES, activeSignals, activePredictPicks, dayKey, flatFee, predictRoundTrip } from './active.js';
+import { REPAIR_SIZE_USD, repairGate } from './repair.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
 const MAX_LOG = 600, MAX_WT = 15000, MAX_VERDICTS = 1500, MAX_PASS = 1500;
@@ -24,7 +25,7 @@ export function newState(settings, now, mode = 'live') {
     scan: { at: null, markets: 0, chains: 0, feed: [], note: '' },
     predictions: [],
     walletTrades: [], followed: [], walletBoard: [], strikes: {}, fired: [], firedCards: [],
-    halted: false, haltReason: null, tick: 0, lastTickAt: null, errors: 0, recap: null, createdAt: now,
+    halted: false, haltReason: null, repairOpen: [], repairClosed: [], tick: 0, lastTickAt: null, errors: 0, recap: null, createdAt: now,
   };
 }
 
@@ -32,7 +33,7 @@ export function startSession(state, now) {
   const s = state.settings;
   Object.assign(state, {
     running: true, sessionId: 'S' + now.toString(36), startedAt: now, endedAt: null, startBank: s.bank, cash: s.bank,
-    open: [], closed: [], equity: [{ t: now, v: s.bank }], markers: [], halted: false, haltReason: null, recap: null, tick: 0,
+    open: [], closed: [], equity: [{ t: now, v: s.bank }], markers: [], halted: false, haltReason: null, repairOpen: [], repairClosed: [], recap: null, tick: 0,
     counts: Object.fromEntries(Object.keys(state.counts).map((k) => [k, 0])), firedCards: [], strikes: {}, fired: [], watch: {},
   });
   const part = C.participationDecision(C.strategyHealth(state.edgeBook || []), s);
@@ -115,7 +116,7 @@ function closePosition(state, p, price, now, reason, kind, emit) {
   const lc = C.lossCapHit(state, s);
   if (lc.hit && !state.halted) {
     state.halted = true;
-    state.haltReason = `Loss cap hit: realized $${r2(lc.realized)} <= -${s.lossCapPct}% of bank ($${r2(lc.cap)}). New entries halted for this session. No "make it back" mode.`;
+    state.haltReason = `Loss cap hit: realized $${r2(lc.realized)} <= -${s.lossCapPct}% of bank ($${r2(lc.cap)}). Repair mode: live entries stay halted and shadow trades keep logging. No "make it back" mode.`;
     log(state, now, 'HALT', state.haltReason);
     emit && emit({ type: 'halt', text: state.haltReason });
   }
@@ -193,6 +194,61 @@ async function getInfo(state, src, token, now) {
   return info;
 }
 
+function repairLive(state) {
+  const s = state.settings;
+  const lc = C.lossCapHit(state, s);
+  const gate = repairGate(state.repairClosed || []);
+  const active = !!(lc.hit || state.halted);
+  state.repair = { active, ...gate };
+  return { active, pass: active && gate.pass, gate };
+}
+
+function openRepairShadow(state, now, emit, { pool, token, symbol, source, reason, chain, slot, px, feePct, stopPct, takeProfitPct, maxHoldMin, trailActivatePct, trailPct }) {
+  state.repairOpen ||= [];
+  state.repairClosed ||= [];
+  if (!token || state.repairOpen.some((p) => p.token === token) || state.repairOpen.length >= 5) return null;
+  const sizeUsd = REPAIR_SIZE_USD;
+  const levels = { stopPct, takeProfitPct };
+  const lv = C.stopLevels(px, levels);
+  const fill = C.fillPrice(px, 'buy', feePct);
+  const pos = {
+    id: 'R' + now.toString(36) + (state.repairClosed.length + state.repairOpen.length),
+    pool, token, symbol, source, chain, slot, shadow: true, allocated: false,
+    entryMid: px, entryFill: fill, qty: sizeUsd / fill, sizeUsd, feePct,
+    stop: lv.stop, tp: lv.tp, stopPct, takeProfitPct, maxHoldMin, trailActivatePct, trailPct,
+    peak: px, lastPrice: px, openedAt: now, reason,
+  };
+  state.repairOpen.push(pos);
+  const line = `SHADOW ${symbol} $${sizeUsd} @ ${fmtP(px)} · ${source} · repair log, not the live balance`;
+  log(state, now, 'SHADOW', line);
+  emit && emit({ type: 'shadow', text: line });
+  return pos;
+}
+
+function closeRepairShadow(state, p, price, now, reason, emit) {
+  const r = C.tradePnl({ entryMid: p.entryMid, exitMid: price, sizeUsd: p.sizeUsd, feePct: p.feePct });
+  state.repairOpen = (state.repairOpen || []).filter((x) => x !== p);
+  const row = { ...p, exitMid: price, closedAt: now, pnl: r2(r.pnl), fees: r2(r.fees), exitReason: reason, allocated: false, shadow: true };
+  state.repairClosed.push(row);
+  const line = `SHADOW EXIT ${p.symbol} ${reason} · ${row.pnl >= 0 ? '+' : ''}$${row.pnl} · not added to the balance`;
+  log(state, now, 'SHADOW', line, { pnl: row.pnl });
+  emit && emit({ type: 'shadow', text: line, pnl: row.pnl });
+  return row;
+}
+
+async function markRepair(state, src, now, emit, safe) {
+  const open = state.repairOpen || [];
+  if (!open.length) return;
+  const prices = (await safe('repair marks', () => fetchOpenPrices(src, open))) || {};
+  for (const p of [...open]) {
+    const px = prices[p.token];
+    if (px) { p.lastPrice = px; p.peak = Math.max(p.peak || p.entryMid, px); }
+    const ex = C.exitCheck(p, p.lastPrice, now, state.settings);
+    if (!ex?.reason) continue;
+    closeRepairShadow(state, p, p.lastPrice, now, ex.reason, emit);
+  }
+}
+
 async function enter(state, src, now, emit, { pool, token, symbol, source, sizeUsd, reason, wallets = [], leadId = null, liq = null, chain = 'solana', slot = null, stopPct = null, takeProfitPct = null, maxHoldMin = null, trailActivatePct = 0, trailPct = 0, explore = false, graduated = false, feeBase = null }) {
   const s = state.settings;
   let sized = sizeUsd;
@@ -228,14 +284,32 @@ async function enter(state, src, now, emit, { pool, token, symbol, source, sizeU
     sized = sizeUsd * part.scale;
     why = part.scale === 1 ? reason : `${reason} · ${part.mode} ×${part.scale}`;
   }
-  const rc = C.riskCheck(state, s, { token, sizeUsd: sized });
-  if (!rc.ok) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol} (${source}): ${rc.reason}`); return null; }
-  const quote = chain && chain !== 'solana' ? await src.prices([token], chain) : await src.prices([token]);
-  const px = quote[token];
-  if (!px) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol}: no live price`); return null; }
+  const levelsPreview = { stopPct: stopPct ?? s.stopPct, takeProfitPct: takeProfitPct ?? s.takeProfitPct };
   const baseFee = feeBase == null ? s.feePct : feeBase;
+  if (!C.targetClearsFees({ feePct: baseFee, takeProfitPct: levelsPreview.takeProfitPct })) {
+    state.counts.riskBlocked++;
+    log(state, now, 'RISK', `blocked ${symbol} (${source}): take-profit does not clear the round-trip fee`);
+    return null;
+  }
+  const mode = repairLive(state);
+  const rc = C.riskCheck(state, s, { token, sizeUsd: sized, repairPass: mode.pass, repairSize: REPAIR_SIZE_USD });
+  if (!rc.ok && !rc.repair) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol} (${source}): ${rc.reason}`); return null; }
+  const quote = chain && chain !== 'solana' ? await src.prices([token], chain) : await src.prices([token]);
+  const px = quote?.[token];
+  if (!px) { state.counts.riskBlocked++; log(state, now, 'RISK', `blocked ${symbol}: no live price`); return null; }
+  if (!rc.ok) {
+    state.counts.riskBlocked++;
+    log(state, now, 'RISK', `blocked ${symbol} (${source}): ${rc.reason}`);
+    const feePct = s.impactModel ? baseFee + C.roundTripImpactPct(REPAIR_SIZE_USD, liq) : baseFee;
+    openRepairShadow(state, now, emit, {
+      pool, token, symbol, source, reason: why, chain, px, feePct,
+      stopPct: levelsPreview.stopPct, takeProfitPct: levelsPreview.takeProfitPct,
+      maxHoldMin: maxHoldMin ?? s.maxHoldMin, trailActivatePct, trailPct,
+    });
+    return null;
+  }
   const feePct = s.impactModel ? baseFee + C.roundTripImpactPct(rc.sizeUsd, liq) : baseFee;
-  const levels = { stopPct: stopPct ?? s.stopPct, takeProfitPct: takeProfitPct ?? s.takeProfitPct };
+  const levels = levelsPreview;
   const lv = C.stopLevels(px, levels);
   const fill = C.fillPrice(px, 'buy', feePct);
   const p = {
@@ -276,6 +350,7 @@ async function managePositions(state, src, now, emit, prices, tradesByPool, safe
     p.peak = ex.peak;
     if (ex.reason) closePosition(state, p, p.lastPrice, now, ex.reason, ex.kind, emit);
   }
+  await markRepair(state, src, now, emit, safe);
 }
 
 async function fetchOpenPrices(src, positions) {
@@ -558,7 +633,8 @@ async function runActive(state, src, pools, now, emit, safe) {
 // Price open positions between scout ticks. DexScreener, not the GeckoTerminal budget.
 export async function mark(state, src, now, emit = () => {}) {
   const activeOpen = state.settings.activeMode === true && (state.activeOpen || []).length;
-  if (!state.running || !(state.settings.markSec > 0) || (!state.open.length && !activeOpen)) return state;
+  const repairOpen = (state.repairOpen || []).length;
+  if (!state.running || !(state.settings.markSec > 0) || (!state.open.length && !activeOpen && !repairOpen)) return state;
   state.lastMarkAt = now;
   const safe = async (label, fn) => { try { return await fn(); } catch (e) { state.errors++; log(state, now, 'ERR', `${label}: ${e.message}`); return null; } };
   const prices = state.open.length ? (await safe('mark', () => fetchOpenPrices(src, state.open))) || {} : {};
@@ -609,7 +685,8 @@ export async function tick(state, src, now, emit = () => {}) {
   state.walletBoard = stats.filter((w) => w.roundTrips > 0).sort((a, b) => b.pnl - a.pnl).slice(0, 30)
     .map((w) => ({ ...w, followed: state.followed.includes(w.wallet), fired: fired.has(w.wallet), strikes: state.strikes[w.wallet] || 0 }));
 
-  const entriesOpen = !state.halted && !C.lossCapHit(state, s).hit;
+  const repair = repairLive(state);
+  const entriesOpen = !state.halted && !C.lossCapHit(state, s).hit || repair.active;
   if (s.strategySlots && entriesOpen) await runSlotEntries(state, src, passed, now, emit, safe);
   if (entriesOpen) await runMajorEntries(state, src, passed, now, emit, safe);
   considerPredictions(state, now);
@@ -670,7 +747,8 @@ export async function tick(state, src, now, emit = () => {}) {
     }
   }
 
-  // 3) COPY: followed wallets buying the same token inside the window
+  // 3) COPY: followed wallets buying the same token inside the window.
+  // During repair, enter() writes a shadow line instead of a live fill.
   if (s.copyEnabled && entriesOpen && state.followed.length) {
     const followed = new Set(state.followed);
     // also re-poll pools where followed wallets traded in the last 30 min
