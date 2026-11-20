@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { stepMeme } from '../engine/meme.js';
 import { challengerRows, upgradeLines } from '../engine/upgrades.js';
 import {
-  JEV_CALL_CAP, JEV_MODEL, JEV_URL, askJev, cacheDoc, describeCoin, jevShadow, jevState, parseVerdict, reviewCandidates,
+  JEV_CALL_CAP, JEV_MODEL, JEV_PROMPT, JEV_URL, askJev, cacheDoc, cacheFromDoc, describeCoin, jevShadow, jevState,
+  parseVerdict, parseXProfile, prepareJevState, readXProfile, reviewCandidates, rugFacts, similarCoins, xHandleFromUrls, xProfileUrl,
 } from '../engine/jev.js';
 
 const now = Date.parse('2026-11-20T12:00:00Z');
@@ -268,4 +269,127 @@ test('the key is an env var on the meme step and is not logged', () => {
   assert.match(app, /Jev check starts at weight 0/);
   assert.match(app, /live_execution stays off/);
   assert.equal(fs.readFileSync(fileURLToPath(new URL('data/jev-cache.json', root)), 'utf8').includes('Bearer'), false);
+});
+
+test('an old unknown is asked once more, and a new unknown is kept', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return jsonResponse(answer(calls === 1 ? 'pass' : 'unknown'));
+  };
+  const cache = new Map([
+    ['OLD', { verdict: 'unknown', reason: 'unknown: X 0.10, copycat 0.10, rug 0.10', prompt: null }],
+    ['NEW', { verdict: 'unknown', reason: 'unknown: X 0.10, copycat 0.10, rug 0.10', prompt: JEV_PROMPT }],
+    ['HELD', { verdict: 'flag', reason: 'flag: X 0.10, copycat 0.90, rug 0.40', prompt: null }],
+  ]);
+  const first = await reviewCandidates([coin('OLD'), coin('NEW'), coin('HELD')], {
+    cache, key: 'test-key', fetchImpl, now: '2026-11-20T00:00:00Z',
+  });
+  assert.equal(calls, 1);
+  assert.equal(first.asked, 1);
+  assert.equal(first.coins[0].jev.verdict, 'pass');
+  assert.equal(first.coins[1].jev.verdict, 'unknown');
+  assert.equal(first.coins[2].jev.verdict, 'flag');
+  assert.equal(cache.get('OLD').prompt, JEV_PROMPT);
+  assert.equal(cache.get('OLD').confidence, 0.7);
+  const again = await reviewCandidates([coin('OLD')], { cache, key: 'test-key', fetchImpl });
+  assert.equal(again.asked, 0);
+  assert.equal(calls, 1);
+  const stored = cacheFromDoc(cacheDoc(cache));
+  assert.equal(stored.get('OLD').prompt, JEV_PROMPT);
+  assert.equal(stored.get('NEW').verdict, 'unknown');
+  const many = Array.from({ length: JEV_CALL_CAP + 1 }, (_, i) => coin('U' + i));
+  const old = new Map(many.map((row) => [row.ca, { verdict: 'unknown', reason: 'unknown', prompt: null }]));
+  const capped = await reviewCandidates(many, { cache: old, key: 'test-key', fetchImpl });
+  assert.equal(capped.asked, JEV_CALL_CAP);
+  assert.equal(capped.capped, 1);
+});
+
+test('the prompt carries DexScreener, X, RugCheck, age, liquidity, and similar tickers, and not price or the mint', async () => {
+  const html = '{"created_at":"Thu Jan 11 05:47:40 +0000 2018","default_profile":false,"default_profile_image":false,"description":"A public bio.","followers_count":1200}';
+  const profile = parseXProfile(html, 'example', Date.parse('2026-11-20T00:00:00Z'));
+  assert.equal(profile.followers, 1200);
+  assert.equal(profile.bio, 'A public bio.');
+  assert.equal(profile.source, 'syndication.twitter.com');
+  assert.ok(profile.ageDays > 3000);
+  assert.equal(parseXProfile('<html>no user</html>', 'example'), null);
+  assert.equal(xHandleFromUrls(['https://x.com/example']), 'example');
+  assert.equal(xHandleFromUrls(['https://twitter.com/intent/tweet']), '');
+  assert.match(xProfileUrl('example'), /^https:\/\/syndication\.twitter\.com\/srv\/timeline-profile\/screen-name\/example$/);
+  const rug = rugFacts({
+    mintAuthority: null,
+    freezeAuthority: 'Freeze111',
+    topHolders: [{ pct: 20 }, { pct: 5.5 }],
+    markets: [{ lp: { lpLockedPct: 100 } }],
+    price: 4,
+  });
+  assert.equal(rug.mint, 'no');
+  assert.equal(rug.freeze, 'yes');
+  assert.equal(rug.topHolderPct, 25.5);
+  assert.equal(rug.lpStatus, 'locked');
+  assert.equal(JSON.stringify(rug).includes('price'), false);
+  const similar = similarCoins(
+    { ca: 'CA', symbol: 'PEPE', name: 'Pepe Coin' },
+    [{ ca: 'CA', symbol: 'PEPE', name: 'Pepe Coin' }, { ca: 'B', symbol: 'PEPE', name: 'Other Pepe' }, { ca: 'C', symbol: 'DOG', name: 'Dog' }],
+  );
+  assert.deepEqual(similar, [{ name: 'Other Pepe', symbol: 'PEPE' }]);
+  let saw = null;
+  const state = await prepareJevState({
+    ca: 'MINTADDRESS',
+    name: 'Example',
+    symbol: 'EX',
+    ageMin: 12.34,
+    liq: 8000.4,
+    pass: true,
+  }, {
+    nowMs: Date.parse('2026-11-20T00:00:00Z'),
+    pair: { info: { socials: [{ type: 'twitter', url: 'https://x.com/example' }], websites: [{ url: 'https://example.com' }] } },
+    profile: { description: 'A small project' },
+    boards: [{ ca: 'B', symbol: 'EX', name: 'Example Two' }],
+    fetchImpl: async (url) => {
+      saw = url;
+      if (String(url).includes('syndication.twitter.com')) return { ok: true, status: 200, text: async () => html };
+      if (String(url).includes('/report')) {
+        return { ok: true, status: 200, json: async () => ({ mintAuthority: null, freezeAuthority: null, lpLockedPct: 99.2, topHolders: [{ pct: 4 }] }) };
+      }
+      throw new Error('unexpected ' + url);
+    },
+  });
+  assert.match(saw, /report/);
+  assert.equal(state.xProfile.followers, 1200);
+  assert.equal(state.rug.mint, 'no');
+  assert.equal(state.rug.freeze, 'no');
+  assert.equal(state.rug.lpStatus, 'locked');
+  assert.equal(state.ageMin, 12.3);
+  assert.equal(state.liquidityUsd, 8000);
+  assert.deepEqual(state.similar, [{ name: 'Example Two', symbol: 'EX' }]);
+  assert.equal(state.description, 'A small project');
+  assert.equal(JSON.stringify(state).includes('MINTADDRESS'), false);
+  assert.equal(JSON.stringify(state).includes('price'), false);
+  let sent = null;
+  await askJev(state, {
+    key: 'test-key',
+    fetchImpl: async (_url, init) => {
+      sent = JSON.parse(init.body);
+      return jsonResponse(answer('unknown'));
+    },
+  });
+  assert.equal(sent.state.xProfile.followers, 1200);
+  assert.equal(sent.state.rug.topHolderPct, 4);
+  assert.match(sent.questions.verdict.instructions, /confidence/);
+  assert.equal(sent.questions.verdict.type, 'choice');
+  let tries = 0;
+  const limited = await readXProfile('example', async () => {
+    tries += 1;
+    if (tries === 1) return { ok: false, status: 429, text: async () => '' };
+    return { ok: true, status: 200, text: async () => html };
+  }, 5000, Date.parse('2026-11-20T00:00:00Z'));
+  assert.equal(tries, 2);
+  assert.equal(limited.followers, 1200);
+  const quiet = jevShadow([
+    { pnl: 1, settledAt: '2026-11-01T00:00:00Z', jev: { verdict: 'pass', reason: 'pass' } },
+    { pnl: -1, settledAt: '2026-11-01T01:00:00Z', jev: { verdict: 'unknown', reason: 'unknown' } },
+  ]);
+  assert.equal(quiet.unknown, 1);
+  assert.equal(quiet.unknownRate, 0.5);
 });

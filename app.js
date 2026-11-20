@@ -605,14 +605,16 @@ function loadUpgrades() {
   });
 }
 function challengerCard() {
-  const report = ui.upgrades || { maker: { measured: false }, settlement: { n: 0 }, jev: { n: 0, weight: 0, status: 'shadow' } };
+  const report = ui.upgrades || { maker: { measured: false }, settlement: { n: 0 }, jev: { n: 0, weight: 0, status: 'shadow', unknownRate: null } };
   const items = challengerRows(report).map((row) => {
     const mean = row.mean == null ? '—' : money(row.mean, true);
     const base = row.baselineMean == null ? '—' : money(row.baselineMean, true);
     const tone = (n) => (n > 0 ? 'g' : n < 0 ? 'r' : '');
-    const weight = row.id === 'jev-check' ? `<p class="note">Weight ${row.weight}. A flag drops that trade from this mean only.</p>` : '';
+    const unknown = row.unknownRate == null ? '—' : `${Math.round(row.unknownRate * 100)}%`;
+    const weight = row.id === 'jev-check' ? `<p class="note">Weight ${row.weight}. Unknown ${unknown} of settled verdicts. DexScreener, public X facts, RugCheck, age, liquidity, and similar tickers are in the prompt. A flag drops that trade from this mean only.</p>` : '';
     const age = row.id === 'early-entry' ? `<p class="note">Median age at entry ${row.medianAgeMin == null ? '—' : `${Math.round(row.medianAgeMin)} min`}. Weight ${row.weight}. Discovery rides the Kalshi chain. GitHub cron cannot run faster than every 5 minutes, and that kick has been dropped before.</p>` : '';
-    return `<li class="slot" data-challenger="${esc(row.id)}"><div class="row"><b>${esc(row.name)}</b><span class="tag explore">${esc(row.status)}</span></div><dl class="challenger-metrics"><div><dt>Sample</dt><dd>${row.n}</dd></div><div><dt>After fees</dt><dd class="${tone(row.mean)}">${mean}</dd></div><div><dt>Baseline</dt><dd class="${tone(row.baselineMean)}">${base}</dd></div></dl>${weight}${age}</li>`;
+    const exitNote = String(row.id || '').startsWith('early-exit') ? '<p class="note">Weight 0. Same early entries, this exit, after fees.</p>' : '';
+    return `<li class="slot" data-challenger="${esc(row.id)}"><div class="row"><b>${esc(row.name)}</b><span class="tag explore">${esc(row.status)}</span></div><dl class="challenger-metrics"><div><dt>Sample</dt><dd>${row.n}</dd></div><div><dt>After fees</dt><dd class="${tone(row.mean)}">${mean}</dd></div><div><dt>Baseline</dt><dd class="${tone(row.baselineMean)}">${base}</dd></div></dl>${weight}${age}${exitNote}</li>`;
   }).join('');
   return `<section class="card" aria-label="Shadow challengers"><h2>Shadow challengers</h2><ul class="feed">${items}</ul><p class="note">Paper only. These bots do not place or block a live order. Jev check starts at weight 0 and can move only through the existing edge gate. Early entry starts at weight 0 the same way. live_execution stays off.</p></section>`;
 }

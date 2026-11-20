@@ -8,8 +8,24 @@ import { MEME_RULES, MEME_SIZE, MEME_SLIP, memePnl, memeTargetClearsFees, poolMi
 import { graduates } from './strategies.js';
 
 export const EARLY_ID = 'early-entry';
+export const EARLY_TRACK = 'early-track';
+export const EARLY_EXIT_FAST = 'early-exit-fast';
+export const EARLY_EXIT_HALF = 'early-exit-half';
+export const EARLY_EXIT_TRAIL = 'early-exit-trail';
 export const EARLY_SCAN = 8;
 export const RUG_URL = 'https://api.rugcheck.xyz/v1/tokens';
+
+// Registered before any early-exit shadow result. Not fit on the journal or a holdout.
+// The fast book uses the same 15% stop and 25% take-profit, and a 10 minute time stop.
+// Half is sold only at a print at least 12% above entry when that half clears fees
+// at the stored slip. The other half then trails 15% off its own peak.
+// The peak trail sells the full $2 at 15% off the high the 4s watcher has seen.
+// 15% is the existing stop distance, moved from the entry to the peak.
+export const EARLY_EXITS = Object.freeze({
+  fastHoldMs: 10 * 60 * 1000,
+  halfTake: 1.12,
+  trailGap: 0.15,
+});
 
 // Frozen before any early-entry shadow trade. Not fit on the age audit.
 export const EARLY_RULES = {
@@ -362,6 +378,225 @@ export function nextLog(prevRows, decisions, at) {
   return out;
 }
 
+function slipOf(pos) {
+  return Number.isFinite(pos?.slip) ? pos.slip : undefined;
+}
+
+function closedLeg(row) {
+  return !!(row && row.settledAt);
+}
+
+function fullDeal(pos, px, now) {
+  const deal = memePnl(pos.entry, px, slipOf(pos), MEME_SIZE);
+  if (!deal || deal.sizeUsd !== MEME_SIZE) return null;
+  return { ...deal, exitPx: px, settledAt: new Date(now).toISOString(), won: deal.pnl > 0 };
+}
+
+function shadowRow(pos, variant, deal, why) {
+  return {
+    id: `${variant}:${pos.ca}`,
+    ca: pos.ca,
+    symbol: pos.symbol,
+    name: pos.name,
+    entry: pos.entry,
+    openedAt: pos.openedAt,
+    variant,
+    family: 'meme',
+    allocated: false,
+    shadow: true,
+    paper: true,
+    liq: pos.liq ?? null,
+    slip: pos.slip ?? null,
+    ageMin: pos.ageMin ?? null,
+    parent: pos.variant === EARLY_TRACK ? pos.parent || null : pos.id,
+    pnl: deal.pnl,
+    fees: deal.fees,
+    sizeUsd: MEME_SIZE,
+    exit: why,
+    exitPx: deal.exitPx,
+    settledAt: deal.settledAt,
+    won: deal.pnl > 0,
+    ...(deal.takePx != null ? { takePx: deal.takePx } : {}),
+  };
+}
+
+function blankTrack(pos, px) {
+  const peak = Math.max(pos?.entry || 0, px || 0);
+  return { peak, fast: null, half: null, trail: null };
+}
+
+export function earlyTrackDone(track) {
+  return !!(closedLeg(track?.fast) && closedLeg(track?.half) && closedLeg(track?.trail));
+}
+
+function holdShell(pos) {
+  return {
+    id: `${EARLY_TRACK}:${pos.ca}`,
+    ca: pos.ca,
+    symbol: pos.symbol,
+    name: pos.name,
+    entry: pos.entry,
+    sizeUsd: MEME_SIZE,
+    openedAt: pos.openedAt,
+    variant: EARLY_TRACK,
+    family: 'meme',
+    allocated: false,
+    shadow: true,
+    paper: true,
+    liq: pos.liq ?? null,
+    slip: pos.slip ?? null,
+    ageMin: pos.ageMin ?? null,
+    parent: pos.id,
+    exitTrack: pos.exitTrack,
+  };
+}
+
+// Same entry, three exit books. A leg journals once, after fees, at $2.
+// Weight is not decided here. The baseline position is not closed here.
+export function advanceEarlyExits(pos, px, now, opts = {}) {
+  if ((pos?.variant !== EARLY_ID && pos?.variant !== EARLY_TRACK) || !(px > 0) || !(pos.entry > 0)) {
+    return { pos, rows: [], hold: null };
+  }
+  const known = opts.known instanceof Set ? opts.known : new Set();
+  const parentExiting = !!opts.parentExiting;
+  const track = pos.exitTrack
+    ? { peak: pos.exitTrack.peak, fast: pos.exitTrack.fast || null, half: pos.exitTrack.half ? { ...pos.exitTrack.half } : null, trail: pos.exitTrack.trail || null }
+    : blankTrack(pos, px);
+  track.peak = Math.max(track.peak || 0, px, pos.entry);
+  const rows = [];
+  const age = now - Date.parse(pos.openedAt || '');
+  const aged = Number.isFinite(age) && age >= 0;
+  const stopPx = pos.entry * MEME_RULES.stop;
+  const tpPx = pos.entry * MEME_RULES.tp;
+  const emit = (variant, deal, why) => {
+    const id = `${variant}:${pos.ca}`;
+    if (!deal || known.has(id)) return;
+    rows.push(shadowRow(pos, variant, deal, why));
+  };
+  const seen = (variant) => known.has(`${variant}:${pos.ca}`);
+
+  if (!closedLeg(track.fast)) {
+    if (seen(EARLY_EXIT_FAST)) track.fast = { settledAt: 'seen' };
+    else {
+      let why = null;
+      if (px <= stopPx) why = 'stop';
+      else if (px >= tpPx) why = 'take-profit';
+      else if (aged && age >= EARLY_EXITS.fastHoldMs) why = 'time-stop';
+      if (why) {
+        const deal = fullDeal(pos, px, now);
+        if (deal) {
+          track.fast = { ...deal, exit: why };
+          emit(EARLY_EXIT_FAST, deal, why);
+        }
+      }
+    }
+  }
+
+  if (!closedLeg(track.trail)) {
+    if (seen(EARLY_EXIT_TRAIL)) track.trail = { settledAt: 'seen' };
+    else {
+      const trailPx = track.peak * (1 - EARLY_EXITS.trailGap);
+      let why = null;
+      if (px <= trailPx) why = 'trail';
+      else if (aged && age >= MEME_RULES.holdMs) why = 'time-stop';
+      if (why) {
+        const deal = fullDeal(pos, px, now);
+        if (deal) {
+          track.trail = { ...deal, exit: why };
+          emit(EARLY_EXIT_TRAIL, deal, why);
+        }
+      }
+    }
+  }
+
+  if (!closedLeg(track.half)) {
+    if (seen(EARLY_EXIT_HALF)) track.half = { settledAt: 'seen' };
+    else if (!track.half?.taken) {
+      let why = null;
+      if (px <= stopPx) why = 'stop';
+      else if (aged && age >= MEME_RULES.holdMs) why = 'time-stop';
+      if (why) {
+        const deal = fullDeal(pos, px, now);
+        if (deal) {
+          track.half = { taken: false, ...deal, exit: why };
+          emit(EARLY_EXIT_HALF, deal, why);
+        }
+      } else if (px >= pos.entry * EARLY_EXITS.halfTake) {
+        const leg = memePnl(pos.entry, px, slipOf(pos), MEME_SIZE / 2);
+        if (leg && leg.pnl > 0) {
+          track.half = { taken: true, takePx: px, takePnl: leg.pnl, takeFees: leg.fees, peak: px };
+        }
+      }
+    } else {
+      const half = track.half;
+      half.peak = Math.max(half.peak || 0, px);
+      const trailPx = half.peak * (1 - EARLY_EXITS.trailGap);
+      let why = null;
+      if (px <= trailPx || (aged && age >= MEME_RULES.holdMs)) why = 'half-trail';
+      if (why) {
+        const rest = memePnl(pos.entry, px, slipOf(pos), MEME_SIZE / 2);
+        if (rest) {
+          const deal = {
+            pnl: half.takePnl + rest.pnl,
+            fees: half.takeFees + rest.fees,
+            sizeUsd: MEME_SIZE,
+            exitPx: px,
+            takePx: half.takePx,
+            settledAt: new Date(now).toISOString(),
+          };
+          deal.won = deal.pnl > 0;
+          track.half = { ...half, ...deal, exit: why };
+          emit(EARLY_EXIT_HALF, deal, why);
+        }
+      } else track.half = half;
+    }
+  }
+
+  const updated = { ...pos, exitTrack: track };
+  if (pos.variant === EARLY_TRACK) return { pos: earlyTrackDone(track) ? null : updated, rows, hold: null };
+  if (parentExiting && !earlyTrackDone(track)) return { pos: updated, rows, hold: holdShell(updated) };
+  return { pos: updated, rows, hold: null };
+}
+
+export function mergeOpenEntry(preferred, other) {
+  if (!other) return preferred;
+  if (!preferred) return other;
+  const early = preferred.variant === EARLY_ID || preferred.variant === EARLY_TRACK || other.variant === EARLY_ID || other.variant === EARLY_TRACK;
+  if (!early) return preferred;
+  return { ...other, ...preferred, exitTrack: mergeTrack(preferred.exitTrack, other.exitTrack) };
+}
+
+function mergeTrack(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const peak = Math.max(Number(a.peak) || 0, Number(b.peak) || 0) || null;
+  return {
+    peak,
+    fast: earlierLeg(a.fast, b.fast),
+    half: earlierLeg(a.half, b.half),
+    trail: earlierLeg(a.trail, b.trail),
+  };
+}
+
+function earlierLeg(a, b) {
+  if (closedLeg(a) && closedLeg(b)) return Date.parse(a.settledAt) <= Date.parse(b.settledAt) ? a : b;
+  if (closedLeg(a)) return a;
+  if (closedLeg(b)) return b;
+  if (a?.taken || b?.taken) {
+    const base = a?.taken ? a : b;
+    const other = base === a ? b : a;
+    return {
+      ...other,
+      ...base,
+      peak: Math.max(Number(a?.peak) || 0, Number(b?.peak) || 0) || base.peak || null,
+      takePx: base.takePx ?? other?.takePx ?? null,
+      takePnl: base.takePnl ?? other?.takePnl ?? null,
+      takeFees: base.takeFees ?? other?.takeFees ?? null,
+    };
+  }
+  return a || b || null;
+}
+
 function meanOf(rows) {
   if (!rows.length) return null;
   return rows.reduce((sum, row) => sum + row.pnl, 0) / rows.length;
@@ -408,4 +643,34 @@ export function earlyShadow(rows) {
     medianAgeMin: medianOf(early.map((row) => row.ageMin).filter((value) => Number.isFinite(value))),
     note: 'Shadow only. Weight is 1 only when graduates() clears on this book. The meme safety sleeve is not changed. Size stays $2. This does not place a live order.',
   };
+}
+
+const EXIT_BOOKS = [
+  { id: EARLY_EXIT_FAST, name: 'Early exit · 10 min' },
+  { id: EARLY_EXIT_HALF, name: 'Early exit · half then trail' },
+  { id: EARLY_EXIT_TRAIL, name: 'Early exit · peak trail' },
+];
+
+// Same early entries, other exits. Weight stays 0. graduates() is not applied.
+export function earlyExitReport(rows) {
+  const base = (rows || []).filter((row) => row && row.variant === EARLY_ID && row.pnl != null);
+  const baselineMean = meanOf(base);
+  return EXIT_BOOKS.map((book) => {
+    const list = (rows || []).filter((row) => row && row.variant === book.id && row.pnl != null && row.sizeUsd === MEME_SIZE);
+    return {
+      id: book.id,
+      name: book.name,
+      status: 'shadow',
+      role: 'challenger',
+      weight: 0,
+      paper: true,
+      allocated: false,
+      liveExecution: false,
+      sizeUsd: MEME_SIZE,
+      n: list.length,
+      mean: meanOf(list),
+      baselineMean,
+      note: 'Shadow only. Weight stays 0. Same early entries, this exit, after fees. The parameters were registered before this sample. This does not place a live order.',
+    };
+  });
 }
