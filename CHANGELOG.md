@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The Kalshi snapshot push fetches and rebases when main moved, and a failed push still queues the next run. A 10-minute kick checks the last snapshot's age and restarts the chain when it is stale. Paper only.
 - 15-Min Trainer: a paper YES/NO call with confidence, scored after the Kalshi taker fee and a Brier score, with a lesson from the snapshot and the same 3-window bar the bots use. Motion, a clearer stale quote, swipeable onboarding, and a phone watchlist. No wallet and no change to the edge gate.
 - Official app art: maskable home-screen icons, a short splash that fades when the desk is ready, social preview images, and empty states for no trades, no coins past the safety checks, and a benched bot. Paper only.
 - Meme safety checks read the Solana mint account and the largest token accounts. A revoked mint or freeze authority and a real top-10 share are required at the same bars. A failed lookup still fails that check and the screen says why. Dev wallet share stays unknown and does not block. The scan adds newer Solana pairs, capped at 24. Paper only.

@@ -2,21 +2,30 @@ name: Kalshi snapshot chain kick
 
 # Backstop for kalshi-15m.yml. The schedule on that workflow is not a restart:
 # GitHub dropped it for hours on 2026-11-18 and again after 02:09Z on 2026-11-19.
-# This runs when a snapshot workflow finishes. If that run already queued the
-# next one, this exits. If it did not, this dispatches one and fails when the
-# dispatch does not stick.
+# workflow_run still restarts a finished pass when the next one was not queued.
+# A GITHUB_TOKEN dispatch does not itself emit workflow_run, so the 04:48Z
+# rejection on 2026-11-20 left the chain dead and this workflow never woke.
+# The 10-minute schedule checks the age of the newest snapshot and dispatches
+# when it is 10 minutes old or older. The concurrency group keeps two kicks
+# from running at once.
 on:
   workflow_run:
     workflows: ["Kalshi 15-minute snapshot"]
     types: [completed]
+  schedule:
+    - cron: '*/10 * * * *'
 
 permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: kalshi-15m-kick
+  cancel-in-progress: false
+
 jobs:
   kick:
-    if: github.event.workflow_run.head_branch == 'main'
+    if: github.event_name == 'schedule' || github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,12 +35,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Restart the chain when nothing is active
+      - name: Restart the chain when it is stale or the last pass did not queue one
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT: ${{ github.event_name }}
           PREVIOUS: ${{ github.event.workflow_run.conclusion }}
         run: |
-          if [ "$PREVIOUS" = "failure" ]; then
+          if [ "$EVENT" = "schedule" ]; then
+            repo="${GITHUB_REPOSITORY:?}"
+            raw="$(gh run list --workflow kalshi-15m.yml --repo "$repo" --limit 20 --json databaseId,status,updatedAt,createdAt)"
+            choice="$(printf '%s' "$raw" | node runner/watch-snapshot.mjs)"
+            echo "watch=$choice"
+            if [ "$choice" = "dispatch" ]; then
+              bash runner/queue-snapshot.sh
+            else
+              echo "snapshot chain is fresh"
+            fi
+          elif [ "$PREVIOUS" = "failure" ]; then
             bash runner/queue-snapshot.sh --backoff
           else
             sleep 20

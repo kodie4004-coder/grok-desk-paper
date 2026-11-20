@@ -17,8 +17,14 @@ name: Kalshi 15-minute snapshot
 # runner/queue-next.mjs dispatches whenever no OTHER run is queued or running,
 # and runner/queue-snapshot.sh fails the job if the dispatch does not stick.
 # kalshi-15m-kick.yml starts a run when this one finished and nothing else is
-# active, so a missed dispatch does not wait on the cron below. The cron is
-# only a last resort. GitHub still drops most of those events.
+# active, and its 10-minute schedule starts one when the newest snapshot is
+# older than 10 minutes. The cron below is only a last resort. GitHub still
+# drops most of those events.
+#
+# Run 44676854746 (2026-11-20T04:48:34Z) committed a snapshot and git push was
+# rejected: main had moved under it (fetch first / not a fast-forward). The
+# queue step was `if: success()`, so the rejection ended the chain. The push
+# now fetches, rebases, and retries. The queue step is `if: always()`.
 on:
   workflow_dispatch:
   schedule:
@@ -50,24 +56,15 @@ jobs:
       - run: node runner/daily-jobs.mjs
       - run: node runner/snapshot-meme.mjs || echo 'meme snapshot skipped'
       - name: Commit the snapshot when it changed
-        run: |
-          git config user.name "kalshi-snapshot"
-          git config user.email "kalshi-snapshot@users.noreply.github.com"
-          git add data/kalshi-15m.json data/journal.jsonl data/journal-open.json data/journal-quotes.json data/lessons.json data/brain.json data/filings.json LESSONS.md
-          [ -f data/morning.json ] && git add data/morning.json
-          [ -f data/heartbeat.json ] && git add data/heartbeat.json
-          [ -f data/alloc-curve.json ] && git add data/alloc-curve.json
-          [ -f data/meme-board.json ] && git add data/meme-board.json data/meme-open.json data/meme-journal.jsonl
-          if git diff --cached --quiet; then
-            echo "snapshot unchanged"
-          else
-            git commit -m "Update the Kalshi paper snapshot and journal"
-            git push
-          fi
+        run: bash runner/push-snapshot.sh
       - name: Queue the next refresh
-        if: success()
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sleep 180
-          bash runner/queue-snapshot.sh
+          if [ "${{ job.status }}" = "success" ]; then
+            sleep 180
+            bash runner/queue-snapshot.sh
+          else
+            bash runner/queue-snapshot.sh --backoff
+          fi
