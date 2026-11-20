@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stepJournal, reviewBrain, featureLessons, gateProgress, settleRow, LEARN_SIZE, defaultBrain, riskShadow, signal, VARIANTS, SNAPSHOT_ALLOC_CAP, SNAPSHOT_LINE_CAP } from '../engine/learn.js';
+import { stepJournal, reviewBrain, featureLessons, gateProgress, settleRow, LEARN_SIZE, defaultBrain, riskShadow, signal, VARIANTS, SNAPSHOT_ALLOC_CAP, SNAPSHOT_LINE_CAP, repairPracticeGate } from '../engine/learn.js';
 import { graduates } from '../engine/strategies.js';
 
 const now = Date.parse('2026-11-20T12:00:00Z');
@@ -89,7 +89,9 @@ test('one bot shadow does not stop the others, and one snapshot cannot flood', (
   assert.ok(loose.every((r) => r.allocated === false && r.sizeUsd === 2));
   const taken = next.open.filter((r) => r.variant === 'late' && r.allocated);
   assert.ok(taken.length > 0 && taken.length <= SNAPSHOT_ALLOC_CAP);
-  assert.ok(next.open.length <= SNAPSHOT_LINE_CAP);
+  const capped = next.open.filter((r) => r.role !== 'shadow' && r.role !== 'control');
+  assert.ok(capped.length <= SNAPSHOT_LINE_CAP);
+  assert.ok(next.open.filter((r) => r.role === 'shadow').every((r) => r.allocated === false));
   const ids = next.open.map((r) => r.id);
   assert.equal(new Set(ids).size, ids.length);
 });
@@ -121,6 +123,87 @@ test('a finished day past the $6 loss shadows the next morning, and a cleared da
   const freed = riskShadow({ ...defaultBrain(), shadow: next.shadow, shadowSince: next.shadowSince }, [...loss, ...shadows], Date.parse('2026-11-21T00:01:00Z'));
   assert.equal(freed.shadow.includes('revert-wide'), false);
   assert.equal(freed.shadowReturned['revert-wide'], '2026-11-20');
+});
+
+test('bet-cap skips do not refill a cleared shadow window, and a cleared day is not re-applied', () => {
+  const practice = Array.from({ length: 30 }, (_, i) => ({
+    variant: 'scalp-stop', allocated: false, skipped: false, pnl: 0.05, role: 'shadow',
+    openedAt: `2026-11-20T00:${String(i).padStart(2, '0')}:00Z`,
+    settledAt: `2026-11-20T00:${String(i).padStart(2, '0')}:30Z`,
+  }));
+  const skips = Array.from({ length: 30 }, (_, i) => ({
+    variant: 'scalp-stop', allocated: false, skipped: true, pnl: -0.4,
+    openedAt: `2026-11-20T02:${String(i).padStart(2, '0')}:00Z`,
+    skipReason: 'risk: this snapshot is at its bet cap',
+  }));
+  const loss = [{ variant: 'scalp-stop', allocated: true, pnl: -8, settledAt: '2026-11-19T22:00:00Z', window: '2026-11-19', openedAt: '2026-11-19T21:00:00Z' }];
+  const kept = riskShadow({ ...defaultBrain(), shadow: ['scalp-stop'], shadowSince: { 'scalp-stop': '2026-11-19' } }, [...loss, ...practice, ...skips], Date.parse('2026-11-20T12:00:00Z'));
+  assert.equal(kept.shadow.includes('scalp-stop'), false);
+  const again = riskShadow({ ...defaultBrain(), shadow: [], shadowSince: {}, shadowReturned: {} }, [...loss, ...practice, ...skips], Date.parse('2026-11-20T12:00:00Z'));
+  assert.equal(again.shadow.includes('scalp-stop'), false);
+  assert.equal(again.shadowReturned['scalp-stop'], '2026-11-19');
+  assert.equal(repairPracticeGate([...practice, ...skips], 'scalp-stop', '2026-11-19').n, 30);
+  assert.equal(repairPracticeGate(skips, 'scalp-stop', '2026-11-19').n, 0);
+});
+
+test('control and shadow logs do not spend the cap that repair practice needs', () => {
+  const now = Date.parse('2026-11-20T12:00:00Z');
+  const markets = Array.from({ length: SNAPSHOT_LINE_CAP }, (_, i) => ({
+    ticker: `AAA-${String(i).padStart(2, '0')}`,
+    series: 'KXBTC15M',
+    title: 'BTC',
+    yesAsk: 0.5,
+    noAsk: 0.5,
+    yesBid: 0.48,
+    noBid: 0.48,
+    closeTime: new Date(now + 700000).toISOString(),
+    floorStrike: 100,
+    result: '',
+  }));
+  markets.push({
+    ticker: 'ZZY-ALLOC',
+    series: 'KXETH15M',
+    title: 'ETH',
+    yesAsk: 0.9,
+    noAsk: 0.12,
+    yesBid: 0.88,
+    noBid: 0.1,
+    closeTime: new Date(now + 240000).toISOString(),
+    floorStrike: 100,
+    result: '',
+  });
+  markets.push({
+    ticker: 'ZZZ-REPAIR',
+    series: 'KXSOL15M',
+    title: 'SOL',
+    yesAsk: 0.9,
+    noAsk: 0.12,
+    yesBid: 0.88,
+    noBid: 0.1,
+    closeTime: new Date(now + 400000).toISOString(),
+    floorStrike: 100,
+    result: '',
+  });
+  const brain = { ...defaultBrain(), shadow: ['late-early'], shadowSince: { 'late-early': '2026-11-19' } };
+  const next = stepJournal({ markets, open: [], quotes: {}, brain, existingIds: [], settledRows: [], now });
+  const flips = next.open.filter((row) => row.variant === 'flip');
+  assert.equal(flips.length, SNAPSHOT_LINE_CAP);
+  assert.ok(flips.every((row) => row.allocated === false && row.role === 'control' && row.skipped === false));
+  const repair = next.open.filter((row) => row.variant === 'late-early' && row.ticker === 'ZZZ-REPAIR');
+  assert.equal(repair.length, 1);
+  assert.equal(repair[0].skipped, false);
+  assert.equal(repair[0].allocated, false);
+  assert.equal(repair[0].role, 'shadow');
+  assert.equal(repair[0].sizeUsd, 2);
+  const allocated = next.open.filter((row) => row.allocated);
+  assert.ok(allocated.length > 0 && allocated.length <= SNAPSHOT_ALLOC_CAP);
+  assert.ok(allocated.every((row) => row.role !== 'shadow' && row.role !== 'control'));
+  assert.equal(next.open.some((row) => row.skipReason === 'risk: this snapshot is at its bet cap'), false);
+  const gate = repairPracticeGate([{ ...repair[0], pnl: 0.04, settledAt: '2026-11-20T12:10:00Z' }], 'late-early', '2026-11-19');
+  assert.equal(gate.n, 1);
+  assert.equal(gate.need, 20);
+  assert.equal(gate.pass, false);
+  assert.equal(gate.sizeUsd, 2);
 });
 
 test('feature lessons wait for 8 trades and the gate still needs three windows', () => {

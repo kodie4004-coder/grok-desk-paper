@@ -6,6 +6,7 @@ import { kalshiTakerFee, coinFlipSide } from './kalshi.js';
 import { reviewRoles, shouldExit, settleExit } from './roles.js';
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
+import { repairGate, REPAIR_MIN_N } from './repair.js';
 
 export const LEARN_SIZE = 2;
 export const HOLD_MIN = 20;
@@ -228,7 +229,7 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     if (Number.isFinite(yes)) {
       nextQuotes[market.ticker] = { yesAsk: yes, yesBid: Number(market.yesBid), samples: [...(prev?.samples || []), yes].slice(-5) };
     }
-    if (market.result === 'yes' || market.result === 'no' || lineLeft <= 0) continue;
+    if (market.result === 'yes' || market.result === 'no') continue;
     const firing = [];
     for (const variant of VARIANTS) {
       const sig = signal(variant, market, now, { spots, prev });
@@ -243,28 +244,32 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
       const chosen = pickAllocated(rows.map((r) => r.variant), weights, `${market.ticker}:${market.closeTime}:${family}`);
       const orderedRows = [...rows].sort((a, b) => Number(b.variant.id === chosen) - Number(a.variant.id === chosen));
       for (const row of orderedRows) {
-        if (lineLeft <= 0) break;
         const id = `${row.variant.id}:${market.ticker}`;
         if (known.has(id) || still.some((e) => e.id === id)) continue;
         const quietBot = quiet.has(row.variant.id) || row.variant.role === 'control';
-        const room = !quietBot && chosen === row.variant.id && allocLeft > 0;
+        // Control and shadow logs do not spend the cap that gates allocated bets.
+        if (!quietBot && lineLeft <= 0) continue;
+        const chosenOne = !quietBot && chosen === row.variant.id;
+        const fee = quietBot ? null : feeVeto(row.variant.id, row.sig, history);
+        const capped = chosenOne && allocLeft <= 0;
         const decision = reviewRoles({
           variant: row.variant,
           market,
           sig: row.sig,
-          quiet: quietBot || !room,
+          quiet: quietBot || (!chosenOne && !fee),
           settledRows: history,
-          room: room || quietBot,
-          feeVeto: quietBot ? null : feeVeto(row.variant.id, row.sig, history),
+          room: !capped,
+          feeVeto: fee,
         });
         if (!decision.take && !decision.skipped) continue;
-        const opened = openRow(row.variant, market, row.sig, now, !!(decision.allocated && room && !quietBot));
+        const opened = openRow(row.variant, market, row.sig, now, !!(decision.allocated && !capped && chosenOne));
         if (!opened) continue;
+        opened.role = liveRole(row.variant, state, quietBot);
         opened.roles = decision.logs;
         opened.skipped = decision.skipped;
         opened.skipReason = decision.skipReason || null;
         if (opened.allocated) allocLeft -= 1;
-        lineLeft -= 1;
+        if (!quietBot) lineLeft -= 1;
         still.push(opened);
         known.add(id);
       }
@@ -289,6 +294,33 @@ function dayPnlOf(rows, variantId, day) {
   return (rows || []).filter((row) => row.allocated && row.variant === variantId && dayKey(row.settledAt || row.window) === day).reduce((sum, row) => sum + (row.pnl || 0), 0);
 }
 
+function liveRole(variant, state, quietBot) {
+  if (variant.role === 'control') return 'control';
+  if (quietBot) return 'shadow';
+  if (state?.champions?.[variant.family] === variant.id) return 'champion';
+  return variant.role;
+}
+
+// Settled $0 practice. Vetoed skips are not practice and do not move the repair bar.
+export function shadowPractice(rows, variantId, start) {
+  return (rows || []).filter((row) => {
+    if (!row || row.variant !== variantId || row.allocated !== false || row.skipped === true || row.pnl == null) return false;
+    if (start && !(String(row.openedAt || row.settledAt || '') > start)) return false;
+    return true;
+  });
+}
+
+export function repairPracticeGate(rows, variantId, since = null) {
+  const gate = repairGate(shadowPractice(rows, variantId, since));
+  return { ...gate, need: REPAIR_MIN_N };
+}
+
+function practiceCleared(rows, variantId, start) {
+  const last = shadowPractice(rows, variantId, start).slice(-30);
+  if (last.length < 30) return false;
+  return last.reduce((sum, row) => sum + row.pnl, 0) / last.length > 0;
+}
+
 export function riskShadow(brain, rows, now) {
   const today = dayKey(now);
   const finished = [...new Set((rows || []).map((row) => dayKey(row.settledAt || row.window)).filter((day) => day && today && day < today))].sort();
@@ -301,23 +333,25 @@ export function riskShadow(brain, rows, now) {
     const todayPnl = dayPnlOf(rows, variant.id, today);
     const priorPnl = lastDay ? dayPnlOf(rows, variant.id, lastDay) : 0;
     const priorStillOpen = priorPnl <= -BOT_DAY_LOSS && returned[variant.id] !== lastDay;
-    if (todayPnl <= -BOT_DAY_LOSS || priorStillOpen) {
+    const mark = todayPnl <= -BOT_DAY_LOSS ? today : lastDay;
+    const start = since[variant.id] || mark;
+    const alreadyCleared = priorStillOpen && !(todayPnl <= -BOT_DAY_LOSS) && practiceCleared(rows, variant.id, start);
+    if (alreadyCleared) {
+      shadow.delete(variant.id);
+      delete since[variant.id];
+      if (lastDay) returned[variant.id] = lastDay;
+    } else if (todayPnl <= -BOT_DAY_LOSS || priorStillOpen) {
       shadow.add(variant.id);
-      if (!since[variant.id]) since[variant.id] = todayPnl <= -BOT_DAY_LOSS ? today : lastDay;
+      if (!since[variant.id]) since[variant.id] = mark;
     }
   }
   for (const id of [...shadow]) {
     const start = since[id];
     if (!start) continue;
-    const shadows = (rows || []).filter((row) => row.variant === id && !row.allocated && row.pnl != null && String(row.openedAt || row.settledAt || '') > start);
-    const last = shadows.slice(-30);
-    if (last.length < 30) continue;
-    const mean = last.reduce((sum, row) => sum + row.pnl, 0) / last.length;
-    if (mean > 0) {
-      shadow.delete(id);
-      delete since[id];
-      if (lastDay) returned[id] = lastDay;
-    }
+    if (!practiceCleared(rows, id, start)) continue;
+    shadow.delete(id);
+    delete since[id];
+    if (lastDay) returned[id] = lastDay;
   }
   return { shadow: [...shadow], shadowSince: since, shadowReturned: returned };
 }
@@ -580,11 +614,12 @@ export function botCards(rows, brain) {
     const gate = gateProgress(mine, 80);
     const usable = gate.windows.filter((w) => w.n >= 20).length;
     const shadow = (state.shadow || []).includes(variant.id) || benched.has(variant.id);
+    const repair = shadow ? repairPracticeGate(rows, variant.id, state.shadowSince?.[variant.id] || null) : null;
     return {
       id: variant.id,
       family: variant.family,
       label: variant.label,
-      role: variant.role === 'control' ? 'control' : state.champions?.[variant.family] === variant.id ? 'champion' : variant.role,
+      role: liveRole(variant, state, shadow),
       n: mine.length,
       wins: stats.wins,
       mean: stats.mean,
@@ -598,6 +633,10 @@ export function botCards(rows, brain) {
       level: 1 + Math.floor(mine.length / 10),
       gateWindows: usable,
       graduated: gate.graduated,
+      repairN: repair ? repair.n : 0,
+      repairNeed: repair ? repair.need : 0,
+      repairMean: repair ? repair.mean : null,
+      repairPass: repair ? repair.pass : false,
     };
   });
 }

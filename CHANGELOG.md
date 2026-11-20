@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Repair mode. A loss-cap halt keeps live paper entries off and logs shadow trades. Resume needs 20 shadow trades with a positive after-fee mean, at a fixed $2. The meme sleeve with a non-positive mean over 20 trades is benched the same way. A same-coin re-entry inside an hour of a stop is skipped. A take-profit that does not clear the round trip is blocked. The loss cap, the balance, and the edge gate are unchanged. Paper only.
+- The snapshot bet cap no longer counts coin-flip control or shadow logs, so a full book of those lines cannot drop a repair practice trade or an allocated bet. The bet-cap skip is only an allocated pick after 8 bets. Shadow return counts non-skipped practice, not vetoed skips, and a day already cleared is not benched again. The journal role for a shadowed bot is shadow. Size stays $2. Paper only.
 - The Kalshi snapshot push fetches and rebases when main moved, and a failed push still queues the next run. A 10-minute kick checks the last snapshot's age and restarts the chain when it is stale. Paper only.
 - 15-Min Trainer: a paper YES/NO call with confidence, scored after the Kalshi taker fee and a Brier score, with a lesson from the snapshot and the same 3-window bar the bots use. Motion, a clearer stale quote, swipeable onboarding, and a phone watchlist. No wallet and no change to the edge gate.
 - Official app art: maskable home-screen icons, a short splash that fades when the desk is ready, social preview images, and empty states for no trades, no coins past the safety checks, and a benched bot. Paper only.

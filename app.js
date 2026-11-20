@@ -909,7 +909,13 @@ function brainView() {
   const started = Date.parse(doc.experimentSince || '');
   const hours = Number.isFinite(started) ? Math.max(0, Math.floor((Date.now() - started) / 3600000)) : null;
   const since = Number.isFinite(started) ? `Experiment running nonstop since ${new Date(started).toISOString().slice(0, 16).replace('T', ' ')} UTC · ${hours}h` : 'Experiment clock starts with the first journal line.';
-  const cards = bots.map((bot) => `<li class="slot"><div class="row"><b>${esc(bot.label)}</b><span class="tag ${quiet(bot) ? 'off' : bot.role === 'champion' ? 'normal' : 'explore'}">${quiet(bot) ? 'benched-shadow' : esc(bot.role)}</span></div><p class="note">Level ${bot.level} · ${share(bot)} · n ${bot.n} · mean ${bot.mean == null ? '—' : money(bot.mean, true)} after fees · 90% ${bot.lo == null ? '—' : money(bot.lo, true)} to ${bot.hi == null ? '—' : money(bot.hi, true)} · ${esc(bot.sample || '')}</p><p class="note">${bot.graduated ? 'Gate cleared on this journal. Live execution stays off.' : `Gate progress ${bot.gateWindows || 0}/3 windows of 20+. Not ready for real money.`}</p></li>`).join('');
+  const repairLine = (bot) => {
+    if (!quiet(bot) || !(bot.repairNeed > 0)) return '';
+    const n = bot.repairN || 0;
+    const mean = bot.repairMean == null ? 'no settled practice yet' : `${money(bot.repairMean, true)} per trade`;
+    return `<p class="note"><label for="repair-${esc(bot.id)}">Repair practice ${n} of ${bot.repairNeed}. Mean after fees: ${mean}.</label></p><progress id="repair-${esc(bot.id)}" max="${bot.repairNeed}" value="${Math.min(n, bot.repairNeed)}">${n} of ${bot.repairNeed}</progress>`;
+  };
+  const cards = bots.map((bot) => `<li class="slot"><div class="row"><b>${esc(bot.label)}</b><span class="tag ${quiet(bot) ? 'off' : bot.role === 'champion' ? 'normal' : 'explore'}">${quiet(bot) ? 'benched-shadow' : esc(bot.role)}</span></div><p class="note">Level ${bot.level} · ${share(bot)} · n ${bot.n} · mean ${bot.mean == null ? '—' : money(bot.mean, true)} after fees · 90% ${bot.lo == null ? '—' : money(bot.lo, true)} to ${bot.hi == null ? '—' : money(bot.hi, true)} · ${esc(bot.sample || '')}</p><p class="note">${bot.graduated ? 'Gate cleared on this journal. Live execution stays off.' : `Gate progress ${bot.gateWindows || 0}/3 windows of 20+. Not ready for real money.`}</p>${repairLine(bot)}</li>`).join('');
   const summary = (doc.summary || []).map((l) => `<li>${esc(l)}</li>`).join('');
   const learned = (doc.lessons || []).slice(0, 6).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const frozen = (doc.frozen || []).map((l) => `<li>${esc(l.text)}</li>`).join('');
