@@ -312,6 +312,36 @@ The snapshot asks TypeSafe System One, `POST https://api.typesafe.ai/v1/systemon
 
 On the settled paper trades that carry a verdict, the baseline mean keeps every trade. The veto mean drops `flag` and keeps `unknown`. Both means are after the meme fee and slippage already on the row. Weight is 0 unless `graduates()` is true on the veto book's day windows, using the same 90% lower bound the bot gate already uses. Clearing that gate still does not place or block a trade. The day the verdicts were first logged cannot be used to retune the questions.
 
+## v13 early-entry shadow (frozen before any early-entry trade)
+
+This does not change `graduates()`, the v6 edge gate, the holdout rule, the v9 meme safety bars, or the $2 size. `live_execution` stays off. The variant id is `early-entry`. It is a shadow challenger. Weight is 0 unless `graduates()` is true on its own day windows. Weight does not allocate a trade and does not turn the safety sleeve back on.
+
+The safety sleeve stays in repair once it has logged a shadow trade, until 20 of those shadow trades have a positive after-fee mean. An early-entry shadow is a different book and does not count toward that repair. A loss does not raise size.
+
+Discovery runs inside the meme snapshot, which the Kalshi chain already starts. It does not add a cron. GitHub cron cannot run faster than every 5 minutes, and the 5-minute meme kick has been dropped before, so that cron is not the detection path. A coin waits for the next chain pass. On the 377 committed boards through 2026-11-20 the gap between boards had a median of 3.8 minutes.
+
+Sources, each optional. A failure is logged and the others are kept:
+
+- DexScreener `token-boosts/latest/v1` and `token-profiles/latest/v1`. Both answered JSON from this environment.
+- DexScreener `latest/dex/pairs/solana`. This returned HTTP 404. It is still requested and ignored when it is not JSON.
+- GeckoTerminal `networks/solana/new_pools`. It answered JSON, including `pool_created_at` and reserve.
+- pump.fun `frontend-api-v3.pump.fun/coins/latest`. It returned a Cloudflare challenge, HTTP 403, with no key. The scan continues without it.
+
+Hard kills, in order, before any soft pass:
+
+- Mint authority is not revoked, or the lookup is missing.
+- Freeze authority is not revoked, or the lookup is missing.
+- RugCheck's public summary (`/v1/tokens/{mint}/report/summary`) reports `lpLockedPct` under 50. At or above 90 is locked. A missing value, or a value from 50 up to but not including 90, is not known and does not kill. The 90 line is the summary field on a pool whose own market report said 100% locked and whose summary printed 93.7.
+- Top 10 holders are over 40%, the same bar as v9. Missing is a kill.
+- Liquidity is under $1,000 or missing. The v9 floor stays $20,000. This sleeve is the book for pools that floor does not take.
+- The modeled $2 round trip does not clear the existing 25% take-profit. Slippage is the larger of the flat 1% and the constant-product impact `2 × $2 / liquidity`, plus the 1.25% fee on each side. The existing `memeTargetClearsFees()` check still applies.
+
+A coin at least 30 minutes old is a pass, not an entry. The v9 rule already owns that window. A coin under 60 minutes whose 1 hour change is already 3× or more is a pass: chase, not early. That multiple is not a search. A hard kill still wins over the chase pass.
+
+The same Jev check runs on coins that would enter, after the baseline coins, on the same cache. The run still asks at most 20 new coins. A flag does not block the shadow entry.
+
+The paper fill is $2. The stop, the 25% take-profit, and the 30 minute time stop are the v9 rules. The stop watcher prices the position with the slip stored at entry. The row is `allocated: false`. These trades use `graduates()` and do not change it. The day they are first logged cannot retune the thresholds. The age audit in `data/early-audit.json` was measured before this sleeve and was not used to pick the numbers above.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

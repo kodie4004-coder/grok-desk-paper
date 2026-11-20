@@ -321,14 +321,22 @@ function readSafety(info) {
   };
 }
 
-export function memePnl(entry, exit) {
+export function memePnl(entry, exit, slip = MEME_SLIP) {
   if (!(entry > 0) || !(exit > 0)) return null;
-  const buy = entry * (1 + MEME_SLIP);
-  const sell = exit * (1 - MEME_SLIP);
+  const slipPct = Number.isFinite(slip) && slip >= 0 ? Math.min(0.9, slip) : MEME_SLIP;
+  const buy = entry * (1 + slipPct);
+  const sell = exit * (1 - slipPct);
   const qty = MEME_SIZE / buy;
   const proceeds = qty * sell;
   const fees = MEME_SIZE * MEME_FEE + proceeds * MEME_FEE;
   return { pnl: proceeds - MEME_SIZE - fees, fees, sizeUsd: MEME_SIZE };
+}
+
+// Baseline fills stay on the flat 1% slip. An early-entry shadow row stores
+// the slip that was modeled from pool liquidity at the paper entry.
+function fillPnl(pos, exitPx) {
+  const slip = pos?.variant === 'early-entry' && Number.isFinite(pos.slip) ? pos.slip : undefined;
+  return memePnl(pos.entry, exitPx, slip);
 }
 
 // The take-profit has to clear the round trip, and then clear it again.
@@ -400,7 +408,7 @@ export function stepMeme({ coins, open = [], history = [], now }) {
     else if (px > 0 && px >= pos.entry * MEME_RULES.tp) { exit = px; why = 'take-profit'; }
     else if (age >= MEME_RULES.holdMs && px > 0) { exit = px; why = 'time-stop'; }
     if (exit) {
-      const deal = memePnl(pos.entry, exit);
+      const deal = fillPnl(pos, exit);
       if (deal && deal.sizeUsd === MEME_SIZE) settled.push({ ...pos, ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true });
     } else still.push(pos);
   }
@@ -410,7 +418,7 @@ export function stepMeme({ coins, open = [], history = [], now }) {
   const feeOk = memeTargetClearsFees();
   for (const coin of coins || []) {
     if (!coin.pass || known.has(coin.ca) || !(coin.priceUsd > 0)) continue;
-    if (still.length >= 8) break;
+    if (still.filter((p) => p.variant !== 'early-entry').length >= 8) break;
     if (!feeOk) continue;
     const jev = jevStamp(coin.jev);
     still.push({
@@ -535,7 +543,7 @@ export function watchExit(pos, px, now) {
   if (px <= stopPx) why = 'stop';
   else if (px >= tpPx) why = 'take-profit';
   else return null;
-  const deal = memePnl(pos.entry, px);
+  const deal = fillPnl(pos, px);
   if (!deal || deal.sizeUsd !== MEME_SIZE) return null;
   const ruleMove = why === 'stop' ? MEME_RULES.stop - 1 : MEME_RULES.tp - 1;
   const realizedMove = px / pos.entry - 1;

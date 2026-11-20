@@ -225,6 +225,13 @@ export function upgradeLines(report) {
   } else {
     lines.push('Jev check is a shadow challenger on meme coins. It asks whether the linked X account is plausibly the real project, whether the coin copies an existing ticker or narrative, and whether the description has an obvious rug flag. No settled comparison is in this file yet. Weight is 0. It does not block an entry. Live execution stays off.');
   }
+  const early = report?.early;
+  if (early?.n) {
+    const age = early.medianAgeMin == null ? 'unknown' : `${Math.round(early.medianAgeMin)} min`;
+    lines.push(`Early entry is a shadow challenger for coins under 30 minutes old. On ${early.n} paper trades the after-fee mean was ${money(early.mean)}, against ${money(early.baselineMean)} for the meme safety book. Median age at entry was ${age}. Weight is ${early.weight === 1 ? 1 : 0}. Size stays $2. Live execution stays off.`);
+  } else {
+    lines.push('Early entry is a shadow challenger for coins under 30 minutes old. No settled early trade is in this file yet. Weight is 0. It does not change the meme safety bars. Live execution stays off.');
+  }
   return lines;
 }
 
@@ -232,6 +239,7 @@ export function challengerRows(report) {
   const maker = report?.maker;
   const settlement = report?.settlement || {};
   const jev = report?.jev || {};
+  const early = report?.early || {};
   const makerOn = !!(maker?.measured && maker.attempts);
   return [
     {
@@ -258,6 +266,16 @@ export function challengerRows(report) {
       baselineMean: jev.baselineMean ?? null,
       status: 'shadow',
       weight: jev.weight === 1 ? 1 : 0,
+    },
+    {
+      id: 'early-entry',
+      name: 'Early entry',
+      n: early.n || 0,
+      mean: early.mean ?? null,
+      baselineMean: early.baselineMean ?? null,
+      medianAgeMin: early.medianAgeMin ?? null,
+      status: 'shadow',
+      weight: early.weight === 1 ? 1 : 0,
     },
   ];
 }

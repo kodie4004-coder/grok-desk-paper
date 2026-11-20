@@ -7,7 +7,10 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { bestPair, candidateMints, lookupMints, openMemeCount, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
-import { cacheDoc, cacheFromDoc, describeCoin, jevShadow, reviewCandidates } from '../engine/jev.js';
+import { cacheDoc, cacheFromDoc, describeCoin, jevShadow, reviewCandidates, JEV_CALL_CAP } from '../engine/jev.js';
+import {
+  EARLY_SCAN, candidatesFromSources, decideCandidate, earlyShadow, loadSources, needsChain, nextLog, openEarly, readRug, withPair,
+} from '../engine/early.js';
 import { watchKickDecision } from './kick-watch.mjs';
 
 function dispatchMemeWatch() {
@@ -41,16 +44,42 @@ function saveJevCache(cache) {
   if (next !== prev) fs.writeFileSync('data/jev-cache.json', next);
 }
 
-function saveJevScore(rows) {
+function saveSleeveScore(rows) {
   const path = 'data/research-upgrades.json';
   let doc = { paper: true, liveExecution: false };
   try { doc = { ...doc, ...JSON.parse(fs.readFileSync(path, 'utf8')) }; } catch { /* start a paper report */ }
   const jev = jevShadow(rows);
-  if (JSON.stringify(doc.jev) === JSON.stringify(jev) && fs.existsSync(path)) return;
+  const early = earlyShadow(rows);
+  if (JSON.stringify(doc.jev) === JSON.stringify(jev) && JSON.stringify(doc.early) === JSON.stringify(early) && fs.existsSync(path)) return;
   doc.paper = true;
   doc.liveExecution = false;
   doc.jev = jev;
+  doc.early = early;
   fs.writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
+}
+
+function readEarlyLog() {
+  if (!fs.existsSync('data/early-log.jsonl')) return [];
+  return fs.readFileSync('data/early-log.jsonl', 'utf8').trim().split('\n').filter(Boolean).flatMap((line) => {
+    try { return [JSON.parse(line)]; } catch { return []; }
+  });
+}
+
+function writeEarly(decisions, sources, at) {
+  fs.mkdirSync('data', { recursive: true });
+  const board = {
+    fetchedAt: at,
+    paper: true,
+    liveExecution: false,
+    sources: (sources || []).map((source) => ({ id: source.id, ok: !!source.ok, status: source.status ?? null })),
+    coins: decisions,
+  };
+  fs.writeFileSync('data/early-board.json', JSON.stringify(board, null, 2) + '\n');
+  const extra = nextLog(readEarlyLog(), decisions, at);
+  if (extra.length) fs.appendFileSync('data/early-log.jsonl', extra.map((row) => JSON.stringify(row)).join('\n') + '\n');
+  const tally = { enter: 0, pass: 0, kill: 0 };
+  for (const row of decisions) if (tally[row.action] != null) tally[row.action] += 1;
+  console.log('early', JSON.stringify(tally), 'sources', board.sources.map((source) => `${source.id}:${source.ok ? 'ok' : source.status}`).join(','));
 }
 
 async function get(url) {
@@ -111,6 +140,49 @@ try {
     for (const row of Array.isArray(profiles) ? profiles : []) {
       if (row?.chainId === 'solana' && row.tokenAddress) blurbs.set(row.tokenAddress, row);
     }
+    let earlyDecisions = [];
+    let earlySources = [];
+    try {
+      earlySources = await loadSources(fetch, {
+        'dex-boosts': Array.isArray(boosts) ? boosts : [],
+        'dex-profiles': Array.isArray(profiles) ? profiles : [],
+        'gecko-new': poolsDoc || { data: [] },
+      });
+      let earlyRows = candidatesFromSources(earlySources, now);
+      const unseen = earlyRows.filter((row) => !meta.has(row.ca)).slice(0, 30);
+      if (unseen.length) {
+        try {
+          const book = await get('https://api.dexscreener.com/latest/dex/tokens/' + unseen.map((row) => row.ca).join(','));
+          for (const row of unseen) {
+            const pair = bestPair(book?.pairs || [], row.ca);
+            meta.set(row.ca, { pair, pairAddress: pair?.pairAddress || null, baseUi: Number(pair?.liquidity?.base) || null });
+          }
+        } catch (e) { console.log('early pairs', e.message); }
+      }
+      earlyRows = earlyRows.map((row) => withPair(row, meta.get(row.ca)?.pair, now));
+      const wanted = earlyRows.filter((row) => needsChain(row)).sort((a, b) => a.ageMin - b.ageMin).slice(0, EARLY_SCAN);
+      const wantedSet = new Set(wanted.map((row) => row.ca));
+      const chain = wanted.filter((row) => !safety.has(row.ca));
+      if (chain.length) {
+        try {
+          const extra = await lookupMints(chain.map((row) => row.ca), meta, { budgetMs: 20000 });
+          for (const [ca, row] of extra) safety.set(ca, row);
+        } catch (e) { console.log('early rpc', e.message); }
+      }
+      const rugs = new Map();
+      for (const row of wanted) rugs.set(row.ca, await readRug(row.ca, fetch));
+      earlyDecisions = earlyRows.map((row) => {
+        const checked = wantedSet.has(row.ca);
+        return decideCandidate(row, {
+          checkedSafety: checked,
+          safety: safety.get(row.ca),
+          checkedLp: checked,
+          lp: rugs.get(row.ca),
+        });
+      });
+    } catch (e) {
+      console.log('early scan failed', e.message);
+    }
     const jevCache = loadJevCache();
     try {
       const reviewed = await reviewCandidates(coins, {
@@ -119,7 +191,16 @@ try {
         describe: (coin) => describeCoin({ coin, pair: meta.get(coin.ca)?.pair, profile: blurbs.get(coin.ca) }),
       });
       coins = reviewed.coins;
-      console.log('jev', `asked=${reviewed.asked}`, `http=${reviewed.http}`, `skipped=${reviewed.skipped}`, `capped=${reviewed.capped}`);
+      const enters = earlyDecisions.filter((row) => row.action === 'enter').map((row) => ({ ...row, pass: true }));
+      const earlyReview = await reviewCandidates(enters, {
+        cache: jevCache,
+        cap: Math.max(0, JEV_CALL_CAP - reviewed.asked),
+        now: new Date(now).toISOString(),
+        describe: (coin) => describeCoin({ coin, pair: meta.get(coin.ca)?.pair, profile: blurbs.get(coin.ca) }),
+      });
+      const byCa = new Map(earlyReview.coins.map((row) => [row.ca, row.jev]));
+      earlyDecisions = earlyDecisions.map((row) => (byCa.get(row.ca) ? { ...row, jev: byCa.get(row.ca) } : row));
+      console.log('jev', `asked=${reviewed.asked + earlyReview.asked}`, `http=${reviewed.http + earlyReview.http}`, `skipped=${reviewed.skipped + earlyReview.skipped}`, `capped=${reviewed.capped + earlyReview.capped}`);
     } catch (e) {
       console.log('jev skipped', e.message);
     }
@@ -129,12 +210,15 @@ try {
       ? fs.readFileSync('data/meme-journal.jsonl', 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
       : [];
     const next = stepMeme({ coins, open: openDoc.entries || [], history, now });
+    const earlyOpen = openEarly({ decisions: earlyDecisions, open: next.open, now });
+    next.open.push(...earlyOpen);
     fs.mkdirSync('data', { recursive: true });
     if (next.settled.length) fs.appendFileSync('data/meme-journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
     else if (!fs.existsSync('data/meme-journal.jsonl')) fs.writeFileSync('data/meme-journal.jsonl', '');
     fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date(now).toISOString(), entries: next.open }, null, 2));
     const slipRows = history.concat(next.settled);
-    saveJevScore(slipRows);
+    saveSleeveScore(slipRows);
+    writeEarly(earlyDecisions, earlySources, new Date(now).toISOString());
     fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(slipRows), updatedAt: new Date(now).toISOString() }, null, 2) + '\n');
     fs.writeFileSync('data/meme-board.json', JSON.stringify({ fetchedAt: new Date(now).toISOString(), source: 'dexscreener+solana-rpc', pumpFun: 'blocked', coins }, null, 2));
     const tally = {};

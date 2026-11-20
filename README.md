@@ -69,6 +69,8 @@ reach the loss cap (10% of the bank by default), live entries halt and the desk 
 
 The meme snapshot can also ask TypeSafe Jev, as a shadow challenger, whether a coin that already passed the safety list has a plausible X account, looks like a copycat, or shows an obvious rug flag. That call runs only when the workflow step has `TYPESAFE_API_KEY`. A missing key skips it. A flag is a paper comparison, not a block. Weight starts at 0 and moves only if the existing edge gate clears. The desk still has no wallet.
 
+A second shadow, Early entry, looks at coins under 30 minutes old. It uses the same chain pass, not a faster cron. GitHub cannot schedule a workflow more often than every 5 minutes, and the 5-minute kick has been dropped before, so a new coin waits for the next Kalshi-chain snapshot. The measured gap between boards is in `data/early-audit.json`. pump.fun's public API still returns a challenge from the runner, so that source is skipped when it fails. The safety sleeve stays halted while it is in repair. Early entry does not raise size and does not turn on live execution.
+
 ## Calibration ("Sunday check")
 
 The Agents tab groups JUDGE buys into p buckets (0.70–0.79, 0.80–0.89, 0.90+) and shows how many closed green.

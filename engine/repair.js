@@ -17,10 +17,19 @@ const usd = (x) => {
 const pct = (x) => (x == null || !Number.isFinite(x) ? '—' : `${x > 0 ? '+' : ''}${x.toFixed(1)}%`);
 
 export function sleeveBenched(rows) {
-  const live = (rows || []).filter((row) => row && row.pnl != null && row.allocated !== false);
+  const list = rows || [];
+  const live = list.filter((row) => row && row.pnl != null && row.allocated !== false);
+  const shadows = list.filter((row) => row && row.pnl != null && row.allocated === false && row.variant !== 'early-entry');
   const n = live.length;
   const mean = n ? live.reduce((sum, row) => sum + row.pnl, 0) / n : null;
-  return { benched: n >= BENCH_MIN_N && !(mean > 0), n, mean };
+  const shadowMean = shadows.length ? shadows.reduce((sum, row) => sum + row.pnl, 0) / shadows.length : null;
+  const repairPass = shadows.length >= REPAIR_MIN_N && shadowMean > 0;
+  const losing = n >= BENCH_MIN_N && !(mean > 0);
+  // A sleeve already logging shadow trades stays there until the repair gate
+  // passes. Dropping those rows out of the count must not turn allocation back on.
+  // Early-entry shadows are a different book and do not bench this sleeve.
+  const held = shadows.length > 0 && !repairPass;
+  return { benched: losing || held, n, mean, held };
 }
 
 export function chaseBlocked(rows, ca, nowMs, coolMs = CHASE_COOLDOWN_MS) {
@@ -164,7 +173,7 @@ export function diagnoseMeme(rows) {
   const stop = incident.exits.stop || { n: 0, wins: 0, pnl: 0 };
   const stopMoves = incident.stops.map((item) => pct(item.movePct)).join(', ');
   const findings = [
-    `Most of these exits are the 30-minute timer. ${timer.n} of ${incident.n} closed that way, net ${usd(timer.pnl)} after ${usd(timer.fees).replace('+', '')} of fees. The median price change on those exits was ${pct(timer.medianMovePct)}. ${incident.feeKilled.n} trades were up before fees and down after them.`,
+    `${timer.n > incident.n / 2 ? 'Most of these exits are the 30-minute timer.' : 'The 30-minute timer is not the majority of these exits.'} ${timer.n} of ${incident.n} closed that way, net ${usd(timer.pnl)} after ${usd(timer.fees).replace('+', '')} of fees. The median price change on those exits was ${pct(timer.medianMovePct)}. ${incident.feeKilled.n} trades were up before fees and down after them.`,
     `Stops are not the tight ones. ${stop.n} trades hit the -15% stop and all of them lost, net ${usd(stop.pnl)}. The fills were ${stopMoves || 'none'}. The price moved past the stop between checks.`,
     `Entries chase the same coin after a stop. ${incident.chase.n} re-entries inside an hour netted ${usd(incident.chase.pnl)}. The window is ${incident.wins} wins and ${incident.losses} losses, mean ${usd(incident.mean)} on a $${REPAIR_SIZE_USD} bet. That sleeve is benched to shadow until ${REPAIR_MIN_N} shadow trades average above zero. Size stays $${REPAIR_SIZE_USD}.`,
   ];
@@ -178,7 +187,7 @@ export function diagnoseMeme(rows) {
     after,
     bench,
     repair,
-    benched: sleeveBenched(sorted.filter((row) => row.allocated !== false)).benched,
+    benched: sleeveBenched(sorted).benched,
     findings,
     note: `The ${incident.n} trades in this window net ${usd(incident.pnl)} after fees on $${REPAIR_SIZE_USD} paper bets. Win rate ${incident.n ? Math.round(incident.winRate * 100) : 0}%.`,
   };

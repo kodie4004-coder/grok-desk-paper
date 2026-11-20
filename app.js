@@ -611,9 +611,10 @@ function challengerCard() {
     const base = row.baselineMean == null ? '—' : money(row.baselineMean, true);
     const tone = (n) => (n > 0 ? 'g' : n < 0 ? 'r' : '');
     const weight = row.id === 'jev-check' ? `<p class="note">Weight ${row.weight}. A flag drops that trade from this mean only.</p>` : '';
-    return `<li class="slot"><div class="row"><b>${esc(row.name)}</b><span class="tag explore">${esc(row.status)}</span></div><dl class="challenger-metrics"><div><dt>Sample</dt><dd>${row.n}</dd></div><div><dt>After fees</dt><dd class="${tone(row.mean)}">${mean}</dd></div><div><dt>Baseline</dt><dd class="${tone(row.baselineMean)}">${base}</dd></div></dl>${weight}</li>`;
+    const age = row.id === 'early-entry' ? `<p class="note">Median age at entry ${row.medianAgeMin == null ? '—' : `${Math.round(row.medianAgeMin)} min`}. Weight ${row.weight}. Discovery rides the Kalshi chain. GitHub cron cannot run faster than every 5 minutes, and that kick has been dropped before.</p>` : '';
+    return `<li class="slot" data-challenger="${esc(row.id)}"><div class="row"><b>${esc(row.name)}</b><span class="tag explore">${esc(row.status)}</span></div><dl class="challenger-metrics"><div><dt>Sample</dt><dd>${row.n}</dd></div><div><dt>After fees</dt><dd class="${tone(row.mean)}">${mean}</dd></div><div><dt>Baseline</dt><dd class="${tone(row.baselineMean)}">${base}</dd></div></dl>${weight}${age}</li>`;
   }).join('');
-  return `<section class="card" aria-label="Shadow challengers"><h2>Shadow challengers</h2><ul class="feed">${items}</ul><p class="note">Paper only. These bots do not place or block a trade. Jev check starts at weight 0 and can move only through the existing edge gate. live_execution stays off.</p></section>`;
+  return `<section class="card" aria-label="Shadow challengers"><h2>Shadow challengers</h2><ul class="feed">${items}</ul><p class="note">Paper only. These bots do not place or block a live order. Jev check starts at weight 0 and can move only through the existing edge gate. Early entry starts at weight 0 the same way. live_execution stays off.</p></section>`;
 }
 function upgradesCard() {
   if (!ui.upgradeLines) loadUpgrades();
@@ -1004,15 +1005,16 @@ async function loadCoins() {
   ui.coinsState = 'loading';
   if (ui.tab === 'coins') render();
   try {
-    const [board, openDoc, journalText, watchDoc] = await Promise.all([
+    const [board, openDoc, journalText, watchDoc, earlyDoc] = await Promise.all([
       fetch('data/meme-board.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('Coin board ' + r.status); return r.json(); }),
       fetch('data/meme-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }).catch(() => ({ entries: [] })),
       fetch('data/meme-journal.jsonl?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.text() : '').catch(() => ''),
       fetch('data/meme-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch('data/early-board.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { coins: [] }).catch(() => ({ coins: [] })),
     ]);
     noteMemeWatch(openDoc, watchDoc);
     ui.memeJournal = String(journalText || '').trim() ? String(journalText).trim().split('\n').filter(Boolean).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean) : [];
-    ui.coins = Array.isArray(board?.coins) ? board.coins : [];
+    ui.coins = mergeEarly(Array.isArray(board?.coins) ? board.coins : [], earlyDoc);
     ui.coinsState = 'ready';
     ui.coinsAt = Date.parse(board?.fetchedAt) || Date.now();
     const fresh = ui.coins.filter((c) => c.pass && !(ui.seenCoins || new Set()).has(c.ca));
@@ -1025,6 +1027,27 @@ async function loadCoins() {
     ui.coinsError = e.message || 'Coin feed failed';
   }
   if (ui.tab === 'coins') render();
+}
+function mergeEarly(board, early) {
+  const extra = new Map((early?.coins || []).filter((row) => row?.ca).map((row) => [row.ca, row]));
+  const seen = new Set();
+  const coins = (board || []).map((coin) => {
+    seen.add(coin.ca);
+    const row = extra.get(coin.ca);
+    if (!row) return coin;
+    return { ...coin, earlyAction: row.action, earlyReason: row.reason };
+  });
+  for (const row of extra.values()) {
+    if (seen.has(row.ca)) continue;
+    coins.push({
+      ...row,
+      pass: false,
+      dexUrl: row.dexUrl || `https://dexscreener.com/solana/${row.ca}`,
+      earlyAction: row.action,
+      earlyReason: row.reason,
+    });
+  }
+  return coins;
 }
 function coinsView() {
   if (ui.coinsState !== 'ready' && ui.coinsState !== 'error') loadCoins();
@@ -1069,7 +1092,8 @@ function caChip(ca) {
 }
 function coinCard(coin, watch = watchSet()) {
   const on = watch.has(coin.ca);
-  return `<article class="card coin"><button type="button" class="coin-open" data-open-coin="${esc(coin.ca)}">${coinLogo(coin)}<span class="coin-id"><b>${esc(coin.name)}</b><small>$${esc(coin.symbol)}</small></span><span class="tag ${coin.pass ? 'normal' : 'off'}">${coin.pass ? 'paper buy' : 'no buy'}</span></button><div class="row">${caChip(coin.ca)}<button type="button" class="btn" data-watch="${esc(coin.ca)}" aria-pressed="${on}">${on ? 'Watching' : 'Watch'}</button></div>${coinLinks(coin.ca, coin.dexUrl)}</article>`;
+  const early = coin.earlyAction ? `<p class="note">${esc(coin.earlyAction)} · ${esc(coin.earlyReason || '')}</p>` : '';
+  return `<article class="card coin"><button type="button" class="coin-open" data-open-coin="${esc(coin.ca)}">${coinLogo(coin)}<span class="coin-id"><b>${esc(coin.name)}</b><small>$${esc(coin.symbol)}</small></span><span class="tag ${coin.pass ? 'normal' : 'off'}">${coin.pass ? 'paper buy' : 'no buy'}</span></button><div class="row">${caChip(coin.ca)}<button type="button" class="btn" data-watch="${esc(coin.ca)}" aria-pressed="${on}">${on ? 'Watching' : 'Watch'}</button></div>${coinLinks(coin.ca, coin.dexUrl)}${early}</article>`;
 }
 function coinSheet(coin, animate) {
   if (!coin) return '';

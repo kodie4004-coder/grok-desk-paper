@@ -45,10 +45,10 @@ try {
   await page.locator('nav.tabs button[data-tab="brain"]').click();
   await page.waitForSelector('text=/after fees/i', { timeout: 8000 }).catch((e) => logs.push(e.message));
   const brain = await page.locator('#view').innerText();
-  if (!/bot brain/i.test(brain) || !/after fees/i.test(brain) || !/nonstop/i.test(brain) || !/new research upgrades/i.test(brain) || !/jev check/i.test(brain) || !/shadow/i.test(brain)) fails.push('brain\n' + brain.slice(0, 400) + '\n' + logs.join('\n'));
+  if (!/bot brain/i.test(brain) || !/after fees/i.test(brain) || !/nonstop/i.test(brain) || !/new research upgrades/i.test(brain) || !/jev check/i.test(brain) || !/early entry/i.test(brain) || !/shadow/i.test(brain)) fails.push('brain\n' + brain.slice(0, 400) + '\n' + logs.join('\n'));
   await page.locator('nav.tabs button[data-tab="score"]').click();
   const score = await page.locator('#view').innerText();
-  if (!/ready for real money/i.test(score) || !/hype check/i.test(score) || !/new research upgrades/i.test(score) || !/jev check/i.test(score) || !/shadow/i.test(score)) fails.push('score\n' + score.slice(0, 400));
+  if (!/ready for real money/i.test(score) || !/hype check/i.test(score) || !/new research upgrades/i.test(score) || !/jev check/i.test(score) || !/early entry/i.test(score) || !/shadow/i.test(score)) fails.push('score\n' + score.slice(0, 400));
   await page.locator('nav.tabs button[data-tab="settings"]').click();
   if (await page.locator('input[type="checkbox"][disabled]').count() < 1) fails.push('live execution toggle');
   await page.setViewportSize({ width: 430, height: 932 });
