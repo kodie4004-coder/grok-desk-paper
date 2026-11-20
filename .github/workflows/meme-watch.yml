@@ -1,0 +1,50 @@
+name: Meme stop watcher
+
+# Open meme paper positions used to be priced only when the snapshot job ran.
+# A 15% stop then filled much lower. This pass asks DexScreener every 4 seconds
+# while a paper position is open. The tokens endpoint takes the whole book in
+# one call, about 15 calls a minute, under the 300/minute pairs limit.
+# The job runs a few minutes, commits with the same rebase retry as the
+# snapshot, and queues the next pass only while something is still open.
+# The repo is public. One runner, no schedule on this file. meme-watch-kick.yml
+# starts a pass when this chain has stopped.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: meme-stop-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recheck open meme stops
+        run: node runner/watch-meme.mjs | tee /tmp/watch.out
+      - name: Commit exits when a stop or target filled
+        run: bash runner/push-snapshot.sh
+      - name: Queue the next pass while a position is open
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if grep -q '^chain=yes' /tmp/watch.out; then
+            if [ "${{ job.status }}" = "success" ]; then
+              bash runner/queue-watch.sh
+            else
+              bash runner/queue-watch.sh --backoff
+            fi
+          else
+            echo "no open meme position; the kick will look again"
+          fi

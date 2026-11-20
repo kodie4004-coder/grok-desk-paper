@@ -205,6 +205,52 @@ export async function loadSpots(fetchImpl = globalThis.fetch) {
   return out;
 }
 
+function recentPrints(rows, now) {
+  const out = [];
+  for (const row of rows || []) {
+    const px = Number(row.price ?? row.px);
+    const t = Date.parse(row.time || '') || Number(row.ts);
+    if (!(px > 0) || !Number.isFinite(t) || t > now || now - t > 60000) continue;
+    out.push({ t, px });
+  }
+  return out;
+}
+
+// Trailing minute of public trades. This is the stand-in for the 60-second
+// index average. A missing feed leaves avg60 empty and the challenger skips.
+export async function loadSpotWindow(fetchImpl = globalThis.fetch, now = Date.now()) {
+  const bases = [...new Set(Object.values(SPOT))];
+  const out = {};
+  await Promise.all(bases.map(async (base) => {
+    let prints = [];
+    let source = '';
+    try {
+      const res = await fetchImpl(`https://api.exchange.coinbase.com/products/${base}-USD/trades?limit=100`, { headers: { accept: 'application/json' } });
+      if (res.ok) {
+        prints = recentPrints(await res.json(), now);
+        source = 'Coinbase trades';
+      }
+    } catch { /* try the backup */ }
+    if (prints.length < 2) {
+      try {
+        const res = await fetchImpl(`https://www.okx.com/api/v5/market/trades?instId=${base}-USDT&limit=100`, { headers: { accept: 'application/json' } });
+        if (!res.ok) return;
+        const body = await res.json();
+        const next = recentPrints((body.data || []).map((row) => ({ px: row.px, ts: Number(row.ts) })), now);
+        if (next.length >= 2) { prints = next; source = 'OKX trades'; }
+      } catch { return; }
+    }
+    if (prints.length < 2) return;
+    out[base] = {
+      avg60: prints.reduce((sum, row) => sum + row.px, 0) / prints.length,
+      prints,
+      now,
+      source,
+    };
+  }));
+  return out;
+}
+
 export async function loadBook(fetchImpl = globalThis.fetch) {
   try {
     const res = await fetchImpl('https://api.exchange.coinbase.com/products/BTC-USD/book?level=2', { headers: { accept: 'application/json' } });

@@ -1,7 +1,7 @@
 // Append paper journal rows from the Kalshi snapshot. Never rewrites old lines.
 import fs from 'node:fs';
 import { stepJournal, defaultBrain, allocCurve } from '../engine/learn.js';
-import { loadSpots } from '../engine/arena.js';
+import { loadSpots, loadSpotWindow } from '../engine/arena.js';
 
 const board = JSON.parse(fs.readFileSync('data/kalshi-15m.json', 'utf8'));
 const openDoc = fs.existsSync('data/journal-open.json') ? JSON.parse(fs.readFileSync('data/journal-open.json', 'utf8')) : { entries: [] };
@@ -12,6 +12,12 @@ const settledRows = prior.map((line) => JSON.parse(line));
 const existingIds = settledRows.map((row) => row.id);
 let spots = {};
 try { spots = await loadSpots(); } catch { spots = {}; }
+try {
+  const windowed = await loadSpotWindow();
+  for (const [key, value] of Object.entries(windowed)) {
+    spots[key] = { ...(spots[key] || {}), ...value, px: spots[key]?.px || value.prints?.[0]?.px };
+  }
+} catch { /* settlement challenger skips when the minute average is missing */ }
 const now = Date.parse(board.fetchedAt || '') || Date.now();
 const next = stepJournal({ markets: board.markets || [], open: openDoc.entries || [], quotes: quoteDoc, brain, existingIds, settledRows, spots, now });
 fs.mkdirSync('data', { recursive: true });

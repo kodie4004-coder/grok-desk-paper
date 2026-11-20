@@ -3,6 +3,7 @@
 // The v6 edge gate is not modified here. Size stays $2. Nothing here is real money.
 
 import { kalshiTakerFee, coinFlipSide } from './kalshi.js';
+import { makerPick, quoteCrossed, settlePick } from './upgrades.js';
 import { reviewRoles, shouldExit, settleExit } from './roles.js';
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
@@ -30,9 +31,11 @@ export const VARIANTS = [
   { id: 'scalp-stop', family: 'scalp', label: 'Scalp, 4c stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'stop' },
   { id: 'scalp-time', family: 'scalp', label: 'Scalp, 2-minute time-stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'time' },
   { id: 'flip', family: 'flip', label: 'Coin-flip control', role: 'control', kind: 'flip', minLeft: 600, maxLeft: 840 },
+  { id: 'rest-maker', family: 'maker', label: 'Resting maker', role: 'challenger', kind: 'maker', minLeft: 120, maxLeft: 600 },
+  { id: 'mom-settle', family: 'mom', label: 'Momentum, 60-second average', role: 'challenger', kind: 'settle', minLeft: 120, maxLeft: 600 },
 ];
 
-const FAMILY_LABEL = { late: 'Late favorite', mom: 'Momentum vs target', revert: 'Mean revert', scalp: 'Intra-window scalp', flip: 'Coin-flip control' };
+const FAMILY_LABEL = { late: 'Late favorite', mom: 'Momentum vs target', revert: 'Mean revert', scalp: 'Intra-window scalp', flip: 'Coin-flip control', maker: 'Resting maker' };
 
 export function defaultBrain() {
   return {
@@ -110,6 +113,10 @@ export function signal(variant, market, now, ctx = {}) {
     if (!(yes > 0 && yes < 1) || !(no > 0 && no < 1)) return null;
     const side = coinFlipSide(market.ticker + market.closeTime);
     picked = { side, ask: side === 'yes' ? yes : no };
+  } else if (variant.kind === 'maker') {
+    picked = makerPick(market);
+  } else if (variant.kind === 'settle') {
+    picked = settlePick(market, ctx.spots, left);
   }
   if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
   const samples = [...(ctx.prev?.samples || []), yes].filter((n) => Number.isFinite(n));
@@ -131,7 +138,7 @@ export function signal(variant, market, now, ctx = {}) {
 export function settleRow(entry, result, now) {
   const won = result === entry.side;
   const contracts = entry.contracts;
-  const fee = kalshiTakerFee(entry.ask, contracts);
+  const fee = entry.maker ? 0 : kalshiTakerFee(entry.ask, contracts);
   const pnl = (won ? contracts : 0) - contracts * entry.ask - fee;
   if (entry.sizeUsd !== LEARN_SIZE) throw new Error('paper size is fixed at $2');
   return {
@@ -189,9 +196,33 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
   const settled = [];
   const still = [];
   const byTicker = new Map((markets || []).map((m) => [m.ticker, m]));
-  for (const entry of open) {
+  for (const raw of open) {
+    const entry = { ...raw };
     const market = byTicker.get(entry.ticker);
     const resolved = market && (market.result === 'yes' || market.result === 'no');
+    if (entry.resting && !entry.filled) {
+      const crossed = market && quoteCrossed(entry.limit ?? entry.ask, market);
+      if (crossed) {
+        const limit = entry.limit ?? entry.ask;
+        const contracts = Math.floor(LEARN_SIZE / limit);
+        if (contracts >= 1) {
+          entry.filled = true;
+          entry.resting = false;
+          entry.maker = true;
+          entry.fee = 0;
+          entry.ask = limit;
+          entry.contracts = contracts;
+        }
+      }
+      if (entry.filled && resolved && !known.has(entry.id)) {
+        settled.push(settleRow(entry, market.result, now));
+        known.add(entry.id);
+        continue;
+      }
+      if (resolved || (crossed && !(entry.filled))) continue;
+      if (!resolved) still.push(entry);
+      continue;
+    }
     if (resolved) {
       if (!known.has(entry.id)) {
         settled.push(settleRow(entry, market.result, now));
@@ -265,6 +296,14 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
         const opened = openRow(row.variant, market, row.sig, now, !!(decision.allocated && !capped && chosenOne));
         if (!opened) continue;
         opened.role = liveRole(row.variant, state, quietBot);
+        if (row.sig.maker) {
+          opened.maker = true;
+          opened.resting = true;
+          opened.filled = false;
+          opened.limit = row.sig.limit;
+          opened.ask = row.sig.limit;
+          opened.fee = 0;
+        }
         opened.roles = decision.logs;
         opened.skipped = decision.skipped;
         opened.skipReason = decision.skipReason || null;
@@ -501,6 +540,10 @@ export function reviewBrain(brain, rows, now, opts = {}) {
     for (const family of Object.keys(FAMILY_LABEL)) {
       if (family === 'flip') continue;
       const champId = champions[family];
+      if (!champId) {
+        decisions.push(`${FAMILY_LABEL[family]} has no champion. A challenger stays at the starter weight until the holdout can compare it.`);
+        continue;
+      }
       const champHold = windowStats(holdRows.filter((r) => r.variant === champId), opts.iters || 200);
       let best = null;
       for (const variant of VARIANTS.filter((v) => v.family === family && v.id !== champId && v.role !== 'control')) {
@@ -651,7 +694,7 @@ export function journalSummary(rows) {
   if (!rows.length) return ['No settled journal trades yet.'];
   lines.push(`All settled lines: n ${stats.n}, win rate ${Math.round((100 * stats.wins) / stats.n)}%, net ${usd(net)} after fees, mean ${usd(stats.mean)}, 90% interval ${usd(stats.lo)} to ${usd(stats.hi)}.`);
   lines.push(`Allocated $2 picks: n ${alloc.length}, net ${usd(allocNet)}, mean ${usd(allocStats.mean)}, 90% interval ${usd(allocStats.lo)} to ${usd(allocStats.hi)}. ${sampleLabel(alloc.length, allocStats.lo, allocStats.hi)}. Shadows are logged and are not a second bet.`);
-  for (const family of ['revert', 'late', 'mom', 'scalp', 'flip']) {
+  for (const family of ['revert', 'late', 'mom', 'scalp', 'flip', 'maker']) {
     const mine = rows.filter((row) => row.family === family);
     const s = windowStats(mine, 120);
     if (!s.n) continue;

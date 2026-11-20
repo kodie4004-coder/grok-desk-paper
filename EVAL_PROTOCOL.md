@@ -288,6 +288,22 @@ These rules do not change `graduates()` or the holdout. A loss does not raise si
 - If a variant has at least 8 shadow trades, a new allocated entry is vetoed when their mean after fees does not exceed this contract's taker fee plus half the spread in dollars. The veto is journaled as a skip.
 - Allocation weight is the 90% lower bound in dollars divided by $0.50, capped at 1 and floored at 0. With fewer than 8 allocated trades the weight is 0.25. If that variant's allocated paper is down today, the weight is not raised above the previous weight.
 
+## v11 fast stops, resting orders, and the settlement average (frozen before the shadow numbers)
+
+These three checks do not change `graduates()`, the v6 edge gate, the holdout rule, or the $2 size. `live_execution` stays off. A challenger is promoted only by the v7 rule already in `reviewBrain`: both sides need at least 20 holdout trades, and the challenger's after-fee mean has to be positive and higher. A short sample cannot do that. Parameters below were written before the candle replay was scored.
+
+### Fast meme stops
+
+The meme rule is unchanged: exit at 15% down, 25% up, or 30 minutes, on a $2 paper fill. The snapshot job was the only checker, so a stop could fill well past 15%. A separate public-repo Actions pass reads open paper positions and asks DexScreener every 4 seconds, one batched call for the whole book, while a position is open. That is about 15 calls a minute. The pairs limit is 300 a minute. It sells when the observed price crosses the stop or the target, and it records that fill as `watch`. It does not open coins and it does not change the stop. If two jobs exit the same coin, the earlier fill is kept. The before sample is every stop without `watch`. The after sample is stops with `watch`. An empty after sample is reported as empty.
+
+### Resting maker
+
+Family `maker`, variant `rest-maker`, role challenger. Crypto 15-minute series only. With 120 to 600 seconds left, if the yes spread is from 1 cent to 10 cents, rest a yes bid at the current bid. Fee on that resting order is zero. The paper order joins last in the queue at that price. A later trade that only touches the bid fills someone ahead of us and is not our fill. We fill only when a later trade prints strictly below the bid, or the ask drops strictly below it. The fill price is still the bid. There is no assumed price improvement. If the market resolves with no such cross, the order is not a trade and it is left out of the maker mean. The taker comparison buys the same candle's ask, pays `0.07 × C × P × (1 − P)` rounded up to the next cent, and holds to the same result. On the stored 1-minute candles the attempt is the bar closest to five minutes before the close, inside two to ten minutes. Unfilled attempts stay in the taker mean and stay out of the maker mean. A first pass that counted a touch as a fill is not the rule. It filled 119 of 120 and was replaced by this stricter fill before any weight changed.
+
+### Settlement average
+
+Variant `mom-settle`, family `mom`, role challenger. Same 120 to 600 second window as momentum. Kalshi settles the 60-second average of the index before the close against the average before the open. The open average in this paper book is the published strike. The close average is estimated from the trailing 60 seconds of public Coinbase trades, or OKX trades when Coinbase has fewer than two prints in that minute. One last tick is not the input. Before the final minute, the expected settlement level is that trailing average. Inside the final minute, the part already printed is locked. The probability uses a normal curve whose one-minute scale is 0.05%, the same gap already frozen for mom-strict. It is not estimated from this sample. The challenger buys a side only when its fair value clears the ask by the unrounded taker fee `0.07 × P × (1 − P)`. A missing average is no trade. It does not replace momentum unless the v7 holdout says so.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

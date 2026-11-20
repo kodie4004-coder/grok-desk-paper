@@ -1,0 +1,42 @@
+name: Meme stop watcher kick
+
+# Restarts the 4-second DexScreener pass when the chain is not already queued
+# or running. Five minutes is enough to notice a dead chain without holding a
+# runner between checks. Public repo, one short job.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: meme-stop-kick
+  cancel-in-progress: false
+
+jobs:
+  kick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Start a pass when none is running
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="${GITHUB_REPOSITORY:?}"
+          raw="$(gh run list --workflow meme-watch.yml --repo "$repo" --limit 20 --json databaseId,status)"
+          choice="$(printf '%s' "$raw" | node runner/queue-next.mjs 0)"
+          echo "decision=$choice"
+          if [ "$choice" = "dispatch" ]; then
+            gh workflow run meme-watch.yml --ref main --repo "$repo"
+          else
+            echo "watch chain is already active"
+          fi
