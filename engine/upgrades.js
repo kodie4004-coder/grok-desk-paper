@@ -6,6 +6,8 @@
 // The noise scale is the 0.05% already frozen for mom-strict. It is not fit here.
 
 import { kalshiTakerFee } from './kalshi.js';
+import { earlyExitReport, earlyShadow } from './early.js';
+import { jevShadow } from './jev.js';
 
 export const LEARN_SIZE = 2;
 export const SETTLEMENT_SCALE = 0.0005;
@@ -221,9 +223,11 @@ export function upgradeLines(report) {
   lines.push(`Settlement prices are a challenger. Kalshi pays the 60-second average against the average from before the open, not one Coinbase tick. This bot uses that average from public trades. It has ${n} settled paper trades, so it has not earned a larger share. Live execution stays off.`);
   const jev = report?.jev;
   if (jev?.n) {
-    lines.push(`Jev check is a shadow challenger on meme coins. On ${jev.n} of the same paper trades, the baseline filter averaged ${money(jev.baselineMean)} after fees and the book with flags removed averaged ${money(jev.mean)}. Weight is ${jev.weight === 1 ? 1 : 0}. A flag does not block an entry. Live execution stays off.`);
+    const rate = jev.unknownRate == null ? (jev.unknown == null ? null : jev.unknown / jev.n) : jev.unknownRate;
+    const unknown = rate == null ? 'unknown share not in this file' : `${Math.round(rate * 100)}% unknown`;
+    lines.push(`Jev check is a shadow challenger on meme coins. On ${jev.n} of the same paper trades, the baseline filter averaged ${money(jev.baselineMean)} after fees and the book with flags removed averaged ${money(jev.mean)}. ${unknown}. The prompt includes DexScreener links and description, public X profile facts, a RugCheck summary, age, liquidity, and similar tickers from our boards. Weight is ${jev.weight === 1 ? 1 : 0}. A flag does not block an entry. Live execution stays off.`);
   } else {
-    lines.push('Jev check is a shadow challenger on meme coins. It asks whether the linked X account is plausibly the real project, whether the coin copies an existing ticker or narrative, and whether the description has an obvious rug flag. No settled comparison is in this file yet. Weight is 0. It does not block an entry. Live execution stays off.');
+    lines.push('Jev check is a shadow challenger on meme coins. It asks whether the linked X account is plausibly the real project, whether the coin copies an existing ticker or narrative, and whether the description or the RugCheck summary has an obvious rug flag. The prompt includes public X profile facts, age, liquidity, and similar tickers when those are on hand. No settled comparison is in this file yet. Weight is 0. It does not block an entry. Live execution stays off.');
   }
   const early = report?.early;
   if (early?.n) {
@@ -232,7 +236,22 @@ export function upgradeLines(report) {
   } else {
     lines.push('Early entry is a shadow challenger for coins under 30 minutes old. No settled early trade is in this file yet. Weight is 0. It does not change the meme safety bars. Live execution stays off.');
   }
+  const exits = Array.isArray(report?.earlyExits) && report.earlyExits.length ? report.earlyExits : earlyExitReport([]);
+  const bits = exits.map((row) => `${row.name} n ${row.n || 0} ${money(row.mean)}`);
+  lines.push(`Early exit variants stay shadow at weight 0. Same entries, after fees, against the current early exit. A 10 minute time stop, a half sale at 12% only when that half clears fees then a 15% trail, and a 15% trail off the peak the 4 second watcher has seen. Those parameters were registered before any result. ${bits.join('. ')}. Live execution stays off.`);
   return lines;
+}
+
+export function withShadowScores(doc, rows) {
+  const base = doc && typeof doc === 'object' && !Array.isArray(doc) ? doc : {};
+  return {
+    ...base,
+    paper: true,
+    liveExecution: false,
+    jev: jevShadow(rows),
+    early: earlyShadow(rows),
+    earlyExits: earlyExitReport(rows),
+  };
 }
 
 export function challengerRows(report) {
@@ -266,6 +285,7 @@ export function challengerRows(report) {
       baselineMean: jev.baselineMean ?? null,
       status: 'shadow',
       weight: jev.weight === 1 ? 1 : 0,
+      unknownRate: jev.unknownRate == null ? (jev.n ? (jev.unknown || 0) / jev.n : null) : jev.unknownRate,
     },
     {
       id: 'early-entry',
@@ -277,5 +297,14 @@ export function challengerRows(report) {
       status: 'shadow',
       weight: early.weight === 1 ? 1 : 0,
     },
+    ...(Array.isArray(report?.earlyExits) && report.earlyExits.length ? report.earlyExits : earlyExitReport([])).map((row) => ({
+      id: row.id,
+      name: row.name,
+      n: row.n || 0,
+      mean: row.mean ?? null,
+      baselineMean: row.baselineMean ?? early.mean ?? null,
+      status: 'shadow',
+      weight: 0,
+    })),
   ];
 }

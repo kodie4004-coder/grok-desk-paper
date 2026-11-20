@@ -4,6 +4,7 @@
 // in push-snapshot.sh.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { mergeOpenEntry } from '../engine/early.js';
 
 export function parseLines(text) {
   return String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).flatMap((line) => {
@@ -42,8 +43,9 @@ export function mergeMemeOpen(ours, theirs, journalText) {
   const settled = new Set(parseLines(journalText).filter((row) => row.exit || row.pnl != null).map((row) => row.id));
   const map = new Map();
   for (const row of [...(ours?.entries || []), ...(theirs?.entries || [])]) {
-    if (!row?.id || settled.has(row.id) || map.has(row.id)) continue;
-    map.set(row.id, row);
+    if (!row?.id || settled.has(row.id)) continue;
+    const prev = map.get(row.id);
+    map.set(row.id, prev ? mergeOpenEntry(prev, row) : row);
   }
   const updated = [ours?.updatedAt, theirs?.updatedAt].filter(Boolean).sort().pop() || null;
   return { updatedAt: updated, entries: [...map.values()] };

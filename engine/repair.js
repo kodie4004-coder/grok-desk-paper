@@ -16,10 +16,15 @@ const usd = (x) => {
 
 const pct = (x) => (x == null || !Number.isFinite(x) ? '—' : `${x > 0 ? '+' : ''}${x.toFixed(1)}%`);
 
+function earlyBook(variant) {
+  const name = String(variant || '');
+  return name === 'early-entry' || name === 'early-track' || name.startsWith('early-exit');
+}
+
 export function sleeveBenched(rows) {
   const list = rows || [];
   const live = list.filter((row) => row && row.pnl != null && row.allocated !== false);
-  const shadows = list.filter((row) => row && row.pnl != null && row.allocated === false && row.variant !== 'early-entry');
+  const shadows = list.filter((row) => row && row.pnl != null && row.allocated === false && !earlyBook(row.variant));
   const n = live.length;
   const mean = n ? live.reduce((sum, row) => sum + row.pnl, 0) / n : null;
   const shadowMean = shadows.length ? shadows.reduce((sum, row) => sum + row.pnl, 0) / shadows.length : null;

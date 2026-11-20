@@ -321,19 +321,27 @@ function readSafety(info) {
   };
 }
 
-export function memePnl(entry, exit, slip = MEME_SLIP) {
+export function memePnl(entry, exit, slip = MEME_SLIP, size = MEME_SIZE) {
   if (!(entry > 0) || !(exit > 0)) return null;
+  const stake = Number.isFinite(size) && size > 0 ? size : MEME_SIZE;
   const slipPct = Number.isFinite(slip) && slip >= 0 ? Math.min(0.9, slip) : MEME_SLIP;
   const buy = entry * (1 + slipPct);
   const sell = exit * (1 - slipPct);
-  const qty = MEME_SIZE / buy;
+  const qty = stake / buy;
   const proceeds = qty * sell;
-  const fees = MEME_SIZE * MEME_FEE + proceeds * MEME_FEE;
-  return { pnl: proceeds - MEME_SIZE - fees, fees, sizeUsd: MEME_SIZE };
+  const fees = stake * MEME_FEE + proceeds * MEME_FEE;
+  return { pnl: proceeds - stake - fees, fees, sizeUsd: stake };
 }
 
 // Baseline fills stay on the flat 1% slip. An early-entry shadow row stores
 // the slip that was modeled from pool liquidity at the paper entry.
+function withoutTrack(pos) {
+  if (!pos?.exitTrack) return pos;
+  const copy = { ...pos };
+  delete copy.exitTrack;
+  return copy;
+}
+
 function fillPnl(pos, exitPx) {
   const slip = pos?.variant === 'early-entry' && Number.isFinite(pos.slip) ? pos.slip : undefined;
   return memePnl(pos.entry, exitPx, slip);
@@ -394,22 +402,74 @@ export function bestPair(pairs, token) {
   return rows.sort((a, b) => (num(b?.liquidity?.usd) || 0) - (num(a?.liquidity?.usd) || 0))[0] || null;
 }
 
-export function stepMeme({ coins, open = [], history = [], now }) {
+export function pricesForOpen(coins, open, priceMap) {
+  const have = new Set((coins || []).map((coin) => coin?.ca).filter(Boolean));
+  const extra = [];
+  for (const pos of open || []) {
+    if (!pos?.ca || have.has(pos.ca)) continue;
+    const px = num(priceMap?.[pos.ca]);
+    if (!(px > 0)) continue;
+    extra.push({
+      ca: pos.ca,
+      symbol: pos.symbol || '?',
+      name: pos.name || 'Unknown',
+      priceUsd: px,
+      pass: false,
+      reasons: [],
+    });
+    have.add(pos.ca);
+  }
+  return [...(coins || []), ...extra];
+}
+
+export function stepMeme({ coins, open = [], history = [], now, track = null }) {
   const settled = [];
+  const shadows = [];
   const still = [];
+  const knownIds = new Set((history || []).map((row) => row?.id).filter(Boolean));
   const byCa = new Map((coins || []).map((c) => [c.ca, c]));
   for (const pos of open) {
     const live = byCa.get(pos.ca);
     const px = num(live?.priceUsd);
+    if (pos?.variant === 'early-track') {
+      if (!(px > 0) || typeof track !== 'function') { still.push(pos); continue; }
+      const tracked = track(pos, px, now, { parentExiting: false, known: knownIds });
+      for (const row of tracked?.rows || []) {
+        if (!row?.id || knownIds.has(row.id)) continue;
+        shadows.push(row);
+        knownIds.add(row.id);
+      }
+      if (tracked?.pos) still.push(tracked.pos);
+      continue;
+    }
     const age = now - Date.parse(pos.openedAt);
     let exit = null;
     let why = null;
     if (px > 0 && px <= pos.entry * MEME_RULES.stop) { exit = px; why = 'stop'; }
     else if (px > 0 && px >= pos.entry * MEME_RULES.tp) { exit = px; why = 'take-profit'; }
     else if (age >= MEME_RULES.holdMs && px > 0) { exit = px; why = 'time-stop'; }
+    if (pos?.variant === 'early-entry' && typeof track === 'function') {
+      const tracked = track(pos, px, now, { parentExiting: !!exit, known: knownIds });
+      for (const row of tracked?.rows || []) {
+        if (!row?.id || knownIds.has(row.id)) continue;
+        shadows.push(row);
+        knownIds.add(row.id);
+      }
+      const current = tracked?.pos || pos;
+      if (exit) {
+        const deal = fillPnl(pos, exit);
+        if (deal && deal.sizeUsd === MEME_SIZE) {
+          const row = { ...withoutTrack(pos), ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true };
+          settled.push(row);
+          if (row.id) knownIds.add(row.id);
+          if (tracked?.hold) still.push(tracked.hold);
+        } else still.push(current);
+      } else still.push(current);
+      continue;
+    }
     if (exit) {
       const deal = fillPnl(pos, exit);
-      if (deal && deal.sizeUsd === MEME_SIZE) settled.push({ ...pos, ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true });
+      if (deal && deal.sizeUsd === MEME_SIZE) settled.push({ ...withoutTrack(pos), ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true });
     } else still.push(pos);
   }
   const known = new Set(still.map((p) => p.ca).concat(settled.map((p) => p.ca)));
@@ -418,7 +478,7 @@ export function stepMeme({ coins, open = [], history = [], now }) {
   const feeOk = memeTargetClearsFees();
   for (const coin of coins || []) {
     if (!coin.pass || known.has(coin.ca) || !(coin.priceUsd > 0)) continue;
-    if (still.filter((p) => p.variant !== 'early-entry').length >= 8) break;
+    if (still.filter((p) => p.variant !== 'early-entry' && p.variant !== 'early-track').length >= 8) break;
     if (!feeOk) continue;
     const jev = jevStamp(coin.jev);
     still.push({
@@ -439,7 +499,7 @@ export function stepMeme({ coins, open = [], history = [], now }) {
     });
     known.add(coin.ca);
   }
-  return { settled, open: still.filter((p) => p.pnl == null) };
+  return { settled, shadows, open: still.filter((p) => p.pnl == null) };
 }
 
 // One DexScreener call can take 30 mints. A 4s poll of a full book is 15 calls a minute.
@@ -535,20 +595,26 @@ export function stopSlippage(rows) {
   };
 }
 
+// The 30 minute time stop already lives on the snapshot path. The watcher
+// applies it too. An early coin is not on the safety board, so the snapshot
+// often has no price for it, and the position would otherwise stay open.
 export function watchExit(pos, px, now) {
   if (!(px > 0) || !(pos?.entry > 0)) return null;
+  if (pos.variant === 'early-track') return null;
   const stopPx = pos.entry * MEME_RULES.stop;
   const tpPx = pos.entry * MEME_RULES.tp;
+  const age = now - Date.parse(pos.openedAt || '');
   let why = null;
   if (px <= stopPx) why = 'stop';
   else if (px >= tpPx) why = 'take-profit';
+  else if (Number.isFinite(age) && age >= MEME_RULES.holdMs) why = 'time-stop';
   else return null;
   const deal = fillPnl(pos, px);
   if (!deal || deal.sizeUsd !== MEME_SIZE) return null;
-  const ruleMove = why === 'stop' ? MEME_RULES.stop - 1 : MEME_RULES.tp - 1;
+  const ruleMove = why === 'stop' ? MEME_RULES.stop - 1 : why === 'take-profit' ? MEME_RULES.tp - 1 : 0;
   const realizedMove = px / pos.entry - 1;
   return {
-    ...pos,
+    ...withoutTrack(pos),
     ...deal,
     exit: why,
     exitPx: px,
@@ -563,19 +629,45 @@ export function watchExit(pos, px, now) {
 }
 
 // Prices already observed. This does not open a coin and does not change the 15% rule.
-export function applyWatch({ open, prices, now, history = [] }) {
+export function applyWatch({ open, prices, now, history = [], track = null }) {
   const known = new Set((history || []).map((row) => row.id).filter(Boolean));
   const settled = [];
+  const shadows = [];
   const still = [];
+  const takeRows = (rows) => {
+    for (const row of rows || []) {
+      if (!row?.id || known.has(row.id)) continue;
+      shadows.push(row);
+      known.add(row.id);
+    }
+  };
   for (const pos of open || []) {
     if (pos?.id && known.has(pos.id)) continue;
-    const hit = watchExit(pos, prices?.[pos.ca], now);
+    const px = prices?.[pos.ca];
+    if (pos?.variant === 'early-track') {
+      if (typeof track !== 'function' || !(px > 0)) { still.push(pos); continue; }
+      const tracked = track(pos, px, now, { parentExiting: false, known });
+      takeRows(tracked?.rows);
+      if (tracked?.pos) still.push(tracked.pos);
+      continue;
+    }
+    const hit = watchExit(pos, px, now);
+    if (typeof track === 'function' && pos?.variant === 'early-entry') {
+      const tracked = track(pos, px, now, { parentExiting: !!hit, known });
+      takeRows(tracked?.rows);
+      if (hit) {
+        settled.push(hit);
+        if (hit.id) known.add(hit.id);
+        if (tracked?.hold) still.push(tracked.hold);
+      } else still.push(tracked?.pos || pos);
+      continue;
+    }
     if (hit) {
       settled.push(hit);
       if (hit.id) known.add(hit.id);
     } else still.push(pos);
   }
-  return { settled, open: still };
+  return { settled, shadows, open: still };
 }
 
 export function pricesFromDex(book, mints) {

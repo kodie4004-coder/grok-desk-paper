@@ -308,7 +308,7 @@ Variant `mom-settle`, family `mom`, role challenger. Same 120 to 600 second wind
 
 This does not change `graduates()`, the v6 edge gate, the holdout rule, the meme safety bars, or the $2 size. `live_execution` stays off. The variant id is `jev-check`. It is a shadow challenger. It does not open a trade and it does not block one.
 
-The snapshot asks TypeSafe System One, `POST https://api.typesafe.ai/v1/systemone`, model id `jev-1.14.0`, only for a coin the baseline meme filter already passed. The state is the name, ticker, description, websites, and social links. Price, size, and the contract address are not sent. One request asks three yes/no questions (linked X account plausibly the real project, copycat or impersonation, obvious rug flag in the description) and one choice whose only answers are `pass`, `flag`, and `unknown`. The stored verdict is that choice. A yes/no probability is not a second cutoff. A response that is not that shape is `unknown` and is not cached. Each contract address is asked at most once. A run asks at most 20 new coins, retries a transport failure once, and stops after 35 seconds. A missing `TYPESAFE_API_KEY` asks nothing. The key is an environment variable on the meme snapshot step and is not written to the log or the repo.
+The snapshot asks TypeSafe System One, `POST https://api.typesafe.ai/v1/systemone`, model id `jev-1.14.0`, only for a coin the baseline meme filter already passed. The state is the name, ticker, description, websites, and social links. Price, size, and the contract address are not sent. One request asks three yes/no questions (linked X account plausibly the real project, copycat or impersonation, obvious rug flag in the description) and one choice whose only answers are `pass`, `flag`, and `unknown`. The stored verdict is that choice. A yes/no probability is not a second cutoff. A response that is not that shape is `unknown` and is not cached. Each contract address is asked at most once, except the one-time re-ask in v14. A run asks at most 20 new coins, retries a transport failure once, and stops after 35 seconds. A missing `TYPESAFE_API_KEY` asks nothing. The key is an environment variable on the meme snapshot step and is not written to the log or the repo.
 
 On the settled paper trades that carry a verdict, the baseline mean keeps every trade. The veto mean drops `flag` and keeps `unknown`. Both means are after the meme fee and slippage already on the row. Weight is 0 unless `graduates()` is true on the veto book's day windows, using the same 90% lower bound the bot gate already uses. Clearing that gate still does not place or block a trade. The day the verdicts were first logged cannot be used to retune the questions.
 
@@ -341,6 +341,22 @@ A coin at least 30 minutes old is a pass, not an entry. The v9 rule already owns
 The same Jev check runs on coins that would enter, after the baseline coins, on the same cache. The run still asks at most 20 new coins. A flag does not block the shadow entry.
 
 The paper fill is $2. The stop, the 25% take-profit, and the 30 minute time stop are the v9 rules. The stop watcher prices the position with the slip stored at entry. The row is `allocated: false`. These trades use `graduates()` and do not change it. The day they are first logged cannot retune the thresholds. The age audit in `data/early-audit.json` was measured before this sleeve and was not used to pick the numbers above.
+
+## v14 Jev context and early exit shadows (frozen before the new shadow numbers)
+
+This does not change `graduates()`, the v6 edge gate, the holdout rule, the v9 meme safety bars, the v13 early hard kills, or the $2 size. `live_execution` stays off. New books stay at weight 0. `graduates()` is not applied to the exit variants.
+
+The Jev state now also includes age, liquidity, a RugCheck summary, public X profile facts, and similar names and tickers from the current meme and early boards. Price, size, and the contract address are still not sent. The choice verdict still has a confidence from 0 to 1. RugCheck's public summary often omits mint, freeze, and top holders, so the summary in the prompt is built from `GET /v1/tokens/{mint}/report`. The X facts come from `syndication.twitter.com` with no API key: followers, account age, and bio. If that page does not parse, the profile is left out and the ask still happens. An address cached as `unknown` with no `context-v2` prompt is asked once more. That re-ask counts toward the same 20-call cap. A `pass` or a `flag` is not asked again. An `unknown` stored with `context-v2` is not asked again.
+
+The 30 minute time stop is applied on the 4 second watcher, not only when the snapshot sees the coin on the safety board. Early coins were missing from that board, so a flat position never aged out, the four open slots stayed full, and later enter lines were logged without a position. The snapshot also prices an open mint that is not on the board before it runs the same rule.
+
+Three exit books use the same early entries and the same stored slip. They were written down before any of their results:
+
+- `early-exit-fast`: the 15% stop and the 25% take-profit, with a 10 minute time stop.
+- `early-exit-half`: sell half of the $2 only when the print is at least 12% above entry and that half's after-fee P&L is positive. The other half trails 15% off the peak after the half sale. If the half never clears, the whole $2 uses the 15% stop or the 30 minute time stop.
+- `early-exit-trail`: sell the $2 when the print is 15% off the highest price the 4 second watcher has seen. The 15% figure is the existing stop distance. A 30 minute time stop still closes a trail that never ratchets down.
+
+If the baseline position hits its 25% take-profit while a trail is still open, a paper shell keeps that mint on the watcher until the shadow book closes. The shell does not take an early-entry slot and it is not an allocated trade. Weight on all three books stays 0.
 
 ## What would falsify a cheerful reading
 

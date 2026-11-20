@@ -4,6 +4,8 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { applyWatch, pricesFromDex, stopSlippage, watchIntervalMs, watchStamp } from '../engine/meme.js';
+import { advanceEarlyExits, mergeOpenEntry } from '../engine/early.js';
+import { withShadowScores } from '../engine/upgrades.js';
 
 const interval = watchIntervalMs(Number(process.env.MEME_WATCH_MS || 4000));
 const duration = Number(process.env.MEME_WATCH_FOR || 240000);
@@ -32,9 +34,14 @@ function refreshOpen(localOpen, settledIds) {
     const text = execFileSync('git', ['show', 'origin/main:data/meme-open.json'], { encoding: 'utf8' });
     const remote = JSON.parse(text).entries || [];
     const map = new Map();
-    for (const row of [...remote, ...localOpen]) {
+    for (const row of remote) {
       if (!row?.id || settledIds.has(row.id)) continue;
-      if (!map.has(row.id)) map.set(row.id, row);
+      map.set(row.id, row);
+    }
+    for (const row of localOpen) {
+      if (!row?.id || settledIds.has(row.id)) continue;
+      const prev = map.get(row.id);
+      map.set(row.id, prev ? mergeOpenEntry(row, prev) : row);
     }
     return [...map.values()];
   } catch (e) {
@@ -65,20 +72,31 @@ try {
       console.log('dex', e.message);
     }
     const now = Date.now();
-    const next = applyWatch({ open, prices, now, history });
+    const next = applyWatch({ open, prices, now, history, track: advanceEarlyExits });
     open = next.open.filter((row) => !settledIds.has(row.id));
-    if (next.settled.length) {
+    const journalRows = [...next.settled, ...(next.shadows || [])];
+    if (journalRows.length) {
       fs.mkdirSync('data', { recursive: true });
-      fs.appendFileSync('data/meme-journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
-      history.push(...next.settled);
+      fs.appendFileSync('data/meme-journal.jsonl', journalRows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      history.push(...journalRows);
       for (const row of next.settled) settledIds.add(row.id);
+      for (const row of next.shadows || []) settledIds.add(row.id);
       fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date(now).toISOString(), entries: open }, null, 2) + '\n');
       fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(history), updatedAt: new Date(now).toISOString(), calls }, null, 2) + '\n');
-      console.log('exited', next.settled.map((row) => `${row.symbol || row.ca} ${row.exit}`).join(', '));
+      const path = 'data/research-upgrades.json';
+      let doc = { paper: true, liveExecution: false };
+      try { doc = { ...doc, ...JSON.parse(fs.readFileSync(path, 'utf8')) }; } catch { /* keep the paper report */ }
+      fs.writeFileSync(path, JSON.stringify(withShadowScores(doc, history), null, 2) + '\n');
+      console.log('exited', journalRows.map((row) => `${row.symbol || row.ca} ${row.exit}`).join(', '));
     }
     const left = until - Date.now();
     if (left <= 0 || !open.length) break;
     await new Promise((resolve) => setTimeout(resolve, Math.min(interval, left)));
+  }
+  const disk = readJson('data/meme-open.json', { entries: [] }).entries || [];
+  if (JSON.stringify(disk) !== JSON.stringify(open)) {
+    fs.mkdirSync('data', { recursive: true });
+    fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date().toISOString(), entries: open }, null, 2) + '\n');
   }
   console.log('calls', calls, 'open', open.length, 'intervalMs', interval);
   console.log(open.length ? 'chain=yes' : 'chain=no');

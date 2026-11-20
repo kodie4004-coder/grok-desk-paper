@@ -6,11 +6,12 @@
 // call is the dispatch. The Kalshi workflow step calls the same script again.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { bestPair, candidateMints, lookupMints, openMemeCount, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
-import { cacheDoc, cacheFromDoc, describeCoin, jevShadow, reviewCandidates, JEV_CALL_CAP } from '../engine/jev.js';
+import { bestPair, candidateMints, lookupMints, openMemeCount, pricesForOpen, pricesFromDex, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
+import { cacheDoc, cacheFromDoc, prepareJevState, reviewCandidates, JEV_CALL_CAP } from '../engine/jev.js';
 import {
-  EARLY_SCAN, candidatesFromSources, decideCandidate, earlyShadow, loadSources, needsChain, nextLog, openEarly, readRug, withPair,
+  EARLY_SCAN, advanceEarlyExits, candidatesFromSources, decideCandidate, loadSources, needsChain, nextLog, openEarly, readRug, withPair,
 } from '../engine/early.js';
+import { withShadowScores } from '../engine/upgrades.js';
 import { watchKickDecision } from './kick-watch.mjs';
 
 function dispatchMemeWatch() {
@@ -48,14 +49,9 @@ function saveSleeveScore(rows) {
   const path = 'data/research-upgrades.json';
   let doc = { paper: true, liveExecution: false };
   try { doc = { ...doc, ...JSON.parse(fs.readFileSync(path, 'utf8')) }; } catch { /* start a paper report */ }
-  const jev = jevShadow(rows);
-  const early = earlyShadow(rows);
-  if (JSON.stringify(doc.jev) === JSON.stringify(jev) && JSON.stringify(doc.early) === JSON.stringify(early) && fs.existsSync(path)) return;
-  doc.paper = true;
-  doc.liveExecution = false;
-  doc.jev = jev;
-  doc.early = early;
-  fs.writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
+  const nextDoc = withShadowScores(doc, rows);
+  if (JSON.stringify(doc.jev) === JSON.stringify(nextDoc.jev) && JSON.stringify(doc.early) === JSON.stringify(nextDoc.early) && JSON.stringify(doc.earlyExits) === JSON.stringify(nextDoc.earlyExits) && fs.existsSync(path)) return;
+  fs.writeFileSync(path, JSON.stringify(nextDoc, null, 2) + '\n');
 }
 
 function readEarlyLog() {
@@ -142,13 +138,14 @@ try {
     }
     let earlyDecisions = [];
     let earlySources = [];
+    let earlyRows = [];
     try {
       earlySources = await loadSources(fetch, {
         'dex-boosts': Array.isArray(boosts) ? boosts : [],
         'dex-profiles': Array.isArray(profiles) ? profiles : [],
         'gecko-new': poolsDoc || { data: [] },
       });
-      let earlyRows = candidatesFromSources(earlySources, now);
+      earlyRows = candidatesFromSources(earlySources, now);
       const unseen = earlyRows.filter((row) => !meta.has(row.ca)).slice(0, 30);
       if (unseen.length) {
         try {
@@ -184,11 +181,22 @@ try {
       console.log('early scan failed', e.message);
     }
     const jevCache = loadJevCache();
+    const boards = [
+      ...earlyRows.map((row) => ({ ca: row.ca, name: row.name, symbol: row.symbol })),
+      ...coins.map((row) => ({ ca: row.ca, name: row.name, symbol: row.symbol })),
+    ];
+    const prepare = (coin) => prepareJevState(coin, {
+      pair: meta.get(coin.ca)?.pair || null,
+      profile: blurbs.get(coin.ca) || null,
+      boards,
+      fetchImpl: fetch,
+      nowMs: now,
+    });
     try {
       const reviewed = await reviewCandidates(coins, {
         cache: jevCache,
         now: new Date(now).toISOString(),
-        describe: (coin) => describeCoin({ coin, pair: meta.get(coin.ca)?.pair, profile: blurbs.get(coin.ca) }),
+        prepare,
       });
       coins = reviewed.coins;
       const enters = earlyDecisions.filter((row) => row.action === 'enter').map((row) => ({ ...row, pass: true }));
@@ -196,7 +204,7 @@ try {
         cache: jevCache,
         cap: Math.max(0, JEV_CALL_CAP - reviewed.asked),
         now: new Date(now).toISOString(),
-        describe: (coin) => describeCoin({ coin, pair: meta.get(coin.ca)?.pair, profile: blurbs.get(coin.ca) }),
+        prepare,
       });
       const byCa = new Map(earlyReview.coins.map((row) => [row.ca, row.jev]));
       earlyDecisions = earlyDecisions.map((row) => (byCa.get(row.ca) ? { ...row, jev: byCa.get(row.ca) } : row));
@@ -209,14 +217,29 @@ try {
     const history = fs.existsSync('data/meme-journal.jsonl')
       ? fs.readFileSync('data/meme-journal.jsonl', 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
       : [];
-    const next = stepMeme({ coins, open: openDoc.entries || [], history, now });
+    const openEntries = openDoc.entries || [];
+    const missing = openEntries.map((row) => row?.ca).filter((ca) => ca && !coins.some((coin) => coin.ca === ca));
+    let priced = coins;
+    if (missing.length) {
+      const priceMap = {};
+      for (let i = 0; i < missing.length; i += 30) {
+        const slice = [...new Set(missing.slice(i, i + 30))];
+        try {
+          const book = await get('https://api.dexscreener.com/latest/dex/tokens/' + slice.join(','));
+          Object.assign(priceMap, pricesFromDex(book, slice));
+        } catch (e) { console.log('open prices', e.message); }
+      }
+      priced = pricesForOpen(coins, openEntries, priceMap);
+    }
+    const next = stepMeme({ coins: priced, open: openEntries, history, now, track: advanceEarlyExits });
     const earlyOpen = openEarly({ decisions: earlyDecisions, open: next.open, now });
     next.open.push(...earlyOpen);
     fs.mkdirSync('data', { recursive: true });
-    if (next.settled.length) fs.appendFileSync('data/meme-journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
+    const journalRows = [...next.settled, ...(next.shadows || [])];
+    if (journalRows.length) fs.appendFileSync('data/meme-journal.jsonl', journalRows.map((row) => JSON.stringify(row)).join('\n') + '\n');
     else if (!fs.existsSync('data/meme-journal.jsonl')) fs.writeFileSync('data/meme-journal.jsonl', '');
     fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date(now).toISOString(), entries: next.open }, null, 2));
-    const slipRows = history.concat(next.settled);
+    const slipRows = history.concat(next.settled, next.shadows || []);
     saveSleeveScore(slipRows);
     writeEarly(earlyDecisions, earlySources, new Date(now).toISOString());
     fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(slipRows), updatedAt: new Date(now).toISOString() }, null, 2) + '\n');

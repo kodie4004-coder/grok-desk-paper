@@ -14,41 +14,44 @@ export const JEV_CALL_CAP = 20;
 export const JEV_TIMEOUT_MS = 8000;
 export const JEV_RUN_BUDGET_MS = 35000;
 export const JEV_ID = 'jev-check';
+export const JEV_PROMPT = 'context-v2';
+export const X_PROFILE_URL = 'https://syndication.twitter.com/srv/timeline-profile/screen-name/';
+export const RUG_REPORT_URL = 'https://api.rugcheck.xyz/v1/tokens';
 
 const VERDICTS = new Set(['pass', 'flag', 'unknown']);
 
 export const JEV_QUESTIONS = {
   x_account: {
     type: 'noul',
-    instructions: 'Is the linked X account plausibly legitimate and the real project behind this coin?',
+    instructions: 'Using the linked X account and the public profile facts when they are present (followers, account age, bio), is that account plausibly legitimate and the real project behind this coin?',
     criteria: {
-      true: 'A linked X account is present and it plausibly belongs to this project.',
-      false: 'No X account is linked, or the link does not plausibly belong to this project.',
+      true: 'A linked X account is present and the profile facts, when supplied, fit this project.',
+      false: 'No X account is linked, or the link or the profile facts do not plausibly belong to this project.',
     },
   },
   copycat: {
     type: 'noul',
-    instructions: 'Is this coin a copycat or an impersonation of an existing ticker or narrative?',
+    instructions: 'Using the name, ticker, description, and the similar coins listed from our boards, is this coin a copycat or an impersonation of an existing ticker or narrative?',
     criteria: {
-      true: 'The name, ticker, or description copies or impersonates an existing coin, brand, or narrative.',
-      false: 'Nothing in the name, ticker, or description shows a copy or an impersonation.',
+      true: 'The name, ticker, description, or a listed similar coin shows a copy or an impersonation.',
+      false: 'Nothing in the name, ticker, description, or the listed similar coins shows a copy or an impersonation.',
     },
   },
   rug: {
     type: 'noul',
-    instructions: 'Does the description show an obvious rug red flag?',
+    instructions: 'Using the RugCheck summary (mint authority, freeze authority, top-holder percent, LP status) and the description, does this coin show an obvious rug red flag?',
     criteria: {
-      true: 'The description has an obvious rug red flag, such as a guaranteed return, a hidden mint, or a demand to hurry.',
-      false: 'The description has no obvious rug red flag.',
+      true: 'The RugCheck summary or the description has an obvious rug red flag, such as a live mint, a live freeze, an unlocked LP, a concentrated holder, a guaranteed return, or a demand to hurry.',
+      false: 'The RugCheck summary and the description have no obvious rug red flag.',
     },
   },
   verdict: {
     type: 'choice',
-    instructions: 'From the name, ticker, description, and linked accounts only, choose one paper-safety verdict. Ignore price.',
+    instructions: 'Choose one paper-safety verdict from the DexScreener description and links, the X profile facts, the RugCheck summary, the age, the liquidity, and the similar tickers. The choice includes a confidence from 0 to 1. Ignore price.',
     criteria: {
-      pass: 'The linked X account is plausibly the real project, the coin is not a copycat or impersonation, and the description has no obvious rug red flag.',
-      flag: 'The linked X account is not plausibly the real project, or the coin is a copycat or impersonation, or the description has an obvious rug red flag.',
-      unknown: 'The text does not say enough to judge the X account, a copycat, or a rug.',
+      pass: 'The linked X account is plausibly the real project, the coin is not a copycat or impersonation, and neither the description nor the RugCheck summary shows an obvious rug red flag.',
+      flag: 'The linked X account is not plausibly the real project, or the coin is a copycat or impersonation, or the description or the RugCheck summary shows an obvious rug red flag.',
+      unknown: 'The supplied DexScreener text, X profile, RugCheck summary, age, liquidity, and similar tickers still do not say enough.',
     },
   },
 };
@@ -140,13 +143,16 @@ export function parseVerdict(body) {
   const fmt = (n) => n.toFixed(2);
   return {
     verdict: verdict.choice,
+    confidence: verdict.confidence,
     reason: `${verdict.choice}: X ${fmt(x)}, copycat ${fmt(copycat)}, rug ${fmt(rug)}`,
   };
 }
 
 export function jevStamp(jev) {
   if (!jev || !VERDICTS.has(jev.verdict)) return null;
-  return { verdict: jev.verdict, reason: clip(jev.reason, 160) };
+  const stamp = { verdict: jev.verdict, reason: clip(jev.reason, 160) };
+  if (unit(jev.confidence)) stamp.confidence = jev.confidence;
+  return stamp;
 }
 
 function failure(reason, attempts, extra = {}) {
@@ -209,6 +215,198 @@ export async function askJev(state, opts = {}) {
   return last;
 }
 
+export function xHandleFromUrls(urls) {
+  for (const url of urls || []) {
+    const match = String(url || '').match(/(?:https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\/([A-Za-z0-9_]{1,15})(?:\/|$|\?|#)/i);
+    if (!match) continue;
+    if (/^(intent|share|home|search|i|hashtag)$/i.test(match[1])) continue;
+    return match[1];
+  }
+  return '';
+}
+
+export function parseXProfile(html, handle, now = Date.now()) {
+  const text = String(html || '');
+  const match = text.match(/"created_at":"([^"]+)","default_profile":(?:true|false),"default_profile_image":(?:true|false),"description":"((?:\\.|[^"\\])*)"[\s\S]{0,1200}?"followers_count":(\d+)/);
+  if (!match) return null;
+  const created = Date.parse(match[1]);
+  const followers = Number(match[3]);
+  if (!Number.isFinite(created) || !Number.isFinite(followers) || created > now) return null;
+  const bio = match[2].replace(/\\n/g, ' ').replace(/\\"/g, '"').replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16))).replace(/\s+/g, ' ').trim().slice(0, 240);
+  return {
+    handle: handle || '',
+    followers,
+    createdAt: new Date(created).toISOString(),
+    ageDays: Math.max(0, Math.floor((now - created) / 86400000)),
+    bio,
+    source: 'syndication.twitter.com',
+  };
+}
+
+export function xProfileUrl(handle) {
+  return `${X_PROFILE_URL}${encodeURIComponent(handle)}`;
+}
+
+export async function readXProfile(handle, fetchImpl, timeoutMs = 5000, now = Date.now()) {
+  if (!handle || typeof fetchImpl !== 'function') return null;
+  const url = xProfileUrl(handle);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetchImpl(url, {
+        headers: { accept: 'text/html,application/json' },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.status === 429 || res.status === 503) {
+        if (attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          continue;
+        }
+        return null;
+      }
+      if (!res.ok) return null;
+      const html = await res.text();
+      return parseXProfile(html, handle, now);
+    } catch {
+      if (attempt === 1) return null;
+    }
+  }
+  return null;
+}
+
+function authorityBit(body, key) {
+  const token = body?.token;
+  const has = !!body && (Object.prototype.hasOwnProperty.call(body, key) || (token && Object.prototype.hasOwnProperty.call(token, key)));
+  if (!has) return null;
+  const raw = body[key] !== undefined ? body[key] : token?.[key];
+  if (raw == null || raw === '') return 'no';
+  if (typeof raw === 'string') return 'yes';
+  return null;
+}
+
+export function rugFacts(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const mint = authorityBit(body, 'mintAuthority');
+  const freeze = authorityBit(body, 'freezeAuthority');
+  const holders = Array.isArray(body.topHolders) ? body.topHolders : [];
+  const pcts = holders.slice(0, 10).map((row) => Number(row?.pct)).filter((n) => Number.isFinite(n) && n >= 0);
+  const topHolderPct = pcts.length ? Math.round(pcts.reduce((sum, n) => sum + n, 0) * 10) / 10 : null;
+  let lpLockedPct = Number(body.lpLockedPct);
+  if (!Number.isFinite(lpLockedPct)) {
+    const locked = (Array.isArray(body.markets) ? body.markets : []).map((row) => Number(row?.lp?.lpLockedPct)).filter((n) => Number.isFinite(n));
+    lpLockedPct = locked.length ? Math.max(...locked) : null;
+  }
+  if (lpLockedPct != null) lpLockedPct = Math.round(lpLockedPct * 10) / 10;
+  let lpStatus = 'unknown';
+  if (lpLockedPct != null && lpLockedPct >= 90) lpStatus = 'locked';
+  else if (lpLockedPct != null && lpLockedPct < 50) lpStatus = 'unlocked';
+  else if (lpLockedPct != null) lpStatus = 'partial';
+  if (mint == null && freeze == null && topHolderPct == null && lpLockedPct == null) return null;
+  return {
+    mint,
+    freeze,
+    topHolderPct,
+    topN: pcts.length || null,
+    lpLockedPct,
+    lpStatus,
+  };
+}
+
+export function rugReportUrl(ca) {
+  return `${RUG_REPORT_URL}/${encodeURIComponent(ca)}/report`;
+}
+
+async function readJson(url, fetchImpl, timeoutMs) {
+  const res = await fetchImpl(url, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function readRugFacts(ca, fetchImpl, timeoutMs = 5000) {
+  if (!ca || typeof fetchImpl !== 'function') return null;
+  try {
+    return rugFacts(await readJson(rugReportUrl(ca), fetchImpl, timeoutMs));
+  } catch {
+    return null;
+  }
+}
+
+function normName(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function similarCoins(coin, boards, limit = 6) {
+  const symbol = normName(coin?.symbol);
+  const name = normName(coin?.name);
+  const generic = new Set(['coin', 'token', 'solana', 'pump', 'inu']);
+  const tokens = new Set(name.split(' ').filter((part) => part.length >= 4 && !generic.has(part)));
+  const out = [];
+  const seen = new Set();
+  for (const row of boards || []) {
+    if (!row || (coin?.ca && row.ca === coin.ca)) continue;
+    const sym = normName(row.symbol);
+    const nm = normName(row.name);
+    if (sym === '?' || nm === 'unknown') continue;
+    const symHit = symbol.length >= 2 && symbol !== '?' && sym === symbol;
+    const nameHit = !!name && nm === name;
+    const tokenHit = [...tokens].some((part) => nm.includes(part) || sym === part);
+    if (!symHit && !nameHit && !tokenHit) continue;
+    const key = `${sym}|${nm}`;
+    if (!sym && !nm || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name: clip(row.name, 60), symbol: clip(row.symbol, 24) });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export async function prepareJevState(coin, opts = {}) {
+  const fetchImpl = opts.fetchImpl;
+  const base = describeCoin({ coin, pair: opts.pair, profile: opts.profile });
+  const handle = xHandleFromUrls([...base.socials.map((row) => row.url), ...base.websites]);
+  const timeoutMs = opts.timeoutMs ?? 5000;
+  const now = opts.nowMs ?? Date.now();
+  let xProfile = null;
+  let rug = null;
+  if (typeof fetchImpl === 'function') {
+    const jobs = [];
+    jobs.push(handle ? readXProfile(handle, fetchImpl, timeoutMs, now) : Promise.resolve(null));
+    jobs.push(coin?.ca ? readRugFacts(coin.ca, fetchImpl, timeoutMs) : Promise.resolve(null));
+    try {
+      const [profile, facts] = await Promise.all(jobs);
+      xProfile = profile;
+      rug = facts;
+    } catch {
+      xProfile = null;
+      rug = null;
+    }
+  }
+  const ageMin = numUnit(coin?.ageMin ?? coin?.features?.ageMin);
+  const liq = numUnit(coin?.liq ?? coin?.features?.liq);
+  return {
+    ...base,
+    ageMin: ageMin == null ? null : Math.round(ageMin * 10) / 10,
+    liquidityUsd: liq == null ? null : Math.round(liq),
+    xProfile,
+    rug,
+    similar: similarCoins(coin, opts.boards || []),
+  };
+}
+
+function numUnit(value) {
+  const n = typeof value === 'string' ? Number(value) : value;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+}
+
+function reusableStamp(row) {
+  const stamp = jevStamp(row);
+  if (!stamp) return null;
+  if (stamp.verdict === 'unknown' && row?.prompt !== JEV_PROMPT) return null;
+  return stamp;
+}
+
 export async function reviewCandidates(coins, opts = {}) {
   const cache = opts.cache instanceof Map ? opts.cache : new Map();
   const cap = Number.isFinite(opts.cap) ? opts.cap : JEV_CALL_CAP;
@@ -223,18 +421,29 @@ export async function reviewCandidates(coins, opts = {}) {
   for (const coin of coins || []) {
     const ca = coin?.ca;
     if (!ca) { out.push(coin); continue; }
-    const cached = jevStamp(cache.get(ca));
+    const cached = reusableStamp(cache.get(ca));
     if (cached) { out.push({ ...coin, jev: cached }); continue; }
     if (!coin.pass) { out.push(coin); continue; }
     if (!key) { skipped += 1; out.push(coin); continue; }
     if (asked >= cap || Date.now() >= deadline) { capped += 1; out.push(coin); continue; }
-    const state = typeof opts.describe === 'function' ? opts.describe(coin) : jevState(coin);
+    const build = opts.prepare || opts.describe;
+    let state = jevState(coin);
+    try {
+      if (typeof build === 'function') state = await build(coin);
+    } catch {
+      state = jevState(coin);
+    }
     const result = await askJev(state, { key, fetchImpl: opts.fetchImpl, timeoutMs: opts.timeoutMs, env: opts.env });
     asked += 1;
     http += result.attempts || 0;
     const stamp = result.ok ? jevStamp(result) : null;
     if (stamp) {
-      cache.set(ca, { ...stamp, model: result.model || JEV_MODEL, askedAt: opts.now || new Date().toISOString() });
+      cache.set(ca, {
+        ...stamp,
+        model: result.model || JEV_MODEL,
+        askedAt: opts.now || new Date().toISOString(),
+        prompt: JEV_PROMPT,
+      });
       out.push({ ...coin, jev: stamp });
     } else out.push(coin);
   }
@@ -252,6 +461,7 @@ export function cacheFromDoc(doc) {
       ...stamp,
       model: typeof row.model === 'string' ? row.model : JEV_MODEL,
       askedAt: typeof row.askedAt === 'string' ? row.askedAt : null,
+      prompt: typeof row.prompt === 'string' ? row.prompt : null,
     });
   }
   return map;
@@ -262,7 +472,7 @@ export function cacheDoc(map) {
   for (const [ca, row] of map || []) {
     const stamp = jevStamp(row);
     if (!stamp) continue;
-    verdicts[ca] = { ...stamp, model: row.model || JEV_MODEL, askedAt: row.askedAt || null };
+    verdicts[ca] = { ...stamp, model: row.model || JEV_MODEL, askedAt: row.askedAt || null, prompt: row.prompt || null };
   }
   return { paper: true, model: JEV_MODEL, verdicts };
 }
@@ -308,6 +518,7 @@ export function jevShadow(rows) {
     vetoN: kept.length,
     flagged: asked.filter((row) => row.jev.verdict === 'flag').length,
     unknown: asked.filter((row) => row.jev.verdict === 'unknown').length,
+    unknownRate: asked.length ? asked.filter((row) => row.jev.verdict === 'unknown').length / asked.length : null,
     pass: asked.filter((row) => row.jev.verdict === 'pass').length,
     note: 'Shadow only. A flag is left out of this mean and stays in the baseline. Unknown is not a veto. Weight is 1 only when the existing edge gate clears on this book. This bot does not place or block a trade.',
   };

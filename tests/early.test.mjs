@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { applyWatch, MEME_RULES, MEME_SIZE, memePnl, stepMeme } from '../engine/meme.js';
+import { applyWatch, MEME_RULES, MEME_SIZE, memePnl, pricesForOpen, stepMeme } from '../engine/meme.js';
 import { sleeveBenched } from '../engine/repair.js';
 import { challengerRows } from '../engine/upgrades.js';
 import { mergeEarlyLog } from '../runner/merge-meme.mjs';
 import {
-  EARLY_RULES, EARLY_SOURCES, candidatesFromSources, decideCandidate, earlyClears, earlyShadow, earlySlip,
+  EARLY_EXITS, EARLY_EXIT_FAST, EARLY_EXIT_HALF, EARLY_EXIT_TRAIL, EARLY_RULES, EARLY_SOURCES,
+  advanceEarlyExits, candidatesFromSources, decideCandidate, earlyClears, earlyExitReport, earlyShadow, earlySlip, mergeOpenEntry,
   fromGeckoPools, fromPump, launchMultiple, loadSources, needsChain, nextLog, openEarly, readLp, readRug,
 } from '../engine/early.js';
 
@@ -278,4 +279,80 @@ test('the scoreboard card is shadow and the safety module is not retuned', () =>
   assert.equal(audit.liveExecution, false);
   assert.equal(typeof audit.firstSight.median, 'number');
   assert.equal(audit.entryAgeMin.under30, 0);
+});
+
+test('a flat early position settles on the 30 minute rule once a price exists', () => {
+  const openedAt = new Date(now - 40 * 60 * 1000).toISOString();
+  const pos = { id: 'early-entry:CA', ca: 'CA', symbol: 'T', name: 'T', entry: 1, sizeUsd: 2, openedAt, variant: 'early-entry', allocated: false, shadow: true, slip: 0.01, pnl: null };
+  const stuck = stepMeme({ coins: [], open: [pos], history: [], now });
+  assert.equal(stuck.settled.length, 0);
+  assert.equal(stuck.open.length, 1);
+  const priced = pricesForOpen([], [pos], { CA: 1 });
+  assert.equal(priced[0].pass, false);
+  const closed = stepMeme({ coins: priced, open: [pos], history: [], now });
+  assert.equal(closed.settled.length, 1);
+  assert.equal(closed.settled[0].exit, 'time-stop');
+  assert.equal(closed.settled[0].sizeUsd, 2);
+  assert.ok(closed.settled[0].pnl < 0);
+  const watched = applyWatch({ open: [pos], prices: { CA: 1 }, now, history: [] });
+  assert.equal(watched.settled.length, 1);
+  assert.equal(watched.settled[0].exit, 'time-stop');
+  const young = applyWatch({
+    open: [{ ...pos, openedAt: new Date(now - 60 * 1000).toISOString() }],
+    prices: { CA: 1 }, now, history: [],
+  });
+  assert.equal(young.settled.length, 0);
+});
+
+test('exit variants are registered before the sample and stay at weight 0', () => {
+  assert.equal(EARLY_EXITS.fastHoldMs, 10 * 60 * 1000);
+  assert.equal(EARLY_EXITS.halfTake, 1.12);
+  assert.equal(EARLY_EXITS.trailGap, 0.15);
+  const pos = {
+    id: 'early-entry:CA', ca: 'CA', symbol: 'T', name: 'T', entry: 1, sizeUsd: 2,
+    openedAt: new Date(now - 10 * 60 * 1000).toISOString(), variant: 'early-entry', allocated: false, shadow: true, slip: 0.01,
+  };
+  const fast = applyWatch({ open: [pos], prices: { CA: 1 }, now, history: [], track: advanceEarlyExits });
+  assert.equal(fast.settled.length, 0);
+  assert.equal(fast.open.length, 1);
+  const booked = fast.shadows.find((row) => row.variant === EARLY_EXIT_FAST);
+  assert.equal(booked.exit, 'time-stop');
+  assert.equal(booked.sizeUsd, 2);
+  assert.equal(booked.allocated, false);
+  assert.equal(booked.shadow, true);
+  assert.ok(booked.pnl < 0);
+  const up = advanceEarlyExits(fast.open[0], 1.2, now + 1000);
+  assert.equal(up.rows.length, 0);
+  assert.equal(up.pos.exitTrack.half.taken, true);
+  assert.ok(up.pos.exitTrack.half.takePnl > 0);
+  const giveback = advanceEarlyExits(up.pos, 1.0, now + 2000);
+  const half = giveback.rows.find((row) => row.variant === EARLY_EXIT_HALF);
+  const trail = giveback.rows.find((row) => row.variant === EARLY_EXIT_TRAIL);
+  assert.equal(half.exit, 'half-trail');
+  assert.equal(half.sizeUsd, 2);
+  assert.ok(half.pnl > booked.pnl);
+  assert.equal(trail.exit, 'trail');
+  assert.equal(trail.sizeUsd, 2);
+  const fat = advanceEarlyExits({ ...pos, slip: 0.2, exitTrack: null }, 1.12, now);
+  assert.equal(fat.pos.exitTrack.half, null);
+  assert.ok(memePnl(1, 1.12, 0.2, 1).pnl < 0);
+  const target = applyWatch({ open: [{ ...pos, openedAt: new Date(now - 60 * 1000).toISOString() }], prices: { CA: 1.3 }, now, history: [], track: advanceEarlyExits });
+  assert.equal(target.settled[0].exit, 'take-profit');
+  assert.equal(target.open[0].variant, 'early-track');
+  assert.equal(target.open[0].allocated, false);
+  const days = ['2026-11-01', '2026-11-02', '2026-11-03'];
+  const cleared = days.flatMap((day) => Array.from({ length: 20 }, (_, i) => ({
+    variant: EARLY_EXIT_FAST, pnl: 0.4, sizeUsd: 2, settledAt: `${day}T00:00:00Z`, ca: `D${i}`,
+  })));
+  const report = earlyExitReport(cleared);
+  assert.equal(report.length, 3);
+  assert.ok(report.every((row) => row.weight === 0 && row.status === 'shadow' && row.liveExecution === false && row.sizeUsd === 2));
+  assert.equal(report[0].n, 60);
+  assert.equal(sleeveBenched(cleared.map((row) => ({ ...row, allocated: false }))).benched, false);
+  const merged = mergeOpenEntry(
+    { id: 'early-entry:CA', variant: 'early-entry', exitTrack: { peak: 1.4, fast: null, half: null, trail: null } },
+    { id: 'early-entry:CA', variant: 'early-entry', exitTrack: { peak: 1.1, fast: { settledAt: '2026-11-20T00:00:00Z' }, half: null, trail: null } },
+  );
+  assert.equal(merged.exitTrack.peak, 1.4);
+  assert.equal(merged.exitTrack.fast.settledAt, '2026-11-20T00:00:00Z');
 });
