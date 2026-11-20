@@ -342,6 +342,8 @@ The same Jev check runs on coins that would enter, after the baseline coins, on 
 
 The paper fill is $2. The stop, the 25% take-profit, and the 30 minute time stop are the v9 rules. The stop watcher prices the position with the slip stored at entry. The row is `allocated: false`. These trades use `graduates()` and do not change it. The day they are first logged cannot retune the thresholds. The age audit in `data/early-audit.json` was measured before this sleeve and was not used to pick the numbers above.
 
+The fast scan runs these same frozen checks. It does not change a threshold, `graduates()`, the $2 size, or the edge gate. One Actions job loops about every 60 seconds for 5 hours 50 minutes. A new run is scheduled every 6 hours, and the Kalshi chain starts one with `workflow_dispatch` when none is running. One concurrency group allows a single run and does not cancel the run that is already going. The board and the log are committed at most every 5 minutes, with the same rebase retry as the snapshot. DexScreener, GeckoTerminal, and RugCheck back off on 429. Jev keeps the 20-call run cap, the cache, and a UTC-day cap of 100 calls shared with the snapshot. A phone push fires only when the hard kills and the RugCheck check pass and the Jev verdict is not `flag`. The push says the signal has not passed the edge gate. The topic is an Actions secret. It is not written to the site or the log. A missing secret sends nothing.
+
 ## v14 Jev context and early exit shadows (frozen before the new shadow numbers)
 
 This does not change `graduates()`, the v6 edge gate, the holdout rule, the v9 meme safety bars, the v13 early hard kills, or the $2 size. `live_execution` stays off. New books stay at weight 0. `graduates()` is not applied to the exit variants.

@@ -1,0 +1,39 @@
+name: Early fast scan
+
+# Public repo, so the minutes are free. GitHub's shortest cron is 5 minutes
+# and that kick has been dropped before, so this job loops inside one runner.
+# It scans about every 60 seconds for 5 hours 50 minutes, then exits. The
+# schedule starts another run every 6 hours. The Kalshi chain also starts
+# one with workflow_dispatch when none is active. One group, and a running
+# scan is not cancelled.
+#
+# NTFY_TOPIC is a repository secret. The scan step reads it from the
+# environment. Do not echo it, print the environment, or write it into the repo.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '11 */6 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: early-fast-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Scan early coins about every 60 seconds
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: node runner/fast-scan.mjs

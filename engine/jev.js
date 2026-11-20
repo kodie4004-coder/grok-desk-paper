@@ -477,6 +477,67 @@ export function cacheDoc(map) {
   return { paper: true, model: JEV_MODEL, verdicts };
 }
 
+// The 20-call run cap stays. This is the extra stop for a UTC day, shared by
+// the snapshot and the fast scan. A batch id is written once, so a rebase
+// that sees both copies does not count the same asks twice.
+export const JEV_DAILY_CAP = 100;
+
+export function jevCallsOnDay(doc, day) {
+  let n = 0;
+  for (const row of doc?.batches || []) {
+    if (row?.day === day && Number(row.n) > 0) n += Number(row.n);
+  }
+  return n;
+}
+
+export function jevDailyRemaining(doc, day, cap = JEV_DAILY_CAP) {
+  return Math.max(0, cap - jevCallsOnDay(doc, day));
+}
+
+export function jevRunCap(doc, day, runCap = JEV_CALL_CAP, dailyCap = JEV_DAILY_CAP) {
+  return Math.min(Math.max(0, runCap), jevDailyRemaining(doc, day, dailyCap));
+}
+
+export function noteJevCalls(doc, day, n, id, at) {
+  const batches = Array.isArray(doc?.batches) ? doc.batches.filter((row) => row && typeof row.id === 'string' && row.day) : [];
+  const add = Number(n);
+  if (add > 0 && typeof id === 'string' && id && !batches.some((row) => row.id === id)) {
+    batches.push({ id, day, n: add, at: typeof at === 'string' ? at : null });
+  }
+  const today = Date.parse(`${day}T00:00:00Z`);
+  const cutoff = Number.isFinite(today) ? today - 3 * 86400000 : 0;
+  const kept = batches.filter((row) => {
+    const t = Date.parse(`${row.day}T00:00:00Z`);
+    return Number.isFinite(t) && t >= cutoff;
+  });
+  return { paper: true, liveExecution: false, batches: kept };
+}
+
+export function mergeJevCalls(a, b) {
+  const by = new Map();
+  for (const row of [...(a?.batches || []), ...(b?.batches || [])]) {
+    if (!row?.id || !row.day || !(Number(row.n) > 0)) continue;
+    if (!by.has(row.id)) by.set(row.id, { id: String(row.id), day: String(row.day), n: Number(row.n), at: row.at || null });
+  }
+  const batches = [...by.values()].sort((x, y) => String(x.at || '').localeCompare(String(y.at || '')) || x.id.localeCompare(y.id));
+  return { paper: true, liveExecution: false, batches };
+}
+
+export function mergeJevCacheDocs(a, b) {
+  const verdicts = { ...(a?.verdicts && typeof a.verdicts === 'object' ? a.verdicts : {}) };
+  for (const [ca, row] of Object.entries(b?.verdicts && typeof b.verdicts === 'object' ? b.verdicts : {})) {
+    const prev = verdicts[ca];
+    if (!prev) {
+      verdicts[ca] = row;
+      continue;
+    }
+    const prevAt = Date.parse(prev.askedAt || '') || 0;
+    const nextAt = Date.parse(row?.askedAt || '') || 0;
+    if (nextAt >= prevAt) verdicts[ca] = row;
+  }
+  return { ...(a || {}), ...(b || {}), paper: true, model: b?.model || a?.model || JEV_MODEL, verdicts };
+}
+
 function meanOf(rows) {
   if (!rows.length) return null;
   return rows.reduce((sum, row) => sum + row.pnl, 0) / rows.length;
