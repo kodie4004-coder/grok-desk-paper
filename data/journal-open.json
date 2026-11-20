@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-20T21:08:17.881Z",
+  "updatedAt": "2026-11-20T21:12:38.361Z",
   "entries": [
     {
       "id": "revert:KXCRYPTOLEAD15M-26NOV201015-BTC",
@@ -5417,8 +5417,8 @@
       "market": "KXBNB15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.66,
       "roles": [
         {
@@ -5751,8 +5751,8 @@
       "market": "KXBTC15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.59,
       "roles": [
         {
@@ -6195,8 +6195,8 @@
       "market": "KXDOGE15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.42,
       "roles": [
         {
@@ -6254,8 +6254,8 @@
       "market": "KXETH15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.76,
       "roles": [
         {
@@ -6431,8 +6431,8 @@
       "market": "KXSOL15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.42,
       "roles": [
         {
@@ -6581,6 +6581,886 @@
       ],
       "skipped": false,
       "skipReason": null
+    },
+    {
+      "id": "scalp:KXAUDUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV201615-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.72,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.72,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.37,
+      "volatility": 0.18520259177452134,
+      "strategy": "scalp",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.72 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.55 does not clear fee 0.03 plus half-spread 0.02"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.55 does not clear fee 0.03 plus half-spread 0.02"
+    },
+    {
+      "id": "scalp-tp:KXAUDUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp-tp",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV201615-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.72,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": "tp",
+      "price": 0.72,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.37,
+      "volatility": 0.18520259177452134,
+      "strategy": "scalp-tp",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.72 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.47 does not clear fee 0.03 plus half-spread 0.02"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.47 does not clear fee 0.03 plus half-spread 0.02"
+    },
+    {
+      "id": "scalp-stop:KXAUDUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp-stop",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV201615-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.72,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": "stop",
+      "price": 0.72,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.37,
+      "volatility": 0.18520259177452134,
+      "strategy": "scalp-stop",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.72 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.46 does not clear fee 0.03 plus half-spread 0.02"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.46 does not clear fee 0.03 plus half-spread 0.02"
+    },
+    {
+      "id": "scalp-time:KXAUDUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp-time",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXAUDUSD15M-26NOV201615-30",
+      "series": "KXAUDUSD15M",
+      "title": "AUD/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.72,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": "time",
+      "price": 0.72,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.37,
+      "volatility": 0.18520259177452134,
+      "strategy": "scalp-time",
+      "market": "KXAUDUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXAUDUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.72 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.46 does not clear fee 0.03 plus half-spread 0.02"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.46 does not clear fee 0.03 plus half-spread 0.02"
+    },
+    {
+      "id": "mom-strict:KXBNB15M-26NOV201615-15",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV201615-15",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.63,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.05,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.63,
+      "secondsLeft": 142,
+      "spread": 0.03,
+      "momentum": -0.28,
+      "volatility": 0.21825062046494464,
+      "strategy": "mom-strict",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV201615-15 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.63 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.24 does not clear fee 0.05 plus half-spread 0.04"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.24 does not clear fee 0.05 plus half-spread 0.04"
+    },
+    {
+      "id": "mom:KXETH15M-26NOV201615-15",
+      "family": "mom",
+      "variant": "mom",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV201615-15",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.59,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.59,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": -0.34,
+      "volatility": 0.2023198787399136,
+      "strategy": "mom",
+      "market": "KXETH15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV201615-15 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.59 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.52 does not clear fee 0.06 plus half-spread 0.03"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.52 does not clear fee 0.06 plus half-spread 0.03"
+    },
+    {
+      "id": "mom-strict:KXETH15M-26NOV201615-15",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV201615-15",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.59,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.59,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": -0.34,
+      "volatility": 0.2023198787399136,
+      "strategy": "mom-strict",
+      "market": "KXETH15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV201615-15 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.59 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.24 does not clear fee 0.06 plus half-spread 0.03"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.24 does not clear fee 0.06 plus half-spread 0.03"
+    },
+    {
+      "id": "mom-settle:KXETH15M-26NOV201615-15",
+      "family": "mom",
+      "variant": "mom-settle",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV201615-15",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.59,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.06,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.59,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": -0.34,
+      "volatility": 0.2023198787399136,
+      "strategy": "mom-settle",
+      "market": "KXETH15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV201615-15 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.59 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.21 does not clear fee 0.06 plus half-spread 0.03"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.21 does not clear fee 0.06 plus half-spread 0.03"
+    },
+    {
+      "id": "scalp:KXGBPUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXGBPUSD15M-26NOV201615-30",
+      "series": "KXGBPUSD15M",
+      "title": "GBP/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.22,
+      "contracts": 9,
+      "sizeUsd": 2,
+      "fee": 0.11,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.22,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.11,
+      "volatility": 0.09539392014169455,
+      "strategy": "scalp",
+      "market": "KXGBPUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXGBPUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.22 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.55 does not clear fee 0.11 plus half-spread 0.09"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.55 does not clear fee 0.11 plus half-spread 0.09"
+    },
+    {
+      "id": "scalp-tight:KXGBPUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp-tight",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXGBPUSD15M-26NOV201615-30",
+      "series": "KXGBPUSD15M",
+      "title": "GBP/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.22,
+      "contracts": 9,
+      "sizeUsd": 2,
+      "fee": 0.11,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.22,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.11,
+      "volatility": 0.09539392014169455,
+      "strategy": "scalp-tight",
+      "market": "KXGBPUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXGBPUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.22 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.08 does not clear fee 0.11 plus half-spread 0.09"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.08 does not clear fee 0.11 plus half-spread 0.09"
+    },
+    {
+      "id": "scalp-tp:KXGBPUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp-tp",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXGBPUSD15M-26NOV201615-30",
+      "series": "KXGBPUSD15M",
+      "title": "GBP/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.22,
+      "contracts": 9,
+      "sizeUsd": 2,
+      "fee": 0.11,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": "tp",
+      "price": 0.22,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.11,
+      "volatility": 0.09539392014169455,
+      "strategy": "scalp-tp",
+      "market": "KXGBPUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXGBPUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.22 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.47 does not clear fee 0.11 plus half-spread 0.09"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.47 does not clear fee 0.11 plus half-spread 0.09"
+    },
+    {
+      "id": "scalp-stop:KXGBPUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp-stop",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXGBPUSD15M-26NOV201615-30",
+      "series": "KXGBPUSD15M",
+      "title": "GBP/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.22,
+      "contracts": 9,
+      "sizeUsd": 2,
+      "fee": 0.11,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": "stop",
+      "price": 0.22,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.11,
+      "volatility": 0.09539392014169455,
+      "strategy": "scalp-stop",
+      "market": "KXGBPUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXGBPUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.22 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.46 does not clear fee 0.11 plus half-spread 0.09"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.46 does not clear fee 0.11 plus half-spread 0.09"
+    },
+    {
+      "id": "scalp-time:KXGBPUSD15M-26NOV201615-30",
+      "family": "scalp",
+      "variant": "scalp-time",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXGBPUSD15M-26NOV201615-30",
+      "series": "KXGBPUSD15M",
+      "title": "GBP/USD price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.22,
+      "contracts": 9,
+      "sizeUsd": 2,
+      "fee": 0.11,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": "time",
+      "price": 0.22,
+      "secondsLeft": 142,
+      "spread": 0.02,
+      "momentum": 0.11,
+      "volatility": 0.09539392014169455,
+      "strategy": "scalp-time",
+      "market": "KXGBPUSD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXGBPUSD15M-26NOV201615-30 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.22 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.46 does not clear fee 0.11 plus half-spread 0.09"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.46 does not clear fee 0.11 plus half-spread 0.09"
+    },
+    {
+      "id": "mom:KXHYPE15M-26NOV201615-15",
+      "family": "mom",
+      "variant": "mom",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXHYPE15M-26NOV201615-15",
+      "series": "KXHYPE15M",
+      "title": "HYPE price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.954,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.954,
+      "secondsLeft": 142,
+      "spread": 0.033,
+      "momentum": 0.224,
+      "volatility": 0.1122140811128443,
+      "strategy": "mom",
+      "market": "KXHYPE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXHYPE15M-26NOV201615-15 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.954 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.52 does not clear fee 0.01 plus half-spread 0.03"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.52 does not clear fee 0.01 plus half-spread 0.03"
+    },
+    {
+      "id": "mom-strict:KXHYPE15M-26NOV201615-15",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXHYPE15M-26NOV201615-15",
+      "series": "KXHYPE15M",
+      "title": "HYPE price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.954,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.954,
+      "secondsLeft": 142,
+      "spread": 0.033,
+      "momentum": 0.224,
+      "volatility": 0.1122140811128443,
+      "strategy": "mom-strict",
+      "market": "KXHYPE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXHYPE15M-26NOV201615-15 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.954 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.24 does not clear fee 0.01 plus half-spread 0.03"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.24 does not clear fee 0.01 plus half-spread 0.03"
+    },
+    {
+      "id": "mom-settle:KXHYPE15M-26NOV201615-15",
+      "family": "mom",
+      "variant": "mom-settle",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXHYPE15M-26NOV201615-15",
+      "series": "KXHYPE15M",
+      "title": "HYPE price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.954,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-20T21:12:38.361Z",
+      "closeTime": "2026-11-20T21:15:00Z",
+      "exit": null,
+      "price": 0.954,
+      "secondsLeft": 142,
+      "spread": 0.033,
+      "momentum": 0.224,
+      "volatility": 0.1122140811128443,
+      "strategy": "mom-settle",
+      "market": "KXHYPE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXHYPE15M-26NOV201615-15 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.954 with 142s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.21 does not clear fee 0.01 plus half-spread 0.03"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.21 does not clear fee 0.01 plus half-spread 0.03"
     }
   ]
 }
