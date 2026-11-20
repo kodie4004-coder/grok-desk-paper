@@ -242,7 +242,7 @@ The snapshot journal passes each candidate through five roles. Each role writes 
 - Analyst scores the frozen variant. No match means there was no signal.
 - Brain allocates $2 or $0. $0 is a shadow. The size never rises.
 - Executor fills a paper bet at the ask and charges the Kalshi taker fee. A veto is not a fill.
-- Risk can block any entry and can exit an open scalp. It blocks a spread wider than 0.10. It blocks the same series for the next 2 windows of 15 minutes after an allocated loss. It blocks a new line once the snapshot has 8 allocated bets or 16 lines. A blocked signal is still journaled as a skip and settled later, so a lesson can say whether the filter saved or cost money.
+- Risk can block any entry and can exit an open scalp. It blocks a spread wider than 0.10. It blocks the same series for the next 2 windows of 15 minutes after an allocated loss. It blocks a new allocated line once the snapshot has 8 allocated bets or 16 lines that are not control or shadow logs. A coin-flip control and a bot already in shadow are still logged, and those logs do not spend either cap. A blocked signal is still journaled as a skip and settled later, so a lesson can say whether the filter saved or cost money. The bet-cap skip is only the allocated pick that arrived after the 8 bets were open.
 
 Scalp exits are challengers. They use the champion's entry, a 4 cent ask jump and a spread of 3 cents or less. They sell at the bid and pay a second taker fee:
 
@@ -281,10 +281,10 @@ The paper fill is $2. The buy price is marked up 1% and the sell price is marked
 These rules do not change `graduates()` or the holdout. A loss does not raise size.
 
 - A control, including the coin-flip, is shadow forever. It is logged and never allocated.
-- A variant already in the shadow or benched list gets $0 on every new entry. The flag is applied after every other decision, so a weight or a cap cannot turn it back on.
+- A variant already in the shadow or benched list gets $0 on every new entry. The flag is applied after every other decision, so a weight or a cap cannot turn it back on. That $0 line does not spend the snapshot's allocated-bet cap.
 - A variant whose own allocated paper is down $6 on the current UTC day goes to shadow.
 - A variant whose last 30 allocated trades have a negative mean and a 90% upper bound below zero goes to shadow. The line is logged.
-- It returns only when the last 30 shadow trades opened after that bench have a positive mean. The holdout is not used for this.
+- It returns only when the last 30 non-skipped shadow practice trades opened after that bench have a positive mean. Vetoed skips are not those trades. A finished day already cleared by that test is not put back into shadow. The holdout is not used for this.
 - If a variant has at least 8 shadow trades, a new allocated entry is vetoed when their mean after fees does not exceed this contract's taker fee plus half the spread in dollars. The veto is journaled as a skip.
 - Allocation weight is the 90% lower bound in dollars divided by $0.50, capped at 1 and floored at 0. With fewer than 8 allocated trades the weight is 0.25. If that variant's allocated paper is down today, the weight is not raised above the previous weight.
 
