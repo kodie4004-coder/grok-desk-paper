@@ -1,8 +1,9 @@
 name: Meme stop watcher kick
 
-# Restarts the 4-second DexScreener pass when the chain is not already queued
-# or running. Five minutes is enough to notice a dead chain without holding a
-# runner between checks. Public repo, one short job.
+# Backup for meme-watch.yml. The Kalshi chain dispatches a pass directly,
+# about every four minutes, while a paper coin is open. This cron is the
+# spare. On 2026-11-20 GitHub fired zero of these events in 70 minutes, so
+# the cron is not the thing the stops depend on. Public repo, one short job.
 on:
   workflow_dispatch:
   schedule:

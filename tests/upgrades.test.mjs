@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { applyWatch, stopSlippage, watchBudget, watchIntervalMs, MEME_RULES, MEME_SIZE } from '../engine/meme.js';
+import { applyWatch, openMemeCount, stopSlippage, watchBudget, watchHealth, watchHealthLine, watchIntervalMs, watchStamp, WATCH_STALE_MS, MEME_RULES, MEME_SIZE } from '../engine/meme.js';
 import { quoteCrossed, replayResting, restingExpectancy, settlementProb, upgradeLines } from '../engine/upgrades.js';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { mergeMemeJournal, mergeMemeOpen } from '../runner/merge-meme.mjs';
+import { watchKickDecision } from '../runner/kick-watch.mjs';
 import { stepJournal, signal, reviewBrain, defaultBrain, VARIANTS, LEARN_SIZE } from '../engine/learn.js';
 
 const now = Date.parse('2026-11-20T12:00:00Z');
@@ -223,4 +228,88 @@ test('the free watcher chains itself and pushes with the rebase retry', () => {
   assert.match(kick, /cron:/);
   assert.match(push, /git rebase origin\/main/);
   assert.match(push, /merge-meme\.mjs/);
+  assert.match(push, /meme-watch\.json/);
+});
+
+test('a watch pass is stale only when a paper coin is open and the last pass is more than 10 minutes old', () => {
+  const t0 = Date.parse('2026-11-20T17:00:00Z');
+  const open = [{ id: 'meme:A', open: true, paper: true }];
+  assert.equal(WATCH_STALE_MS, 10 * 60 * 1000);
+  assert.equal(watchHealth({ open, watchedAt: new Date(t0 - WATCH_STALE_MS).toISOString(), now: t0 }).stale, false);
+  const justOver = watchHealth({ open, watchedAt: new Date(t0 - WATCH_STALE_MS - 1).toISOString(), now: t0 });
+  assert.equal(justOver.stale, true);
+  assert.match(watchHealthLine(justOver), /more than 10 minutes ago/);
+  const missing = watchHealth({ open, watchedAt: null, now: t0 });
+  assert.equal(missing.stale, true);
+  assert.match(watchHealthLine(missing), /1 paper coin is open/);
+  assert.match(watchHealthLine(missing), /no watch pass yet/);
+  assert.equal(watchHealth({ open: [], watchedAt: null, now: t0 }).stale, false);
+  assert.equal(watchHealthLine(watchHealth({ open: [], watchedAt: null, now: t0 })), '');
+  const fresh = watchHealth({ open, watchedAt: new Date(t0 - 4 * 60 * 1000).toISOString(), now: t0 });
+  assert.equal(fresh.stale, false);
+  assert.equal(watchHealthLine(fresh), '');
+  const old = watchHealth({
+    open: [open[0], { id: 'meme:B', shadow: true }],
+    watchedAt: new Date(t0 - 74 * 60 * 1000).toISOString(),
+    now: t0,
+  });
+  assert.equal(old.stale, true);
+  assert.equal(old.open, 2);
+  assert.match(watchHealthLine(old), /2 paper coins are open/);
+  assert.match(watchHealthLine(old), /74 minutes ago/);
+  const sold = watchHealth({ open: [{ id: 'meme:C', exit: 'stop', pnl: -1 }], watchedAt: null, now: t0 });
+  assert.equal(sold.stale, false);
+  const stamp = watchStamp({ open: 2, calls: 4, at: t0 });
+  assert.equal(stamp.paper, true);
+  assert.equal(stamp.watchedAt, new Date(t0).toISOString());
+  assert.equal(stamp.open, 2);
+  assert.equal(stamp.calls, 4);
+});
+
+test('the kalshi chain and the meme snapshot dispatch a watch pass without workflow_run', () => {
+  const kalshi = readFileSync(fileURLToPath(new URL('.github/workflows/kalshi-15m.yml', root)), 'utf8');
+  const watch = readFileSync(fileURLToPath(new URL('.github/workflows/meme-watch.yml', root)), 'utf8');
+  const kick = readFileSync(fileURLToPath(new URL('.github/workflows/meme-watch-kick.yml', root)), 'utf8');
+  const snap = readFileSync(fileURLToPath(new URL('runner/snapshot-meme.mjs', root)), 'utf8');
+  const kickSh = readFileSync(fileURLToPath(new URL('runner/kick-watch.sh', root)), 'utf8');
+  const queue = readFileSync(fileURLToPath(new URL('runner/queue-watch.sh', root)), 'utf8');
+  const watcher = readFileSync(fileURLToPath(new URL('runner/watch-meme.mjs', root)), 'utf8');
+  const app = readFileSync(fileURLToPath(new URL('app.js', root)), 'utf8');
+  const triggers = (yml) => (yml.split(/^on:\n/m)[1] || '').split(/^permissions:/m)[0];
+  assert.match(kalshi, /actions: write/);
+  assert.match(kalshi, /GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  assert.match(kalshi, /Dispatch a meme stop pass when a paper coin is open[\s\S]*if: always\(\)[\s\S]*bash runner\/kick-watch\.sh/);
+  assert.doesNotMatch(triggers(kalshi), /workflow_run:/);
+  assert.doesNotMatch(triggers(watch), /workflow_run:/);
+  assert.doesNotMatch(triggers(kick), /workflow_run:/);
+  assert.match(watch, /group: meme-stop-watch/);
+  assert.match(watch, /cancel-in-progress: false/);
+  assert.match(kick, /cron: '\*\/5 \* \* \* \*'/);
+  assert.match(snap, /runner\/kick-watch\.sh/);
+  assert.match(kickSh, /queue-watch\.sh/);
+  assert.match(kickSh, /actions: write/);
+  assert.match(queue, /gh workflow run meme-watch\.yml/);
+  assert.match(watcher, /data\/meme-watch\.json/);
+  assert.match(app, /Strategy health[\s\S]{0,200}watchStatus\(\)/);
+  assert.match(app, /Morning report[\s\S]{0,250}watchStatus\(\)/);
+  assert.match(app, /Paper meme book[\s\S]{0,600}watchStatus\(\)/);
+  assert.match(app, /data\/meme-watch\.json/);
+  assert.equal(MEME_SIZE, 2);
+  assert.equal(watchKickDecision(0), 'skip');
+  assert.equal(watchKickDecision(2), 'dispatch');
+  assert.equal(openMemeCount({ entries: [] }), 0);
+  assert.equal(openMemeCount({ entries: [{ id: 'sold', pnl: -1, exit: 'stop' }] }), 0);
+  assert.equal(openMemeCount({ entries: [{ id: 'shadow', shadow: true, paper: true }] }), 1);
+  const dir = mkdtempSync(join(tmpdir(), 'kick-watch-'));
+  try {
+    const empty = join(dir, 'empty.json');
+    const held = join(dir, 'held.json');
+    fs.writeFileSync(empty, JSON.stringify({ entries: [] }));
+    fs.writeFileSync(held, JSON.stringify({ entries: [{ id: 'meme:A', paper: true }, { id: 'meme:B', exit: 'stop', pnl: -1 }] }));
+    const cwd = fileURLToPath(root);
+    assert.equal(execFileSync('node', ['runner/kick-watch.mjs', empty], { cwd, encoding: 'utf8' }).trim(), 'skip');
+    assert.equal(execFileSync('node', ['runner/kick-watch.mjs', held], { cwd, encoding: 'utf8' }).trim(), 'dispatch');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

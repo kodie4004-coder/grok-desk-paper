@@ -13,7 +13,7 @@ import { GATE_PRIOR } from './engine/gate-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
-import { memeGate } from './engine/meme.js';
+import { memeGate, watchHealth, watchHealthLine } from './engine/meme.js';
 import { upgradeLines } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, TRAINER_STAKE } from './engine/trainer.js';
@@ -301,6 +301,7 @@ function healthCard(st) {
   const strategies = RESEARCH_PRIOR.strategies || [];
   return `<div class="card health ${part.mode}">
     <h2>Strategy health</h2>
+    ${watchStatus()}
     <p class="health-status" role="status">${esc(label)}</p>
     <p class="note">${esc(part.reason)}</p>
     <dl class="metrics">
@@ -841,10 +842,13 @@ function loadMorning() {
     fetch('data/morning.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
     fetch('data/heartbeat.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
     fetch('data/alloc-curve.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
-  ]).then(([morning, heartbeat, curve]) => {
+    fetch('data/meme-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }).catch(() => ({ entries: [] })),
+    fetch('data/meme-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
+  ]).then(([morning, heartbeat, curve, openDoc, watchDoc]) => {
     ui.morning = morning;
     ui.heartbeat = heartbeat;
     ui.allocCurve = curve;
+    noteMemeWatch(openDoc, watchDoc);
     ui.morningState = 'ready';
     if (ui.tab === 'home') render();
   }).catch(() => { ui.morningState = 'error'; if (ui.tab === 'home') render(); });
@@ -886,17 +890,28 @@ function drawAlloc(cv) {
   });
   g.stroke();
 }
+function noteMemeWatch(openDoc, watchDoc) {
+  ui.memeOpen = openDoc?.entries || [];
+  ui.memeWatchedAt = watchDoc?.watchedAt || null;
+  ui.watchReady = true;
+}
+function watchStatus() {
+  if (!ui.watchReady) return '';
+  const line = watchHealthLine(watchHealth({ open: ui.memeOpen || [], watchedAt: ui.memeWatchedAt, now: Date.now() }));
+  if (!line) return '';
+  return `<p class="halt" role="status">${esc(line)}</p>`;
+}
 function morningCard() {
   if (ui.morningState !== 'ready') loadMorning();
   const report = ui.morning;
   const beat = ui.heartbeat;
   const beatLine = beat?.at ? `Heartbeat ${beat.at.slice(0, 16).replace('T', ' ')} UTC · ${beat.open ?? 0} open · ${beat.settled ?? 0} settled` : 'Heartbeat waiting for the next snapshot.';
-  if (!report) return `<section class="card" aria-label="Morning report"><h2>Morning report</h2><p class="note">${esc(beatLine)}</p><p class="note">The report is written with the daily lesson job. Paper only.</p></section>`;
+  if (!report) return `<section class="card" aria-label="Morning report"><h2>Morning report</h2>${watchStatus()}<p class="note">${esc(beatLine)}</p><p class="note">The report is written with the daily lesson job. Paper only.</p></section>`;
   const best = report.best ? `${report.best.id} ${money(report.best.mean, true)}` : '—';
   const worst = report.worst ? `${report.worst.id} ${money(report.worst.mean, true)}` : '—';
   const lessons = (report.lessons || []).slice(0, 2).map((l) => `<li>${esc(l)}</li>`).join('');
   const changed = (report.changed || []).slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join('');
-  return `<section class="card" aria-label="Morning report"><h2>Morning report</h2><p class="note">${esc(beatLine)}</p><p class="note">${esc(report.day || '')} · n ${report.trades ?? 0} · net ${money(report.net, true)} after fees</p><p class="note">Best ${esc(best)} · Worst ${esc(worst)}</p><ul class="feed">${lessons}</ul>${changed ? `<ul class="feed">${changed}</ul>` : ''}</section>`;
+  return `<section class="card" aria-label="Morning report"><h2>Morning report</h2>${watchStatus()}<p class="note">${esc(beatLine)}</p><p class="note">${esc(report.day || '')} · n ${report.trades ?? 0} · net ${money(report.net, true)} after fees</p><p class="note">Best ${esc(best)} · Worst ${esc(worst)}</p><ul class="feed">${lessons}</ul>${changed ? `<ul class="feed">${changed}</ul>` : ''}</section>`;
 }
 function loadBrain() {
   if (ui.brainState === 'ready' || ui.brainState === 'loading') return;
@@ -978,12 +993,13 @@ async function loadCoins() {
   ui.coinsState = 'loading';
   if (ui.tab === 'coins') render();
   try {
-    const [board, openDoc, journalText] = await Promise.all([
+    const [board, openDoc, journalText, watchDoc] = await Promise.all([
       fetch('data/meme-board.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('Coin board ' + r.status); return r.json(); }),
       fetch('data/meme-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }).catch(() => ({ entries: [] })),
       fetch('data/meme-journal.jsonl?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.text() : '').catch(() => ''),
+      fetch('data/meme-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
     ]);
-    ui.memeOpen = openDoc.entries || [];
+    noteMemeWatch(openDoc, watchDoc);
     ui.memeJournal = String(journalText || '').trim() ? String(journalText).trim().split('\n').filter(Boolean).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean) : [];
     ui.coins = Array.isArray(board?.coins) ? board.coins : [];
     ui.coinsState = 'ready';
@@ -1024,7 +1040,7 @@ function coinsView() {
   const gate = memeGate(ui.memeJournal || []);
   const net = (ui.memeJournal || []).reduce((sum, row) => sum + (row.pnl || 0), 0);
   const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
-  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}${sheet}</section>`;
+  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p>${watchStatus()}<p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}${sheet}</section>`;
 }
 function coinLinks(ca, dexUrl) {
   const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;

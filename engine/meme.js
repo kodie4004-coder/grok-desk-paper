@@ -447,6 +447,52 @@ export function watchBudget(positions, intervalMs) {
   return Math.ceil(n / DEX_BATCH) * (60000 / interval);
 }
 
+// A paper coin is still open when it has not been sold. Shadow rows count:
+// they are paper positions with the same 15% stop.
+export function openMemeCount(doc) {
+  if (typeof doc === 'number') return Number.isFinite(doc) && doc > 0 ? doc : 0;
+  const entries = Array.isArray(doc) ? doc : (doc?.entries || []);
+  return entries.filter((row) => row && row.pnl == null && !row.exit).length;
+}
+
+export const WATCH_STALE_MS = 10 * 60 * 1000;
+
+// Stale only while a paper coin is open and the last completed watch pass
+// is missing or more than 10 minutes old. An empty book is not a warning.
+export function watchHealth({ open = 0, watchedAt = null, now = Date.now() } = {}) {
+  const n = openMemeCount(open);
+  const stamp = Date.parse(watchedAt || '');
+  const known = Number.isFinite(stamp);
+  const ageMs = known ? now - stamp : null;
+  const stale = n > 0 && (!known || ageMs > WATCH_STALE_MS);
+  return {
+    paper: true,
+    stale,
+    open: n,
+    ageMs: n > 0 && known ? ageMs : null,
+    watchedAt: known ? new Date(stamp).toISOString() : null,
+  };
+}
+
+export function watchHealthLine(health) {
+  if (!health?.stale || !(health.open > 0)) return '';
+  const coins = health.open === 1 ? '1 paper coin is open' : `${health.open} paper coins are open`;
+  if (health.ageMs == null) return `Meme stops are stale. ${coins} and there is no watch pass yet.`;
+  const minutes = Math.floor(health.ageMs / 60000);
+  const when = minutes > 10 ? `${minutes} minutes ago` : 'more than 10 minutes ago';
+  return `Meme stops are stale. ${coins} and the last watch pass was ${when}.`;
+}
+
+export function watchStamp({ open = 0, calls = 0, at = Date.now() } = {}) {
+  const when = new Date(at);
+  return {
+    paper: true,
+    watchedAt: Number.isFinite(when.getTime()) ? when.toISOString() : null,
+    open: Math.max(0, Number(open) || 0),
+    calls: Math.max(0, Number(calls) || 0),
+  };
+}
+
 function median(values) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);

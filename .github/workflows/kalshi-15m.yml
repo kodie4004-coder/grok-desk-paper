@@ -25,6 +25,13 @@ name: Kalshi 15-minute snapshot
 # rejected: main had moved under it (fetch first / not a fast-forward). The
 # queue step was `if: success()`, so the rejection ended the chain. The push
 # now fetches, rebases, and retries. The queue step is `if: always()`.
+#
+# Meme stops are not on a schedule. GitHub never fired the 5-minute kick
+# after that workflow merged. This chain already wakes itself about every
+# four minutes, so it dispatches meme-watch.yml with gh workflow run when a
+# paper coin is open. A GITHUB_TOKEN run does not emit workflow_run, so the
+# watch workflow must not listen for this job. The meme snapshot runner
+# dispatches the same way. The 5-minute kick stays as a backup.
 on:
   workflow_dispatch:
   schedule:
@@ -54,9 +61,17 @@ jobs:
       - run: node runner/snapshot-kalshi.mjs
       - run: node runner/journal-step.mjs
       - run: node runner/daily-jobs.mjs
-      - run: node runner/snapshot-meme.mjs || echo 'meme snapshot skipped'
+      - name: Snapshot meme coins and start a stop pass when one is open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node runner/snapshot-meme.mjs || echo 'meme snapshot skipped'
       - name: Commit the snapshot when it changed
         run: bash runner/push-snapshot.sh
+      - name: Dispatch a meme stop pass when a paper coin is open
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash runner/kick-watch.sh || echo 'meme watch dispatch did not stick; the next snapshot will try again'
       - name: Queue the next refresh
         if: always()
         env:
