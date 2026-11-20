@@ -37,6 +37,7 @@ add_existing \
   data/meme-open.json \
   data/meme-journal.jsonl \
   data/meme-stops.json \
+  data/meme-watch.json \
   data/research-upgrades.json
 
 if git diff --cached --quiet; then

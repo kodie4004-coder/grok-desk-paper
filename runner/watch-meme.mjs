@@ -3,7 +3,7 @@
 // about 15 calls a minute against a 300/minute limit.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { applyWatch, pricesFromDex, stopSlippage, watchIntervalMs } from '../engine/meme.js';
+import { applyWatch, pricesFromDex, stopSlippage, watchIntervalMs, watchStamp } from '../engine/meme.js';
 
 const interval = watchIntervalMs(Number(process.env.MEME_WATCH_MS || 4000));
 const duration = Number(process.env.MEME_WATCH_FOR || 240000);
@@ -43,40 +43,48 @@ function refreshOpen(localOpen, settledIds) {
   }
 }
 
-const history = readJournal();
-const settledIds = new Set(history.map((row) => row.id));
-let open = refreshOpen(readJson('data/meme-open.json', { entries: [] }).entries || [], settledIds);
-const until = Date.now() + Math.max(0, duration);
-let nextFetch = Date.now() + 30000;
+let open = [];
 let calls = 0;
-while (open.length && Date.now() < until) {
-  if (Date.now() >= nextFetch) {
-    open = refreshOpen(open, settledIds);
-    nextFetch = Date.now() + 30000;
+try {
+  const history = readJournal();
+  const settledIds = new Set(history.map((row) => row.id));
+  open = refreshOpen(readJson('data/meme-open.json', { entries: [] }).entries || [], settledIds);
+  const until = Date.now() + Math.max(0, duration);
+  let nextFetch = Date.now() + 30000;
+  while (open.length && Date.now() < until) {
+    if (Date.now() >= nextFetch) {
+      open = refreshOpen(open, settledIds);
+      nextFetch = Date.now() + 30000;
+    }
+    if (!open.length) break;
+    let prices = {};
+    try {
+      prices = await dexPrices([...new Set(open.map((row) => row.ca).filter(Boolean))]);
+      calls += 1;
+    } catch (e) {
+      console.log('dex', e.message);
+    }
+    const now = Date.now();
+    const next = applyWatch({ open, prices, now, history });
+    open = next.open.filter((row) => !settledIds.has(row.id));
+    if (next.settled.length) {
+      fs.mkdirSync('data', { recursive: true });
+      fs.appendFileSync('data/meme-journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      history.push(...next.settled);
+      for (const row of next.settled) settledIds.add(row.id);
+      fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date(now).toISOString(), entries: open }, null, 2) + '\n');
+      fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(history), updatedAt: new Date(now).toISOString(), calls }, null, 2) + '\n');
+      console.log('exited', next.settled.map((row) => `${row.symbol || row.ca} ${row.exit}`).join(', '));
+    }
+    const left = until - Date.now();
+    if (left <= 0 || !open.length) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(interval, left)));
   }
-  if (!open.length) break;
-  let prices = {};
-  try {
-    prices = await dexPrices([...new Set(open.map((row) => row.ca).filter(Boolean))]);
-    calls += 1;
-  } catch (e) {
-    console.log('dex', e.message);
-  }
-  const now = Date.now();
-  const next = applyWatch({ open, prices, now, history });
-  open = next.open.filter((row) => !settledIds.has(row.id));
-  if (next.settled.length) {
-    fs.mkdirSync('data', { recursive: true });
-    fs.appendFileSync('data/meme-journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
-    history.push(...next.settled);
-    for (const row of next.settled) settledIds.add(row.id);
-    fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date(now).toISOString(), entries: open }, null, 2) + '\n');
-    fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(history), updatedAt: new Date(now).toISOString(), calls }, null, 2) + '\n');
-    console.log('exited', next.settled.map((row) => `${row.symbol || row.ca} ${row.exit}`).join(', '));
-  }
-  const left = until - Date.now();
-  if (left <= 0 || !open.length) break;
-  await new Promise((resolve) => setTimeout(resolve, Math.min(interval, left)));
+  console.log('calls', calls, 'open', open.length, 'intervalMs', interval);
+  console.log(open.length ? 'chain=yes' : 'chain=no');
+} finally {
+  const doc = watchStamp({ open: open.length, calls, at: Date.now() });
+  fs.mkdirSync('data', { recursive: true });
+  fs.writeFileSync('data/meme-watch.json', JSON.stringify(doc, null, 2) + '\n');
+  console.log('watchedAt', doc.watchedAt || 'missing');
 }
-console.log('calls', calls, 'open', open.length, 'intervalMs', interval);
-console.log(open.length ? 'chain=yes' : 'chain=no');

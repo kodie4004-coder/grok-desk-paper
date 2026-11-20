@@ -1,8 +1,30 @@
 // Public Solana meme snapshot. Read-only: no wallet, no key, no order.
 // Mint and freeze come from the mint account. Top 10 holders come from the
 // largest token accounts. A slow or failed RPC is a failed check, not a hang.
+// When a paper coin is open, kick-watch.sh starts the stop pass with
+// gh workflow run. A GITHUB_TOKEN job does not emit workflow_run, so this
+// call is the dispatch. The Kalshi workflow step calls the same script again.
 import fs from 'node:fs';
-import { bestPair, candidateMints, lookupMints, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
+import { execFileSync } from 'node:child_process';
+import { bestPair, candidateMints, lookupMints, openMemeCount, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
+import { watchKickDecision } from './kick-watch.mjs';
+
+function dispatchMemeWatch() {
+  let count = 0;
+  try { count = openMemeCount(JSON.parse(fs.readFileSync('data/meme-open.json', 'utf8'))); } catch { count = 0; }
+  const choice = watchKickDecision(count);
+  console.log(`watch=${choice} open=${count}`);
+  if (choice !== 'dispatch') return;
+  if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) {
+    console.log('watch dispatch waits for a step with actions: write');
+    return;
+  }
+  try {
+    execFileSync('bash', ['runner/kick-watch.sh'], { stdio: 'inherit' });
+  } catch (e) {
+    console.log('watch dispatch failed', e.status ?? e.message);
+  }
+}
 
 async function get(url) {
   const res = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
@@ -83,4 +105,6 @@ try {
   }
 } catch (e) {
   console.log('meme snapshot failed', e.message);
+} finally {
+  dispatchMemeWatch();
 }

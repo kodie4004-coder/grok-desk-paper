@@ -6,8 +6,13 @@ name: Meme stop watcher
 # one call, about 15 calls a minute, under the 300/minute pairs limit.
 # The job runs a few minutes, commits with the same rebase retry as the
 # snapshot, and queues the next pass only while something is still open.
-# The repo is public. One runner, no schedule on this file. meme-watch-kick.yml
-# starts a pass when this chain has stopped.
+# The repo is public. One runner, no schedule on this file.
+# kalshi-15m.yml and the meme snapshot runner start a pass with gh workflow run
+# while a paper coin is open. meme-watch-kick.yml is only the 5-minute backup:
+# GitHub dropped that cron (zero runs in the first 70 minutes). Do not add a
+# workflow_run trigger on the Kalshi chain. A GITHUB_TOKEN dispatch does not
+# emit workflow_run. The concurrency group queues a second pass instead of
+# letting two passes price the same coins at once.
 on:
   workflow_dispatch:
 
@@ -46,5 +51,5 @@ jobs:
               bash runner/queue-watch.sh --backoff
             fi
           else
-            echo "no open meme position; the kick will look again"
+            echo "no open meme position; the kalshi chain and the kick will look again"
           fi
