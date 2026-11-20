@@ -2,7 +2,7 @@
 // settlement. A challenger may replace a champion only on a burned holdout.
 // The v6 edge gate is not modified here. Size stays $2. Nothing here is real money.
 
-import { kalshiTakerFee, coinFlipSide } from './kalshi.js';
+import { kalshiTakerFee, coinFlipSide, feeEdgeClears } from './kalshi.js';
 import { makerPick, quoteCrossed, settlePick } from './upgrades.js';
 import { reviewRoles, shouldExit, settleExit } from './roles.js';
 import { clusterBootstrap } from './eval.js';
@@ -16,11 +16,18 @@ export const SNAPSHOT_ALLOC_CAP = 8;
 export const SNAPSHOT_LINE_CAP = 16;
 export const MISSING_RESULT_MS = 6 * 3600000;
 
+// One cent per contract. This is the fee schedule's rounding unit, chosen before
+// any trade from the fee-aware challengers. It is not a search over past results.
+export const FEE_EDGE_MARGIN = 0.01;
+// Days on or before this UTC date cannot promote or bench these challengers.
+export const FEE_AWARE_ADDED_AT = '2026-11-20T23:20:00.000Z';
+
 export const VARIANTS = [
   { id: 'late', family: 'late', label: 'Late favorite', role: 'champion', minAsk: 0.85, minLeft: 180, maxLeft: 300 },
   { id: 'late-loose', family: 'late', label: 'Late favorite, looser ask', role: 'challenger', minAsk: 0.80, minLeft: 180, maxLeft: 300 },
   { id: 'late-tight', family: 'late', label: 'Late favorite, tighter ask', role: 'challenger', minAsk: 0.90, minLeft: 180, maxLeft: 360 },
   { id: 'late-early', family: 'late', label: 'Late favorite, earlier', role: 'challenger', minAsk: 0.85, minLeft: 300, maxLeft: 480 },
+  { id: 'late-fee', family: 'late', label: 'Late favorite, fee-aware', role: 'challenger', minAsk: 0.85, minLeft: 180, maxLeft: 300, feeAware: true, addedAt: FEE_AWARE_ADDED_AT },
   { id: 'mom', family: 'mom', label: 'Momentum vs target', role: 'champion', kind: 'mom', minLeft: 120, maxLeft: 600, minMove: 0 },
   { id: 'mom-strict', family: 'mom', label: 'Momentum, 0.05% past the strike', role: 'challenger', kind: 'mom', minLeft: 120, maxLeft: 600, minMove: 0.0005 },
   { id: 'revert', family: 'revert', label: 'Mean revert', role: 'champion', kind: 'revert', minLeft: 360, maxLeft: 720, cheap: [0.15, 0.40], rich: [0.60, 0.85] },
@@ -31,6 +38,7 @@ export const VARIANTS = [
   { id: 'scalp-tp', family: 'scalp', label: 'Scalp, 3c take-profit', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'tp' },
   { id: 'scalp-stop', family: 'scalp', label: 'Scalp, 4c stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'stop' },
   { id: 'scalp-time', family: 'scalp', label: 'Scalp, 2-minute time-stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'time' },
+  { id: 'scalp-fee', family: 'scalp', label: 'Scalp, fee-aware', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, feeAware: true, addedAt: FEE_AWARE_ADDED_AT },
   { id: 'flip', family: 'flip', label: 'Coin-flip control', role: 'control', kind: 'flip', minLeft: 600, maxLeft: 840 },
   { id: 'rest-maker', family: 'maker', label: 'Resting maker', role: 'challenger', kind: 'maker', minLeft: 120, maxLeft: 600 },
   { id: 'mom-settle', family: 'mom', label: 'Momentum, 60-second average', role: 'challenger', kind: 'settle', minLeft: 120, maxLeft: 600 },
@@ -49,6 +57,7 @@ export function defaultBrain() {
     shadowSince: {},
     experimentSince: null,
     judged: [],
+    addedAt: Object.fromEntries(VARIANTS.filter((v) => v.addedAt).map((v) => [v.id, v.addedAt])),
     weights: Object.fromEntries(VARIANTS.map((v) => [v.id, v.role === 'challenger' ? 1 : 2])),
     decisions: [],
   };
@@ -71,6 +80,24 @@ function stdev(values) {
   const m = values.reduce((a, b) => a + b, 0) / values.length;
   const v = values.reduce((a, b) => a + (b - m) ** 2, 0) / (values.length - 1);
   return Math.sqrt(v);
+}
+
+// These two bots do not publish a win probability. The proxy is the quote mid of
+// the side being bought: (yes bid + yes ask) / 2, or one minus that mid for NO.
+// The 0.85 cut and the 4 cent jump are price rules, not probabilities. A missing
+// bid, a bid outside (0, 1), or a bid above the ask is no estimate and no trade.
+// This proxy was not fit to past win rates.
+export function sideWinProb(market, side) {
+  const yesBid = Number(market?.yesBid);
+  const yesAsk = Number(market?.yesAsk);
+  if (!(yesBid > 0 && yesBid < 1) || !(yesAsk > 0 && yesAsk < 1) || yesBid > yesAsk) return null;
+  const yesMid = (yesBid + yesAsk) / 2;
+  if (side === 'yes') return yesMid;
+  if (side === 'no') {
+    const p = 1 - yesMid;
+    return p > 0 && p < 1 ? p : null;
+  }
+  return null;
 }
 
 function favorite(market, minAsk) {
@@ -120,6 +147,12 @@ export function signal(variant, market, now, ctx = {}) {
     picked = settlePick(market, ctx.spots, left);
   }
   if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
+  if (variant.feeAware) {
+    const contracts = Math.floor(LEARN_SIZE / picked.ask);
+    const pEst = sideWinProb(market, picked.side);
+    if (!feeEdgeClears(pEst, picked.ask, contracts, FEE_EDGE_MARGIN)) return null;
+    picked = { ...picked, pEst };
+  }
   const samples = [...(ctx.prev?.samples || []), yes].filter((n) => Number.isFinite(n));
   const spread = Number.isFinite(yes) && Number.isFinite(bid) && yes >= bid ? +(yes - bid).toFixed(4) : null;
   return {
@@ -132,6 +165,7 @@ export function signal(variant, market, now, ctx = {}) {
       volatility: stdev(samples.slice(-5)),
       strategy: variant.id,
       market: market.series || '',
+      ...(Number.isFinite(picked.pEst) ? { pEst: picked.pEst } : {}),
     },
   };
 }
@@ -152,6 +186,27 @@ export function unresolvedRow(entry, now) {
     paper: true,
     open: false,
   };
+}
+
+function addedDay(variant) {
+  return variant?.addedAt ? String(variant.addedAt).slice(0, 10) : null;
+}
+
+// Rows from the added UTC day, and every earlier day, are not a sample.
+function eligibleRows(variant, rows) {
+  const mine = (rows || []).filter((row) => row.variant === variant.id);
+  const day = addedDay(variant);
+  if (!day) return mine;
+  return mine.filter((row) => {
+    const key = row.window || dayKey(row.closeTime);
+    return key && key > day;
+  });
+}
+
+function holdoutEligible(variant, holdout) {
+  const day = addedDay(variant);
+  if (!day || !holdout) return true;
+  return holdout > day;
 }
 
 export function settleRow(entry, result, now) {
@@ -551,7 +606,7 @@ export function reviewBrain(brain, rows, now, opts = {}) {
       weights[variant.id] = 1;
       continue;
     }
-    const mine = train.filter((r) => r.variant === variant.id);
+    const mine = eligibleRows(variant, train);
     const stats = windowStats(mine, opts.iters || 200);
     const losing = stats.n >= HOLD_MIN && !(stats.mean > 0) && !(stats.lo > 0);
     if (losing) benched.add(variant.id);
@@ -572,10 +627,18 @@ export function reviewBrain(brain, rows, now, opts = {}) {
       }
       const champHold = windowStats(holdRows.filter((r) => r.variant === champId), opts.iters || 200);
       let best = null;
+      const blocked = [];
       for (const variant of VARIANTS.filter((v) => v.family === family && v.id !== champId && v.role !== 'control')) {
-        const stats = windowStats(holdRows.filter((r) => r.variant === variant.id), opts.iters || 200);
+        if (!holdoutEligible(variant, holdout)) {
+          blocked.push(variant);
+          continue;
+        }
+        const stats = windowStats(eligibleRows(variant, holdRows), opts.iters || 200);
         const beats = holdout && stats.n >= HOLD_MIN && champHold.n >= HOLD_MIN && stats.mean > champHold.mean && stats.mean > 0;
         if (beats && (!best || stats.mean > best.stats.mean)) best = { variant, stats };
+      }
+      for (const variant of blocked) {
+        decisions.push(`${variant.label} was added on ${addedDay(variant)}. ${holdout} is not after that day, so it cannot promote this challenger.`);
       }
       if (best) {
         champions[family] = best.variant.id;
@@ -596,6 +659,10 @@ export function reviewBrain(brain, rows, now, opts = {}) {
     judged: base.judged,
     weights,
     holdout,
+    addedAt: {
+      ...(base.addedAt || {}),
+      ...Object.fromEntries(VARIANTS.filter((v) => v.addedAt).map((v) => [v.id, v.addedAt])),
+    },
     decisions,
     reviewedAt: new Date(now).toISOString(),
   };
