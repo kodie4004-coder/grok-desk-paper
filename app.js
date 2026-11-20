@@ -6,7 +6,7 @@ import { ACTIVE, activePace } from './engine/active.js';
 import { PREDICT_PRIOR } from './engine/predict-prior.js';
 import { KALSHI_PRIOR } from './engine/kalshi-prior.js';
 import { loadKalshiBoard, reviewKalshi, quoteAge } from './engine/kalshi.js';
-import { reviewArena, placePick, loadSpots, loadBook, ARENA_SIZE } from './engine/arena.js';
+import { reviewArena, placePick, loadSpots, loadBook, ARENA_SIZE, arenaIdeas } from './engine/arena.js';
 import { levelOf, streak, achievements } from './engine/game.js';
 import { migrate, exportHistory, importHistory, historyCsv } from './engine/store.js';
 import { GATE_PRIOR } from './engine/gate-prior.js';
@@ -14,6 +14,7 @@ import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 import { memeGate } from './engine/meme.js';
+import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -38,7 +39,7 @@ function countSpan(n, signed, key, raw) {
 }
 function runCounts() {
   if (!ui.counts) ui.counts = new Map();
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduce = !motionOn();
   document.querySelectorAll('[data-count]').forEach((el) => {
     const key = el.dataset.countKey;
     const target = Number(el.dataset.count);
@@ -81,12 +82,57 @@ const idb = {
 const loadSettings = () => { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('gd.settings') || '{}') }; } catch { return { ...DEFAULT_SETTINGS }; } };
 const saveSettings = (s) => localStorage.setItem('gd.settings', JSON.stringify(s));
 
-const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1', arena: 'feed', sound: localStorage.getItem('gd.sound') === '1', coinAlerts: localStorage.getItem('gd.coinAlerts') === '1', memeJournal: [] };
+const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1', arena: 'feed', sound: localStorage.getItem('gd.sound') === '1', coinAlerts: localStorage.getItem('gd.coinAlerts') === '1', memeJournal: [], train: 'call', haptics: localStorage.getItem('gd.haptics') !== '0', motion: localStorage.getItem('gd.motion') !== '0', remind: localStorage.getItem('gd.remind') === '1', coinFilter: 'all', trainSide: '', trainConf: '60' };
+if (localStorage.getItem('gd.motion') === '0') document.documentElement.classList.add('motion-off');
+if (localStorage.getItem('gd.theme') === 'light') document.documentElement.dataset.theme = 'light';
 let live = null;          // live state
 let state = null;         // what is on screen (live or replay)
 const src = createLiveSource();
 
-async function persist() { if (live) await idb.set('state', serialize(live)); }
+async function persist() { if (ui.shotLock || !live) return; await idb.set('state', serialize(live)); }
+function motionOn() {
+  if (document.documentElement.classList.contains('motion-off')) return false;
+  return !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function haptic(pattern = 12) {
+  if (!ui.gestured || localStorage.getItem('gd.haptics') === '0') return;
+  try { navigator.vibrate?.(pattern); } catch { /* this phone has no vibration */ }
+}
+document.addEventListener('pointerdown', () => { ui.gestured = true; }, { passive: true });
+let audioCtx;
+function blip(win) {
+  if (!ui.sound) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  const ctx = audioCtx || (audioCtx = new Ctx());
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.frequency.value = win ? 740 : 180;
+  g.gain.value = 0.04;
+  o.connect(g); g.connect(ctx.destination);
+  o.start();
+  o.stop(ctx.currentTime + 0.12);
+}
+let trainerBook = null;
+function loadTrainer() {
+  if (trainerBook) return trainerBook;
+  try { trainerBook = { ...emptyTrainer(), ...JSON.parse(localStorage.getItem('gd.trainer') || '{}') }; }
+  catch { trainerBook = emptyTrainer(); }
+  trainerBook.open ||= [];
+  trainerBook.closed ||= [];
+  trainerBook.xp ||= 0;
+  trainerBook.stakeUsd = TRAINER_STAKE;
+  return trainerBook;
+}
+function saveTrainer() {
+  if (!trainerBook || ui.shotLock) return;
+  trainerBook.stakeUsd = TRAINER_STAKE;
+  localStorage.setItem('gd.trainer', JSON.stringify(trainerBook));
+}
+function watchSet() {
+  try { return new Set(JSON.parse(localStorage.getItem('gd.watch') || '[]')); } catch { return new Set(); }
+}
+function saveWatch(set) { localStorage.setItem('gd.watch', JSON.stringify([...set])); }
 
 // ---------- toasts / notifications ----------
 function toast(e) {
@@ -127,7 +173,8 @@ setInterval(() => {
     const due = Date.now() - (live.lastTickAt || 0) >= scanEveryMs(live);
     if (due) liveTick(); else liveMark();
   }
-  if (ui.tab === 'home') updateTimer();
+  updateTimer();
+  maybeHealQuote();
 }, 1000);
 
 // ---------- replay ----------
@@ -208,6 +255,7 @@ function drawChart(cv, st) {
 
 // ---------- views ----------
 function updateTimer() {
+  if (state) { paintRings(); paintQuoteClock(); }
   const el = $('#timer'); if (!el || !state) return;
   if (!state.startedAt) { el.textContent = 'no session yet'; return; }
   const end = state.running ? (state.mode === 'replay' ? state.lastTickAt : Date.now()) : state.endedAt;
@@ -354,10 +402,8 @@ function kalshiCard(st) {
   const why = log.length ? log.map((d) => `<li><span><b>${esc(d.title || 'K1')}</b> <span class="tag ${d.action === 'take' ? 'normal' : 'off'}">${esc(d.action)}</span><br><span class="note">${esc(d.reason || '')}</span></span></li>`).join('') : '<li><span class="empty">No K1 take or skip yet. A bet needs a quote under two minutes old and 3 to 5 minutes left.</span></li>';
   const phone = st.kalshiClosed || [];
   const phoneNet = phone.reduce((a, t) => a + (t.pnl || 0), 0);
-  const age = quoteAge(board.fetchedAt, now);
-  const ageText = age.ms == null ? 'Kalshi quote age unknown' : `Kalshi quote is ${age.label} old`;
   return `<div class="card"><h2>Kalshi 15-minute</h2>
-    <p class="age ${age.stale ? 'stale' : 'fresh'}" role="status">${esc(ageText)} · ${age.stale ? 'STALE' : 'fresh'}</p>
+    ${quoteBox(st)}
     <p class="note">The public API refuses every page Origin except https://kalshi.com. This board reads <code>data/kalshi-15m.json</code>. A quote older than 15 minutes is stale. Collected ${esc(board.fetchedAt || 'not loaded')} · ${esc(board.via || 'snapshot')}.</p>
     <ul class="feed">${list}</ul></div>
   <div class="card"><div class="row"><h2 style="margin:0">K1 late favorite</h2><span class="tag ${edge ? 'normal' : 'exploration'}">${edge ? 'graduated' : 'exploration'}</span></div>
@@ -435,28 +481,46 @@ function paintTicker(st) {
   track.innerHTML = `<span>${esc(text)}</span><span>${esc(text)}</span>`;
   bar.hidden = false;
 }
-function blip(win) {
-  if (!ui.sound) return;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return;
-  const ctx = new Ctx();
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.frequency.value = win ? 740 : 180;
-  g.gain.value = 0.04;
-  o.connect(g); g.connect(ctx.destination);
-  o.start();
-  o.stop(ctx.currentTime + 0.12);
-}
 function burst(kind) {
+  haptic(kind === 'loss' ? [8, 30, 8] : [12, 28, 12]);
+  if (kind !== 'loss') blip(true);
+  if (!motionOn()) return;
   const fx = document.getElementById('fx');
+  const view = document.getElementById('view');
+  if (kind === 'loss') {
+    view?.classList.add('loss-pulse');
+    view?.animate?.([
+      { transform: 'translateX(0)' },
+      { transform: 'translateX(-4px)' },
+      { transform: 'translateX(3px)' },
+      { transform: 'translateX(-2px)' },
+      { transform: 'translateX(0)' },
+    ], { duration: 320, easing: 'ease-out' });
+    setTimeout(() => view?.classList.remove('loss-pulse'), 480);
+    return;
+  }
   if (!fx) return;
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  fx.className = reduce ? 'fx' : `fx ${kind}`;
-  fx.innerHTML = reduce ? '' : Array.from({ length: 16 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
-  if (navigator.vibrate) navigator.vibrate(kind === 'win' ? [12, 28, 12] : 8);
-  blip(kind === 'win');
-  setTimeout(() => { fx.className = 'fx'; fx.innerHTML = ''; }, 1000);
+  fx.replaceChildren();
+  const n = kind === 'level' ? 26 : 22;
+  const colors = ['#3DFF9A', '#FFD56A', '#9ec5ff'];
+  const dur = ui.shotLock ? 1400 : 760;
+  for (let i = 0; i < n; i++) {
+    const dot = document.createElement('i');
+    dot.style.background = colors[i % colors.length];
+    dot.style.width = i % 3 === 0 ? '12px' : '8px';
+    dot.style.height = i % 3 === 0 ? '12px' : '8px';
+    dot.style.left = '50%';
+    dot.style.top = '22%';
+    fx.appendChild(dot);
+    const angle = (Math.PI * 2 * i) / n;
+    const dist = 90 + (i % 5) * 28;
+    dot.animate([
+      { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${Math.cos(angle) * dist * 0.6}px), calc(-50% + ${Math.sin(angle) * dist * 0.55}px)) scale(1)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist + 36}px)) scale(0.8)`, opacity: 0 },
+    ], { duration: dur, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' });
+  }
+  setTimeout(() => fx.replaceChildren(), dur + 40);
 }
 function countdown(close, now) {
   const s = Math.max(0, Math.round((Date.parse(close) - now) / 1000));
@@ -472,17 +536,18 @@ function cockpit(st) {
   const openN = (st.arenaOpen || []).length + (st.picksOpen || []).length;
   const xp = st.game?.xp || 0;
   const loading = !st.kalshiBoard;
-  const age = st.kalshiBoard ? quoteAge(st.kalshiBoard.fetchedAt, now) : null;
+  const dayStreak = streak(st.game || {}, now);
+  const pct = ((xp % 50) / 50) * 100;
   return `<section class="card cockpit arcade" aria-label="Paper cockpit">
     <div class="row"><h2 style="margin:0">Cockpit</h2><span class="tag explore">PAPER · not real money</span></div>
-    ${loading ? '<div class="skel" aria-busy="true" aria-label="Loading markets"></div>' : ''}
+    ${shotNote()}
+    ${loading ? '<div class="quote-box is-fresh" role="status" aria-busy="true"><div class="row"><p class="quote-clock">Checking the snapshot</p></div><p class="note">The Kalshi file is loading.</p></div>' : quoteBox(st)}
     <div class="grid">
       <div class="stat"><small>Live now</small><b>${openN}</b><span class="note">open</span></div>
       <div class="stat"><small>Today</small><b class="${pnl > 0 ? 'g' : pnl < 0 ? 'r' : ''}">${money(pnl, true)}</b><span class="note">after fees</span></div>
-      <div class="stat"><small>Streak</small><b>${streak(st.game || {}, now)}d</b><span class="note">Level ${levelOf(xp)} · ${xp} XP</span></div>
+      <div class="stat"><small>Streak</small><b>${flame(dayStreak)}${dayStreak}d</b><span class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="50" aria-valuenow="${xp % 50}" aria-label="XP toward the next level"><i data-w="${pct}%"></i></span><span class="note">Level ${levelOf(xp)} · ${xp} XP</span></div>
     </div>
-    ${age ? `<p class="age ${age.stale ? 'stale' : 'fresh'}" role="status">Kalshi quote ${esc(age.label)} · ${age.stale ? 'STALE' : 'fresh'}</p>` : ''}
-    <p class="lvl">${soon ? `Next close ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}</p>
+    <div class="ring-row">${soon ? `${ringHtml(soon.closeTime, true)}<div><p class="lvl">This window</p><p class="note">Paper countdown. Not an order.</p></div>` : '<p class="empty">No open 15-minute window in the latest snapshot.</p>'}</div>
     <p class="note">${last ? `Just settled: ${esc(last.title || last.rule)} · ${esc(last.reason || '')}` : 'Nothing has settled on this phone yet.'}</p>
     <button class="btn pri wide" id="goArena" type="button">Open the arena</button>
     <div class="row" style="margin-top:8px"><button type="button" class="btn" data-tabjump="agents">Agents</button><button type="button" class="btn" data-tabjump="activity">Log</button></div>
@@ -503,7 +568,7 @@ function arenaView(st) {
     const age = quoteAge(st.kalshiBoard?.fetchedAt, now);
     const rows = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime)).slice(0, 8);
     const list = rows.map((m) => `<li class="slot"><div class="row"><b>${esc(m.series || m.ticker)}</b><span class="note">${countdown(m.closeTime, now)}</span></div><p class="note">${esc(m.title || '')} · PAPER chip $${ARENA_SIZE}</p><div class="row"><button type="button" class="btn pri" data-pick="yes" data-ticker="${esc(m.ticker)}">Up</button><button type="button" class="btn" data-pick="no" data-ticker="${esc(m.ticker)}">Down</button></div></li>`).join('');
-    const empty = age.stale ? `Snapshot is ${esc(age.label)} old and marked STALE. No open window to pick.` : 'No live 15-minute market in the snapshot.';
+    const empty = age.stale ? `Updated ${esc(age.label)} ago, so this snapshot is too old to pick. Retry from Home.` : 'No live 15-minute market in the snapshot.';
     const mine = (st.picksOpen || []).concat(st.picksClosed || []).slice(-6).reverse().map((p) => `<li><span><b>${esc(p.title || p.ticker)}</b> ${esc(p.side)} $${p.sizeUsd}<br><span class="note">${p.pnl == null ? 'open' : money(p.pnl, true) + ' after fees'}</span></span></li>`).join('');
     return `<div class="card arcade"><div class="row"><h2 style="margin:0">Pick a side</h2>${sound}</div><p class="note">One $${ARENA_SIZE} paper chip. A loss does not raise the next chip. Bots are on the feed.</p><div class="seg">${tabs}</div><ul class="feed">${list || `<li><span class="empty">${empty}</span></li>`}</ul><h2>Your paper</h2><ul class="feed">${mine || '<li><span class="empty">No picks yet.</span></li>'}</ul></div>`;
   }
@@ -551,6 +616,7 @@ function home(st) {
   const isReplay = st.mode === 'replay';
   return `
   ${cockpit(st)}
+  ${reminderBanner()}
   ${allocCard()}
   ${morningCard()}
   <section class="card" aria-label="Live signals"><h2>Live signals</h2><p class="note">${ui.coinsState === 'ready' ? `${(ui.coins || []).filter((c) => c.pass).length} paper buy${(ui.coins || []).filter((c) => c.pass).length === 1 ? '' : 's'} in the latest Solana list.` : 'Open Coins for the live Solana list. Only a paper buy shows a contract address to copy.'}</p><button type="button" class="btn wide" data-tabjump="coins">Open coins</button></section>
@@ -697,7 +763,13 @@ function settingsView(st) {
   <div class="note" style="margin-top:8px">There is no "make it back" setting on purpose. Raising size or loosening rules after a loss is loss-chasing and drains accounts; the loss cap stops new entries instead. The edge gate only shrinks or stops. It never sizes above the position you set, and a loss never increases size.</div></div>
   <div class="card"><h2>Notifications</h2><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Nothing is sent outside this device.</div></div>
   <div class="card" id="pro"><h2>Pro</h2><p class="note">Coming soon. There is no payment and no account. If you would pay for a finished version, you can leave an email on this phone. It is stored only in this browser and is not sent anywhere.</p><label class="f">Email on this phone<input id="proEmail" type="email" inputmode="email" autocomplete="off" value="${esc(localStorage.getItem('gd.proEmail') || '')}"></label><button type="button" class="btn wide" id="proSave">Save on this phone</button></div>
-  <div class="card"><h2>Appearance</h2><button type="button" class="btn wide" id="themeBtn">${document.documentElement.dataset.theme === 'light' ? 'Use dark theme' : 'Use light theme'}</button></div>
+  <div class="card"><h2>Feel</h2>
+  <label class="f">Sounds<input type="checkbox" id="soundSet" ${ui.sound ? 'checked' : ''}></label>
+  <label class="f">Haptics<input type="checkbox" id="hapticSet" ${ui.haptics ? 'checked' : ''}></label>
+  <label class="f">Motion<input type="checkbox" id="motionSet" ${ui.motion ? 'checked' : ''}></label>
+  <label class="f">Daily practice reminder, in this app only<input type="checkbox" id="remindSet" ${ui.remind ? 'checked' : ''}></label>
+  <p class="note">Sounds, haptics, and motion stay on this phone. The system reduced-motion setting turns motion off even when this switch is on. The reminder is a line in the app, not a notification. Haptics need a phone that supports vibration.</p>
+  <button type="button" class="btn wide" id="themeBtn">${document.documentElement.dataset.theme === 'light' ? 'Use dark theme' : 'Use light theme'}</button></div>
   <div class="card"><h2>Live execution</h2><label class="f">live_execution<input type="checkbox" disabled></label>
     <div class="note">Disabled and not built. This app has no wallet connection, no private keys and no order code. Going live would need a separate build (wallet signing, a swap router such as Jupiter, priority fees, real slippage handling, kill switch) and Kodie's explicit approval. See <code>LIVE_EXECUTION.md</code>.</div></div>
   <div class="card"><h2>Data</h2><div class="note">Sources (free, no keys): GeckoTerminal, DexScreener, Jupiter, Coinbase, Kalshi snapshot, EDGAR. State lives only in this browser.</div>
@@ -792,7 +864,7 @@ function loadBrain() {
 function brainView() {
   if (ui.brainState !== 'ready') {
     loadBrain();
-    if (ui.brainState === 'error') return `<div class="card"><h2>Bot brain</h2><p class="empty">${esc(ui.brainError || 'The lessons file did not load.')}</p></div>`;
+    if (ui.brainState === 'error') return `<div class="card"><h2>Bot brain</h2><p class="empty">The lessons file did not load. ${esc(ui.brainError || 'Check the connection and try again.')}</p><button type="button" class="btn" id="brainRetry">Retry</button></div>`;
     return `<section class="card arcade" aria-busy="true" aria-label="Bot brain"><h2>Bot brain</h2><div class="skel"></div><p class="note">Loading the paper journal.</p></section>`;
   }
   const doc = ui.lessons || {};
@@ -863,20 +935,26 @@ function coinsView() {
   const alert = `<button type="button" id="coinAlert" class="switch ${ui.coinAlerts ? 'on' : ''}" aria-pressed="${!!ui.coinAlerts}">${ui.coinAlerts ? 'Alerts on' : 'Alerts off'}</button>`;
   if (ui.coinsState !== 'ready') {
     const bones = [0, 1, 2].map(() => '<div class="skel-card" aria-hidden="true"><div class="skel logo"></div><div class="skel-col"><div class="skel"></div><div class="skel short"></div><div class="skel wide"></div></div></div>').join('');
-    return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">${esc(ui.coinsError)}</p>` : `<div aria-busy="true" aria-label="Loading coins">${bones}</div><p class="note">Reading mint accounts and holders.</p>`}</section>`;
+    return `<section class="card" aria-label="Coin signals">${note}<div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${ui.coinsState === 'error' ? `<p class="empty">The coin list did not load. ${esc(ui.coinsError || '')} Check the connection and try again. Nothing was ordered.</p><button type="button" class="btn" id="coinRetry">Retry</button>` : `<div aria-busy="true" aria-label="Loading coins">${bones}</div><p class="note">Reading mint accounts and holders.</p>`}</section>`;
   }
-  const cards = (ui.coins || []).map((coin) => coinCard(coin)).join('');
+  const watch = watchSet();
+  const filtered = (ui.coins || []).filter((c) => ui.coinFilter === 'watch' ? watch.has(c.ca) : ui.coinFilter === 'pass' ? c.pass : true);
+  const cards = filtered.map((coin) => coinCard(coin, watch)).join('');
   const passed = (ui.coins || []).filter((c) => c.pass).length;
-  const coinEmpty = passed === 0
-    ? `<div class="card">${emptyArt('empty-coins.webp', 'A shield with a mint rim, for coins that have not cleared the safety checks.', cards ? 'Nothing passed the safety checks yet.' : 'Nothing passed the safety checks yet. Pull down to try the next scan.')}</div>`
+  const filters = `<div class="chips" role="group" aria-label="Coin filters"><button type="button" data-coinfilter="all" class="${ui.coinFilter === 'all' ? 'on' : ''}">All</button><button type="button" data-coinfilter="pass" class="${ui.coinFilter === 'pass' ? 'on' : ''}">Paper buys</button><button type="button" data-coinfilter="watch" class="${ui.coinFilter === 'watch' ? 'on' : ''}">Watching</button></div>`;
+  const watchEmpty = ui.coinFilter === 'watch' && !filtered.length
+    ? `<div class="card">${emptyArt('empty-coins.webp', 'A shield with a mint rim, for a watchlist that is still empty.', 'Nothing on your watchlist yet. Tap Watch on a coin. The list stays on this phone.')}</div>`
     : '';
+  const coinEmpty = ui.coinFilter !== 'watch' && passed === 0
+    ? `<div class="card">${emptyArt('empty-coins.webp', 'A shield with a mint rim, for coins that have not cleared the safety checks.', cards ? 'Nothing passed the safety checks yet.' : 'Nothing passed the safety checks yet. Pull down to try the next scan.')}</div>`
+    : watchEmpty;
   const justOpened = !!(ui.coinOpen && ui.coinOpen !== ui.sheetFor);
   ui.sheetFor = ui.coinOpen || null;
   const sheet = ui.coinOpen ? coinSheet(ui.coins.find((c) => c.ca === ui.coinOpen), justOpened) : '';
   const gate = memeGate(ui.memeJournal || []);
   const net = (ui.memeJournal || []).reduce((sum, row) => sum + (row.pnl || 0), 0);
   const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
-  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div><p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${cards}${sheet}</section>`;
+  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p><p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}${sheet}</section>`;
 }
 function coinLinks(ca, dexUrl) {
   const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;
@@ -892,8 +970,9 @@ function caChip(ca) {
   const short = ca.length > 12 ? `${ca.slice(0, 4)}…${ca.slice(-4)}` : ca;
   return `<button type="button" class="ca-chip" data-expand-ca aria-expanded="false" aria-label="Contract address, tap to expand"><span class="ca-short">${esc(short)}</span><span class="ca-full">${esc(ca)}</span></button><button type="button" class="btn pri" data-copy="${esc(ca)}">Copy</button>`;
 }
-function coinCard(coin) {
-  return `<article class="card coin"><button type="button" class="coin-open" data-open-coin="${esc(coin.ca)}">${coinLogo(coin)}<span class="coin-id"><b>${esc(coin.name)}</b><small>$${esc(coin.symbol)}</small></span><span class="tag ${coin.pass ? 'normal' : 'off'}">${coin.pass ? 'paper buy' : 'no buy'}</span></button><div class="row">${caChip(coin.ca)}</div>${coinLinks(coin.ca, coin.dexUrl)}</article>`;
+function coinCard(coin, watch = watchSet()) {
+  const on = watch.has(coin.ca);
+  return `<article class="card coin"><button type="button" class="coin-open" data-open-coin="${esc(coin.ca)}">${coinLogo(coin)}<span class="coin-id"><b>${esc(coin.name)}</b><small>$${esc(coin.symbol)}</small></span><span class="tag ${coin.pass ? 'normal' : 'off'}">${coin.pass ? 'paper buy' : 'no buy'}</span></button><div class="row">${caChip(coin.ca)}<button type="button" class="btn" data-watch="${esc(coin.ca)}" aria-pressed="${on}">${on ? 'Watching' : 'Watch'}</button></div>${coinLinks(coin.ca, coin.dexUrl)}</article>`;
 }
 function coinSheet(coin, animate) {
   if (!coin) return '';
@@ -905,11 +984,226 @@ function coinSheet(coin, animate) {
   const vol = coin.vol == null ? 'volume unknown' : `24h volume $${Math.round(Number(coin.vol)).toLocaleString('en-US')}`;
   return `<div class="sheet${animate ? ' in' : ''}" role="dialog" aria-label="${esc(coin.name)}"><div class="card">${coinLogo(coin)}<h2>${esc(coin.name)} · $${esc(coin.symbol)}</h2><div class="row">${caChip(coin.ca)}</div>${coinLinks(coin.ca, coin.dexUrl)}<p class="note">${esc(liq)} · ${esc(vol)} · ${esc(age)} · price ${coin.priceUsd ? countSpan(Number(coin.priceUsd), false, 'px-' + coin.ca, coin.priceUsd) : 'unknown'}</p><p class="note">${paperLine}</p><ul class="feed">${why}</ul><button type="button" class="btn wide" data-close-sheet>Close</button></div></div>`;
 }
+function shotNote() {
+  if (!ui.shotLock) return '';
+  return '<p class="note shot-note">Screenshot data on this load. Not a live quote. Paper only.</p>';
+}
+function flame(n) { return n > 0 ? '<i class="flame" aria-hidden="true"></i>' : ''; }
+function ringHtml(close, primary) {
+  return `<div class="ring" data-ring ${primary ? 'data-primary="1"' : ''} data-close="${esc(close)}" data-span="900" role="timer"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="ring-track" cx="18" cy="18" r="15.5"></circle><circle class="ring-val" cx="18" cy="18" r="15.5"></circle></svg><span class="ring-num">–:––</span></div>`;
+}
+function quoteBox(st) {
+  const board = st?.kalshiBoard;
+  const busy = ui.kalshiBusy ? '<p class="note">Checking for a newer snapshot.</p>' : '';
+  const retry = `<button type="button" class="btn" id="quoteRetry">${ui.kalshiBusy ? 'Checking…' : 'Retry'}</button>`;
+  if (!board?.markets) {
+    return `<div id="quoteBox" class="quote-box is-stale" role="status"><p class="quote-clock">No snapshot yet</p><p>The Kalshi file has not loaded. The desk will try again. You can retry now. Nothing here places an order.</p>${st?.quoteError ? `<p>${esc(st.quoteError)}</p>` : ''}${busy}${retry}</div>`;
+  }
+  const age = quoteAge(board.fetchedAt, Date.now());
+  const clock = age.ms == null ? 'Updated time unknown' : `Updated ${age.label} ago`;
+  return `<div id="quoteBox" class="quote-box ${age.stale ? 'is-stale' : 'is-fresh'}" role="status"><div class="row"><p id="quoteClock" class="quote-clock">${esc(clock)}</p>${retry}</div><p class="when-stale note">Too old for a live window. The file reloads on its own. You can retry. No order is sent.</p><p class="when-fresh note">Inside 15 minutes.</p>${st?.quoteError ? `<p>${esc(st.quoteError)}</p>` : ''}${busy}</div>`;
+}
+function paintRings(now = Date.now()) {
+  const circ = 2 * Math.PI * 15.5;
+  document.querySelectorAll('[data-ring]').forEach((el) => {
+    const close = Date.parse(el.dataset.close);
+    const span = Number(el.dataset.span) || 900;
+    const left = Number.isFinite(close) ? Math.max(0, Math.round((close - now) / 1000)) : 0;
+    const frac = Math.max(0, Math.min(1, left / span));
+    const val = el.querySelector('.ring-val');
+    if (val) {
+      val.style.strokeDasharray = String(circ);
+      val.style.strokeDashoffset = String(circ * (1 - frac));
+    }
+    const num = el.querySelector('.ring-num');
+    if (num) num.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    const mins = Math.floor(left / 60);
+    el.setAttribute('aria-label', left > 0 ? `${mins} minutes ${left % 60} seconds left in this 15-minute window` : 'This 15-minute window has locked');
+  });
+}
+function paintQuoteClock() {
+  const el = document.getElementById('quoteClock');
+  const board = state?.kalshiBoard;
+  if (!el || !board) return;
+  const age = quoteAge(board.fetchedAt, Date.now());
+  el.textContent = age.ms == null ? 'Updated time unknown' : `Updated ${age.label} ago`;
+  const box = document.getElementById('quoteBox');
+  if (box) {
+    box.classList.toggle('is-stale', !!age.stale);
+    box.classList.toggle('is-fresh', !age.stale);
+  }
+}
+function moveTabIndicator() {
+  const nav = document.querySelector('.tabs');
+  const on = nav?.querySelector('button.on');
+  const bar = nav?.querySelector('.tab-indicator');
+  if (!bar) return;
+  if (!on) { bar.style.width = '0px'; return; }
+  bar.style.width = `${on.offsetWidth}px`;
+  bar.style.transform = `translateX(${on.offsetLeft}px)`;
+  const left = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2;
+  nav.scrollTo({ left: Math.max(0, left), behavior: motionOn() ? 'smooth' : 'auto' });
+}
+function fillXp() {
+  document.querySelectorAll('.xpbar i').forEach((el) => {
+    const w = el.dataset.w || '0%';
+    if (!motionOn()) { el.style.width = w; return; }
+    el.style.width = '0%';
+    requestAnimationFrame(() => { if (el.isConnected) el.style.width = w; });
+  });
+}
+function practicedToday(book, now = Date.now()) {
+  const day = new Date(now).toISOString().slice(0, 10);
+  return [...(book?.open || []), ...(book?.closed || [])].some((c) => new Date(c.calledAt || 0).toISOString().slice(0, 10) === day);
+}
+function reminderBanner() {
+  if (localStorage.getItem('gd.remind') !== '1') return '';
+  const day = new Date().toISOString().slice(0, 10);
+  if ((localStorage.getItem('gd.remindSnooze') || '') === day) return '';
+  if (practicedToday(loadTrainer())) return '';
+  return `<div class="card remind" role="status"><p><b>Practice reminder.</b> No 15-minute paper call yet today. This stays in the app. It is not a phone notification and not advice.</p><div class="row"><button type="button" class="btn pri" id="remindOpen">Open trainer</button><button type="button" class="btn" id="remindSnooze">Not today</button></div></div>`;
+}
+function openMarkets(st, now) {
+  return (st.kalshiBoard?.markets || [])
+    .filter((m) => m && m.result !== 'yes' && m.result !== 'no' && Date.parse(m.closeTime) > now)
+    .sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime));
+}
+function marketYesText(market) {
+  const bid = Number(market.yesBid);
+  const ask = Number(market.yesAsk);
+  if (bid > 0 && bid < 1 && ask > 0 && ask < 1 && bid <= ask) return ((bid + ask) / 2).toFixed(2);
+  if (ask > 0 && ask < 1) return ask.toFixed(2);
+  return 'not in the quote';
+}
+function callPanel(st, book, age, now) {
+  const markets = openMarkets(st, now);
+  const waiting = (book.open || []).map((c) => {
+    const left = Date.parse(c.closeTime) - now;
+    return `<li class="slot"><div class="row"><b>${esc(c.title || c.ticker)}</b><span class="note">${esc(String(c.side).toUpperCase())} ${esc(c.confidence)}%</span></div><p class="note">${left > 0 ? 'Open. Waiting for the result.' : 'Locked. Waiting for the snapshot to publish a result.'} Size stays $${TRAINER_STAKE}.</p></li>`;
+  }).join('');
+  const waitList = `<h2>Waiting</h2><ul class="feed">${waiting || '<li><span class="empty">No open practice call.</span></li>'}</ul>`;
+  if (age.stale || !markets.length) {
+    const extra = age.stale ? '' : '<p class="empty">No 15-minute window is still open in this snapshot. Settled calls stay on Lesson and Progress.</p>';
+    return `${quoteBox(st)}${extra}${waitList}`;
+  }
+  if (!markets.some((m) => m.ticker === ui.trainTicker)) ui.trainTicker = markets[0].ticker;
+  const market = markets.find((m) => m.ticker === ui.trainTicker) || markets[0];
+  const ideas = arenaIdeas(market, now, st.spots || {}, st.arenaQuotes || {});
+  const botLine = ideas.length ? ideas.map((b) => `${b.rule} ${String(b.side).toUpperCase()}`).join(', ') : 'No paper bot setup on this quote.';
+  const left = Math.max(0, Math.round((Date.parse(market.closeTime) - now) / 1000));
+  const late = left < 60 ? '<p class="note">Under a minute left. The fee still applies. Size stays $2.</p>' : '';
+  const options = markets.map((m) => `<option value="${esc(m.ticker)}" ${m.ticker === market.ticker ? 'selected' : ''}>${esc(m.series || m.ticker)} · ${esc(m.title || '')}</option>`).join('');
+  return `${quoteBox(st)}<div class="ring-row">${ringHtml(market.closeTime, true)}<div><p class="lvl">${esc(market.series || '15m')}</p><p class="note">${esc(market.title || '')}</p></div></div><label class="stack">Window<select id="trainMarket">${options}</select></label><p class="note">Bots on this quote: ${esc(botLine)}. Quote YES ${esc(marketYesText(market))}.</p>${late}<form data-train-form="${esc(market.ticker)}"><div class="yesno"><button type="button" class="btn" data-side="yes" aria-pressed="${ui.trainSide === 'yes'}">YES</button><button type="button" class="btn" data-side="no" aria-pressed="${ui.trainSide === 'no'}">NO</button></div><label class="f">Confidence %<input name="confidence" type="number" inputmode="numeric" min="51" max="99" step="1" required value="${esc(ui.trainConf || '60')}"></label><button class="btn pri wide" type="submit">Record paper call</button></form><p class="note">A whole number from 51 to 99. Under 50 means pick the other side. One call per window.</p>${waitList}`;
+}
+function lessonPanel(book) {
+  const rows = [...(book.closed || [])].sort((a, b) => (b.settledAt || 0) - (a.settledAt || 0));
+  if (!rows.length) return '<p class="empty">No settled practice call yet. Record one on Call. The lesson uses the snapshot, the strike, and the spot estimate. It does not invent a reason.</p>';
+  const row = rows.find((r) => r.id === ui.lessonId) || rows[0];
+  ui.lessonId = row.id;
+  const picks = rows.slice(0, 8).map((r) => `<option value="${esc(r.id)}" ${r.id === row.id ? 'selected' : ''}>${esc(r.series || r.ticker)} · ${r.won ? 'hit' : 'miss'}</option>`).join('');
+  const bots = row.bots?.length ? row.bots.map((b) => `${b.rule} ${String(b.side).toUpperCase()}`).join(', ') : 'No setup fired';
+  const quote = row.marketYes == null ? 'No YES price' : `YES ${Number(row.marketYes).toFixed(2)}`;
+  return `<label class="stack">Settled call<select id="lessonPick">${picks}</select></label><article class="card" id="lessonCard"><p class="${row.won ? 'g' : 'r'}">${row.won ? 'Hit' : 'Miss'}</p><ul class="compare"><li><b>You</b><span>${esc(String(row.side || '').toUpperCase())} ${esc(row.confidence)}%</span></li><li><b>Bots</b><span>${esc(bots)}</span></li><li><b>Quote</b><span>${esc(quote)}</span></li></ul><p>${countSpan(row.pnl, true, 'train-' + row.id)} after fees</p><p class="note">${esc(lessonText(row))}</p><button type="button" class="btn wide" data-share="${esc(row.id)}">Save result card</button></article>`;
+}
+function bucketChart(buckets) {
+  const w = 320;
+  const h = 120;
+  const gap = 10;
+  const bw = (w - gap * (buckets.length + 1)) / Math.max(1, buckets.length);
+  const inner = h - 28;
+  const marks = buckets.map((b, i) => {
+    const x = gap + i * (bw + gap);
+    const rh = b.rate == null ? 0 : b.rate * inner;
+    const eh = b.expected * inner;
+    return `<rect x="${x.toFixed(1)}" y="${(h - 16 - rh).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, rh).toFixed(1)}" rx="3" fill="#3DFF9A"></rect><line x1="${x.toFixed(1)}" x2="${(x + bw).toFixed(1)}" y1="${(h - 16 - eh).toFixed(1)}" y2="${(h - 16 - eh).toFixed(1)}" stroke="#FFD56A" stroke-width="2"></line>`;
+  }).join('');
+  return `<svg class="cal" viewBox="0 0 ${w} ${h}" aria-hidden="true">${marks}</svg>`;
+}
+function progressPanel(stats) {
+  const ready = stats.ready;
+  const pct = ((stats.xp % 50) / 50) * 100;
+  const days = ready.windows.map((w) => {
+    const flag = w.n < 20 ? 'needs 20 calls' : (w.mean > 0 && w.lo > 0 ? 'clears' : 'does not clear');
+    return `<li>${esc(w.key)} · n ${w.n} · mean ${w.mean == null ? '—' : money(w.mean, true)} · 90% low ${w.lo == null ? '—' : money(w.lo, true)} · ${flag}</li>`;
+  }).join('');
+  const buckets = stats.buckets.map((b) => `<tr><td>${b.lo}–${b.hi}%</td><td>${b.n}</td><td>${b.n ? Math.round(b.rate * 100) + '%' : '—'}</td><td>${Math.round(b.expected * 100)}%</td></tr>`).join('');
+  const hit = stats.hitRate == null ? '—' : `${Math.round(stats.hitRate * 100)}%`;
+  return `<div class="grid"><div class="stat"><small>Calls</small><b>${stats.calls}</b><span class="note">${stats.open} open</span></div><div class="stat"><small>Hit rate</small><b>${hit}</b><span class="note">${stats.settled ? `${stats.hits} of ${stats.settled}` : 'no settles'}</span></div><div class="stat"><small>After fees</small><b>${countSpan(stats.pnl, true, 'train-net')}</b></div></div><p class="note">Fees inside that result ${money(stats.fees)}. ${esc(brierVerdict(stats.brier, stats.marketBrier, stats.settled))}</p><p class="lvl">${flame(stats.streak)}${stats.streak} hit streak</p><span class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="50" aria-valuenow="${stats.xp % 50}" aria-label="Practice XP toward the next level"><i data-w="${pct}%"></i></span><p class="note">Level ${stats.level} · ${stats.xp} XP. XP is for showing up. A win does not raise the $2 chip.</p><h2>When you're good enough</h2><p class="note">${esc(ready.text)}</p><ul class="ready-list">${days || '<li>No settled day yet.</li>'}</ul><h2>Calibration</h2>${bucketChart(stats.buckets)}<table><caption class="note">Green bars are how often that band was right. Gold ticks are the confidence you claimed. Paper practice, not a promise.</caption><tr><th>Confidence</th><th>n</th><th>Hit</th><th>Claimed</th></tr>${buckets}</table>`;
+}
+function trainerView(st) {
+  const now = Date.now();
+  const book = loadTrainer();
+  const stats = trainerStats(book);
+  const age = st.kalshiBoard ? quoteAge(st.kalshiBoard.fetchedAt, now) : { stale: true };
+  const tips = `<details class="fold tips"><summary>Quick tips</summary><div class="fold-body">${trainerTips().map((t) => `<h2>${esc(t.title)}</h2><p class="note">${esc(t.body)}</p>`).join('')}</div></details>`;
+  const seg = ['call', 'lesson', 'progress'].map((k) => `<button type="button" data-train="${k}" class="${ui.train === k ? 'on' : ''}" aria-current="${ui.train === k ? 'true' : 'false'}">${k[0].toUpperCase()}${k.slice(1)}</button>`).join('');
+  const head = `<section class="card arcade" aria-label="15 minute trainer"><div class="row"><h2 style="margin:0">15-Min Trainer</h2><span class="tag explore">PAPER · not advice</span></div>${shotNote()}<p class="note">Your own YES or NO call, before the window locks. Scored after the real taker fee. The chip stays $${TRAINER_STAKE}. This does not place an order and it does not change the bots.</p><div class="seg">${seg}</div>${tips}`;
+  if (!st.kalshiBoard) return `${head}<div class="skel" aria-busy="true" aria-label="Loading the 15-minute board"></div><p class="note">Loading the snapshot.</p></section>`;
+  const body = ui.train === 'lesson' ? lessonPanel(book) : ui.train === 'progress' ? progressPanel(stats) : callPanel(st, book, age, now);
+  return `${head}${body}</section>`;
+}
+function setPtr(mode) {
+  const el = document.getElementById('ptr');
+  if (!el) return;
+  const text = document.getElementById('ptrText');
+  if (mode === 'off') { el.hidden = true; el.classList.remove('busy'); return; }
+  el.hidden = false;
+  el.classList.toggle('busy', mode === 'busy');
+  if (text) text.textContent = mode === 'busy' ? 'Refreshing quotes' : mode === 'ready' ? 'Release to refresh' : 'Pull to refresh';
+}
+async function downloadCallCard(row) {
+  const c = document.createElement('canvas');
+  c.width = 1080;
+  c.height = 1350;
+  const g = c.getContext('2d');
+  g.fillStyle = '#07090C';
+  g.fillRect(0, 0, 1080, 1350);
+  g.fillStyle = '#3DFF9A';
+  g.fillRect(0, 0, 1080, 18);
+  g.fillStyle = '#FFD56A';
+  g.font = '700 40px sans-serif';
+  g.fillText('GROK DESK', 72, 150);
+  g.font = '700 28px sans-serif';
+  g.fillText('PAPER PRACTICE · NOT ADVICE', 72, 200);
+  g.fillStyle = '#F4F7FB';
+  g.font = '800 48px sans-serif';
+  let title = String(row.title || row.ticker || 'Call');
+  while (g.measureText(title).width > 936 && title.length > 8) title = title.slice(0, -2);
+  g.fillText(title, 72, 310);
+  g.font = '800 64px sans-serif';
+  g.fillStyle = row.won ? '#3DFF9A' : '#ff6b7d';
+  g.fillText(row.won ? 'HIT' : 'MISS', 72, 410);
+  g.fillStyle = '#F4F7FB';
+  g.font = '600 34px sans-serif';
+  const pnl = row.pnl >= 0 ? `+$${Number(row.pnl).toFixed(2)}` : `−$${Math.abs(row.pnl).toFixed(2)}`;
+  const lines = [
+    `You called ${String(row.side || '').toUpperCase()} at ${row.confidence}%`,
+    `After fees ${pnl} · fee $${Number(row.fees || 0).toFixed(2)}`,
+    `Your Brier ${row.brier == null ? '—' : Number(row.brier).toFixed(3)}`,
+    `Quote Brier ${row.marketBrier == null ? '—' : Number(row.marketBrier).toFixed(3)}`,
+    'The next chip is still $2.',
+    'No wallet. No order. Not a promise.',
+  ];
+  lines.forEach((line, i) => g.fillText(line, 72, 510 + i * 70));
+  const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+  if (!blob) return toast({ text: 'Could not draw the card.' });
+  const file = new File([blob], 'grok-desk-paper-call.png', { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'Grok Desk paper call', text: 'Paper practice. Not advice.' }); return; }
+    catch { /* download instead */ }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast({ text: 'Saved a paper result card on this phone.' });
+}
 function render() {
   if (!state) return;
   const v = $('#view');
   const tabChanged = ui.paintedTab !== ui.tab;
-  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? scoreView(state) : ui.tab === 'brain' ? brainView() : ui.tab === 'predict' ? predictView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? scoreView(state) : ui.tab === 'brain' ? brainView() : ui.tab === 'predict' ? predictView(state) : ui.tab === 'train' ? trainerView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   if (tabChanged) {
     ui.paintedTab = ui.tab;
     if (ui.didPaint) {
@@ -923,7 +1217,11 @@ function render() {
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   paintTicker(state);
   if (ui.tab === 'home') { drawChart($('#chart'), state); drawAlloc($('#allocChart')); updateTimer(); }
-  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-current', b.classList.contains('on') ? 'page' : 'false'));
+  document.querySelectorAll('.tabs button').forEach((b) => {
+    const on = b.dataset.tab === ui.tab;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-current', on ? 'page' : 'false');
+  });
   bind();
 }
 
@@ -961,7 +1259,7 @@ function bind() {
   };
   const d = $('#defaults'); if (d) d.onclick = () => { const r = updateSettings(live, live.settings, { ...DEFAULT_SETTINGS }); if (r.ok) { live.settings = r.settings; saveSettings(r.settings); persist(); render(); } };
   const n = $('#notify'); if (n) n.onchange = async () => { ui.notify = n.checked; if (n.checked && 'Notification' in window) { const p = await Notification.requestPermission(); ui.notify = p === 'granted'; } localStorage.setItem('gd.notify', ui.notify ? '1' : '0'); render(); };
-  const w = $('#wipe'); if (w) w.onclick = async () => { if (!confirm('Erase all local paper data?')) return; live = newState(loadSettings(), Date.now()); state = live; await persist(); render(); };
+  const w = $('#wipe'); if (w) w.onclick = async () => { if (!confirm('Erase all local paper data, including 15-minute practice calls?')) return; live = newState(loadSettings(), Date.now()); state = live; trainerBook = emptyTrainer(); localStorage.removeItem('gd.trainer'); await persist(); render(); };
   const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); };
   const ej = $('#exportJson'); if (ej) ej.onclick = () => download('grok-desk-paper.json', JSON.stringify(exportHistory(live), null, 2), 'application/json');
   const ec = $('#exportCsv'); if (ec) ec.onclick = () => download('grok-desk-paper.csv', historyCsv([...(live.arenaClosed || []), ...(live.picksClosed || []), ...(live.closed || [])].map((r) => ({ book: r.rule ? 'arena' : 'desk', ...r }))), 'text/csv');
@@ -1000,7 +1298,7 @@ function bind() {
     e.stopPropagation();
     const ca = b.dataset.copy;
     try { await navigator.clipboard.writeText(ca); } catch { /* the address stays on screen */ }
-    if (navigator.vibrate) navigator.vibrate(12);
+    haptic(12);
     b.classList.add('is-copied');
     b.textContent = 'Copied';
     toast({ kind: 'copy' });
@@ -1027,44 +1325,144 @@ function bind() {
     const market = (live.kalshiBoard?.markets || []).find((m) => m.ticker === b.dataset.ticker);
     if (!market) return;
     const res = placePick(live, market, b.dataset.pick, Date.now());
+    haptic();
     if (!res.ok) toast({ text: res.reason });
-    else { burst('loss'); await persist(); }
+    else { toast({ text: 'Paper chip recorded. Size stays $2.' }); await persist(); }
     render();
   }));
+  const soundSet = $('#soundSet'); if (soundSet) soundSet.onchange = () => { ui.sound = soundSet.checked; localStorage.setItem('gd.sound', ui.sound ? '1' : '0'); };
+  const hapticSet = $('#hapticSet'); if (hapticSet) hapticSet.onchange = () => { ui.haptics = hapticSet.checked; localStorage.setItem('gd.haptics', ui.haptics ? '1' : '0'); if (ui.haptics) haptic(12); };
+  const motionSet = $('#motionSet'); if (motionSet) motionSet.onchange = () => {
+    ui.motion = motionSet.checked;
+    localStorage.setItem('gd.motion', ui.motion ? '1' : '0');
+    document.documentElement.classList.toggle('motion-off', !ui.motion);
+    render();
+  };
+  const remindSet = $('#remindSet'); if (remindSet) remindSet.onchange = () => { ui.remind = remindSet.checked; localStorage.setItem('gd.remind', ui.remind ? '1' : '0'); };
+  const quoteRetry = $('#quoteRetry'); if (quoteRetry) quoteRetry.onclick = () => { haptic(); ui.quoteManual = true; refreshKalshi(); };
+  const coinRetry = $('#coinRetry'); if (coinRetry) coinRetry.onclick = () => { haptic(); ui.coinsState = null; loadCoins(); };
+  const brainRetry = $('#brainRetry'); if (brainRetry) brainRetry.onclick = () => { haptic(); ui.brainState = null; loadBrain(); };
+  const remindOpen = $('#remindOpen'); if (remindOpen) remindOpen.onclick = () => { ui.tab = 'train'; haptic(); render(); };
+  const remindSnooze = $('#remindSnooze'); if (remindSnooze) remindSnooze.onclick = () => { localStorage.setItem('gd.remindSnooze', new Date().toISOString().slice(0, 10)); render(); };
+  document.querySelectorAll('[data-train]').forEach((b) => (b.onclick = () => { ui.train = b.dataset.train; haptic(); render(); }));
+  document.querySelectorAll('[data-coinfilter]').forEach((b) => (b.onclick = () => { ui.coinFilter = b.dataset.coinfilter; render(); }));
+  document.querySelectorAll('[data-watch]').forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const set = watchSet();
+    if (set.has(b.dataset.watch)) set.delete(b.dataset.watch); else set.add(b.dataset.watch);
+    saveWatch(set);
+    haptic();
+    render();
+  }));
+  const trainMarket = $('#trainMarket'); if (trainMarket) trainMarket.onchange = () => { ui.trainTicker = trainMarket.value; render(); };
+  const lessonPick = $('#lessonPick'); if (lessonPick) lessonPick.onchange = () => { ui.lessonId = lessonPick.value; render(); };
+  document.querySelectorAll('[data-side]').forEach((b) => (b.onclick = () => {
+    ui.trainSide = b.dataset.side;
+    const input = b.closest('form')?.confidence;
+    if (input) ui.trainConf = input.value;
+    haptic();
+    render();
+  }));
+  document.querySelectorAll('[data-train-form]').forEach((form) => (form.onsubmit = (e) => {
+    e.preventDefault();
+    const confidence = Number(form.confidence.value);
+    ui.trainConf = String(form.confidence.value);
+    if (ui.trainSide !== 'yes' && ui.trainSide !== 'no') return toast({ text: 'Pick YES or NO first. Nothing was recorded.' });
+    const market = (live.kalshiBoard?.markets || []).find((m) => m.ticker === form.dataset.trainForm);
+    if (!market) return toast({ text: 'That window is not in the snapshot.' });
+    const book = loadTrainer();
+    const res = placeTrainerCall(book, market, ui.trainSide, confidence, Date.now(), {
+      fetchedAt: live.kalshiBoard?.fetchedAt,
+      spots: live.spots || {},
+      prev: live.arenaQuotes || {},
+    });
+    if (!res.ok) return toast({ text: res.reason });
+    saveTrainer();
+    haptic([10, 20, 10]);
+    toast({ text: 'Paper call recorded. The chip stays $2.' });
+    if (res.levelUp) burst('level');
+    render();
+  }));
+  document.querySelectorAll('[data-share]').forEach((b) => (b.onclick = () => {
+    const row = (loadTrainer().closed || []).find((c) => c.id === b.dataset.share);
+    if (row) downloadCallCard(row);
+  }));
+  runCounts();
+  fillXp();
+  paintRings();
+  moveTabIndicator();
+}
+function maybeHealQuote() {
+  if (!live || ui.replay || ui.kalshiBusy || ui.shotLock) return;
+  const age = live.kalshiBoard ? quoteAge(live.kalshiBoard.fetchedAt, Date.now()) : { stale: true };
+  const wait = (!live.kalshiBoard || age.stale || live.quoteError) ? 8000 : 20000;
+  if (Date.now() - (ui.kalshiAt || 0) >= wait) refreshKalshi();
 }
 async function refreshKalshi() {
-  if (!live || ui.replay || ui.kalshiBusy) return;
+  if (!live || ui.replay || ui.kalshiBusy || ui.shotLock) return;
   ui.kalshiBusy = true;
+  ui.kalshiAt = Date.now();
+  const now = Date.now();
+  let kind = null;
   try {
     const board = await loadKalshiBoard(fetch);
     live.kalshiBoard = board;
-    reviewKalshi(live, board, Date.now());
+    live.quoteError = '';
+    reviewKalshi(live, board, now);
+    const show = () => { if (state === live && ['predict', 'arena', 'score', 'home', 'train'].includes(ui.tab)) render(); };
+    show();
     const [spots, book] = await Promise.all([loadSpots(fetch), loadBook(fetch)]);
     live.spots = spots;
-    const before = (live.arenaClosed || []).length + (live.picksClosed || []).length;
-    const notes = reviewArena(live, board, Date.now(), spots, book);
-    const after = (live.arenaClosed || []).length + (live.picksClosed || []).length;
-    if (after > before) {
-      const last = (live.arenaClosed || []).concat(live.picksClosed || []).at(-1);
-      burst(last?.won ? 'win' : 'loss');
-    }
+    const lvl0 = levelOf(live.game?.xp || 0);
+    reviewArena(live, board, now, spots, book);
+    const lvl1 = levelOf(live.game?.xp || 0);
+    const practice = loadTrainer();
+    const outcome = settleTrainer(practice, board, now, spots);
+    saveTrainer();
+    const arenaSettled = (live.arenaClosed || []).concat(live.picksClosed || []).filter((t) => t.closedAt === now);
+    if (lvl1 > lvl0 || outcome.levelUp) kind = 'level';
+    else if (arenaSettled.some((t) => t.won) || outcome.settled.some((t) => t.won)) kind = 'win';
+    else if (arenaSettled.length || outcome.settled.length) kind = 'loss';
+    if (outcome.settled.length === 1) {
+      const row = outcome.settled[0];
+      toast({ text: row.won ? `Paper hit on ${row.title}. The next call is still $2.` : `Paper miss on ${row.title}. The next call is still $2.`, pnl: row.won ? 1 : -1 });
+    } else if (outcome.settled.length) toast({ text: `Settled ${outcome.settled.length} paper calls. The chip stays $2.` });
+    if (outcome.levelUp) toast({ text: `Level ${outcome.level}. XP marks practice, not profit. Size stays $2.` });
     if (location.hash === '#shot' && !live._shot && (live.arenaOpen || []).some((p) => p.contracts >= 1)) {
       const bet = live.arenaOpen.find((p) => p.contracts >= 1);
       live._shot = true;
       reviewArena(live, { markets: [{ ticker: bet.ticker, title: bet.title, series: bet.series, result: bet.side, yesAsk: bet.ask, noAsk: 1 - bet.ask, closeTime: new Date(Date.now() + 60000).toISOString() }] }, Date.now(), spots, book);
-      burst('win');
+      kind = 'win';
     }
-    if (state === live) { await persist(); if (ui.tab === 'predict' || ui.tab === 'arena' || ui.tab === 'score' || ui.tab === 'home') render(); }
-  } catch (e) { if (live) live.arenaError = e.message; if (state === live) render(); }
-  finally { ui.kalshiBusy = false; }
+  } catch (e) {
+    if (live) {
+      live.quoteError = 'The last refresh did not load. The previous snapshot stays on screen.';
+      live.arenaError = live.quoteError;
+    }
+  } finally {
+    ui.kalshiBusy = false;
+    ui.quoteManual = false;
+    if (kind) burst(kind);
+    if (state === live) {
+      await persist();
+      if (['predict', 'arena', 'score', 'home', 'train'].includes(ui.tab)) render();
+    }
+  }
 }
-document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tab; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); window.scrollTo(0, 0); if (b.dataset.tab === 'predict') refreshKalshi(); }));
+document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => {
+  haptic();
+  ui.tab = b.dataset.tab;
+  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+  render();
+  window.scrollTo(0, 0);
+  if (b.dataset.tab === 'predict' || b.dataset.tab === 'train') refreshKalshi();
+}));
 window.addEventListener('resize', () => ui.tab === 'home' && state && drawChart($('#chart'), state));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) liveTick(); });
 
 let splashSettled = false;
 function splashMotionOk() {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  if (!motionOn()) return false;
   if (navigator.connection && navigator.connection.saveData) return false;
   return true;
 }
@@ -1102,7 +1500,8 @@ function dismissSplash() {
   setTimeout(drop, 1200);
 }
 (async () => {
-  mountSplash();
+  if (new URLSearchParams(location.search).get('shot')) document.getElementById('intro')?.remove();
+  if (localStorage.getItem('gd.intro') === '1') mountSplash();
   const saved = await idb.get('state');
   live = migrate(saved ? JSON.parse(saved) : newState(loadSettings(), Date.now()));
   if (live.settings && live.settings.activeMode == null) live.settings = { ...live.settings, activeMode: true, activeTickSec: ACTIVE.tickSec };
@@ -1110,47 +1509,154 @@ function dismissSplash() {
   if (!Array.isArray(live.decisions)) live.decisions = [];
   state = live; render();
   dismissSplash();
-  refreshKalshi();
-  setInterval(refreshKalshi, 20000);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   const q = new URLSearchParams(location.search);
+  if (q.get('shot')) ui.shotLock = true;
+  if (!ui.shotLock) refreshKalshi();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (q.get('replay') === '1') startReplay();
   if (q.get('tab')) document.querySelector(`[data-tab="${q.get('tab')}"]`)?.click();
-  showIntro();
+  if (q.get('shot')) applyShot(q.get('shot'));
+  else showIntro();
 })();
+function setInert(on) {
+  for (const sel of ['header.top', 'main', 'nav.tabs', '#ticker', '#linkState', '#ptr']) {
+    const node = document.querySelector(sel);
+    if (node) node.inert = on;
+  }
+}
 function showIntro() {
-  if (localStorage.getItem('gd.intro') === '1') return;
-  const pages = [
-    ['What this is', 'A paper desk for public markets. It shows what a bot would do with fake money, including a contract address when a Solana coin passes the safety list.'],
-    ['Paper is not your account', 'This app cannot buy anything. To buy a coin, copy the contract address and open pump.fun or fomo yourself. There is no wallet here.'],
-    ['How a signal works', 'A paper buy needs liquidity, volume, age, holders, and mint and freeze authority. A missing check is not a buy. Signals are not advice.'],
-  ];
-  const el = document.createElement('section');
-  el.id = 'intro';
-  el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-label', 'Welcome');
-  let step = 0;
-  const paint = () => {
-    const last = step === pages.length - 1;
-    el.innerHTML = `<div class="card intro-card"><p class="note">Step ${step + 1} of ${pages.length}</p><h2>${pages[step][0]}</h2><p>${pages[step][1]}</p><button type="button" class="btn pri wide" id="introNext">${last ? 'Start paper desk' : 'Next'}</button><button type="button" class="btn wide" id="introSkip">Skip</button></div>`;
-    el.querySelector('#introNext').onclick = () => { if (last) finish(); else { step += 1; paint(); } };
-    el.querySelector('#introSkip').onclick = finish;
+  const el = document.getElementById('intro');
+  if (!el || localStorage.getItem('gd.intro') === '1' || ui.shotLock) { el?.remove(); return; }
+  const track = el.querySelector('#introTrack');
+  const pages = track ? track.children.length : 3;
+  const finish = () => { localStorage.setItem('gd.intro', '1'); document.documentElement.classList.add('intro-done'); setInert(false); el.remove(); };
+  const sync = () => {
+    const page = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+    el.querySelectorAll('[data-intro]').forEach((dot, i) => dot.setAttribute('aria-current', i === page ? 'true' : 'false'));
+    const next = el.querySelector('#introNext');
+    if (next) next.textContent = page >= pages - 1 ? 'Start paper desk' : 'Next';
   };
-  const finish = () => { localStorage.setItem('gd.intro', '1'); el.remove(); };
-  paint();
-  document.body.appendChild(el);
+  const go = (page) => track.scrollTo({ left: page * track.clientWidth, behavior: motionOn() ? 'smooth' : 'auto' });
+  track?.addEventListener('scroll', sync, { passive: true });
+  const next = el.querySelector('#introNext');
+  if (next) next.onclick = () => {
+    const page = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+    if (page >= pages - 1) finish();
+    else go(page + 1);
+  };
+  const skip = el.querySelector('#introSkip');
+  if (skip) skip.onclick = finish;
+  el.querySelectorAll('[data-intro]').forEach((dot) => (dot.onclick = () => go(Number(dot.dataset.intro))));
+  const copy = el.querySelector('#introCopy');
+  if (copy) copy.onclick = async () => {
+    const text = 'Copy the contract address from the Coins tab, then paste it into pump.fun or fomo yourself. Grok Desk cannot place that order.';
+    try { await navigator.clipboard.writeText(text); } catch { /* the card still says the step */ }
+    haptic(12);
+    toast({ kind: 'copy', text: 'Copied the reminder. Not a contract address.' });
+  };
+  el.addEventListener('keydown', (e) => {
+    const page = Math.round((track?.scrollLeft || 0) / Math.max(1, track?.clientWidth || 1));
+    if (e.key === 'Escape') finish();
+    if (e.key === 'ArrowRight') go(page + 1);
+    if (e.key === 'ArrowLeft') go(Math.max(0, page - 1));
+  });
+  setInert(true);
+  sync();
+  next?.focus();
+}
+function demoMarket(now, extra = {}) {
+  return {
+    ticker: 'KXBTC15M-DEMO',
+    series: 'KXBTC15M',
+    title: 'BTC price up in next 15 mins?',
+    floorStrike: 61500,
+    yesBid: 0.46,
+    yesAsk: 0.52,
+    noBid: 0.48,
+    noAsk: 0.54,
+    closeTime: new Date(now + 8 * 60 * 1000).toISOString(),
+    volume: 1200,
+    result: '',
+    status: 'active',
+    ...extra,
+  };
+}
+function applyShot(kind) {
+  ui.shotLock = true;
+  const now = Date.now();
+  live.spots = { BTC: { px: 61640.25, source: 'Coinbase estimate' } };
+  live.kalshiBoard = { fetchedAt: new Date(now).toISOString(), via: 'snapshot', markets: [demoMarket(now)] };
+  if (kind === 'lesson' || kind === 'progress') {
+    const book = emptyTrainer();
+    const calledAt = now - 6 * 60 * 1000;
+    const past = demoMarket(calledAt, { ticker: 'KXBTC15M-PAST', closeTime: new Date(calledAt + 4 * 60 * 1000).toISOString(), floorStrike: 61500 });
+    placeTrainerCall(book, past, 'yes', 64, calledAt, {
+      fetchedAt: new Date(calledAt).toISOString(),
+      spots: { BTC: { px: 61420, source: 'Coinbase estimate' } },
+    });
+    settleTrainer(book, { markets: [{ ...past, result: 'yes' }] }, now - 60 * 1000, { BTC: { px: 61640.25, source: 'Coinbase estimate' } });
+    if (kind === 'progress') {
+      for (let i = 0; i < 6; i++) {
+        const day = i < 3 ? '2026-11-18' : '2026-11-19';
+        const at = Date.parse(`${day}T12:00:00Z`) + i * 1000;
+        const side = i % 2 ? 'yes' : 'no';
+        const row = demoMarket(at, { ticker: `KXBTC15M-S${i}`, closeTime: new Date(at + 8 * 60 * 1000).toISOString(), floorStrike: 60000 + i });
+        placeTrainerCall(book, row, side, 55 + i * 5, at, { fetchedAt: new Date(at).toISOString(), spots: { BTC: { px: 60010 + i, source: 'Coinbase estimate' } } });
+        const won = i % 3 !== 0;
+        settleTrainer(book, { markets: [{ ...row, result: won ? side : (side === 'yes' ? 'no' : 'yes') }] }, at + 9 * 60 * 1000, { BTC: { px: 60020 + i, source: 'Coinbase estimate' } });
+      }
+    }
+    trainerBook = book;
+    ui.tab = 'train';
+    ui.train = kind === 'progress' ? 'progress' : 'lesson';
+    ui.lessonId = book.closed[0]?.id;
+  } else if (kind === 'call') {
+    ui.tab = 'train';
+    ui.train = 'call';
+    ui.trainSide = '';
+  } else if (kind === 'win') {
+    ui.tab = 'home';
+    live.arenaLog = [{ t: now, action: 'settle', rule: 'pick', title: 'BTC 15-minute', won: true, reason: 'PAPER win · result yes · fee $0.06' }];
+  } else ui.tab = 'home';
+  render();
+  if (kind === 'win') {
+    toast({ text: 'Paper win. The next chip is still $2.', pnl: 1 });
+    burst('win');
+  }
 }
 let pullY = null;
-document.addEventListener('touchstart', (e) => { if (window.scrollY < 2) pullY = e.touches[0].clientY; else pullY = null; }, { passive: true });
+document.addEventListener('touchstart', (e) => {
+  if (window.scrollY > 2) { pullY = null; return; }
+  pullY = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (pullY == null) return;
+  const dy = e.touches[0].clientY - pullY;
+  if (dy < 8 || window.scrollY > 8) { setPtr('off'); return; }
+  setPtr(dy > 64 ? 'ready' : 'pull');
+}, { passive: true });
 document.addEventListener('touchend', (e) => {
   if (pullY == null) return;
   const dy = e.changedTouches[0].clientY - pullY;
   pullY = null;
-  if (dy < 70 || window.scrollY > 8) return;
-  if (ui.tab === 'coins') { ui.coinsState = null; loadCoins(); }
-  else { refreshKalshi(); if (ui.morningState) { ui.morningState = null; loadMorning(); } }
-  toast({ text: 'Refreshing.' });
+  if (dy < 70 || window.scrollY > 8) { setPtr('off'); return; }
+  setPtr('busy');
+  haptic(10);
+  const done = () => setTimeout(() => setPtr('off'), 600);
+  if (ui.tab === 'coins') { ui.coinsState = null; loadCoins().finally(done); }
+  else {
+    if (ui.morningState) { ui.morningState = null; loadMorning(); }
+    ui.quoteManual = true;
+    refreshKalshi().finally(done);
+  }
 }, { passive: true });
+const tickerPause = document.getElementById('tickerPause');
+if (tickerPause) tickerPause.addEventListener('click', () => {
+  const track = document.getElementById('tickerTrack');
+  const paused = track?.style.animationPlayState === 'paused';
+  if (track) track.style.animationPlayState = paused ? 'running' : 'paused';
+  tickerPause.textContent = paused ? 'Pause' : 'Play';
+});
 window.addEventListener('offline', () => { const n = $('#linkState'); if (!n) return; n.hidden = false; n.textContent = 'Offline. The saved app shell is still here. Live prices are not.'; });
 window.addEventListener('online', () => { const n = $('#linkState'); if (n) n.hidden = true; });
 if (localStorage.getItem('gd.theme') === 'light') document.documentElement.dataset.theme = 'light';
