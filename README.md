@@ -65,7 +65,7 @@ not real results. This app copies the features and ignores the numbers.
 
 One video's bot is told "if you lose my money, make it back." That's loss-chasing: bigger or looser bets after
 losses, which is the fastest way to drain an account. This desk does the opposite. When realized session losses
-reach the loss cap (10% of the bank by default), **new entries halt for the rest of the session** and the reason is shown.
+reach the loss cap (10% of the bank by default), live entries halt and the desk switches to repair mode. Shadow trades keep logging. They are not added to the balance, and size does not go up. Live entries come back only after 20 shadow trades with a positive mean after fees, at a fixed $2. The loss cap itself is unchanged.
 
 ## Calibration ("Sunday check")
 

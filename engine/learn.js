@@ -278,22 +278,32 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
       ...state,
       shadow: [...quiet].filter((id) => !controls().has(id)),
       shadowSince: { ...risk.shadowSince, ...Object.fromEntries(demoted.map((d) => [d.id, risk.shadowSince[d.id] || dayKey(now)])) },
+      shadowReturned: risk.shadowReturned || {},
       weights,
       lessons: demoted.map((d) => `benched ${d.id}: ${usd(d.mean)}/trade over 30`),
     },
   };
 }
 
+function dayPnlOf(rows, variantId, day) {
+  return (rows || []).filter((row) => row.allocated && row.variant === variantId && dayKey(row.settledAt || row.window) === day).reduce((sum, row) => sum + (row.pnl || 0), 0);
+}
+
 export function riskShadow(brain, rows, now) {
   const today = dayKey(now);
+  const finished = [...new Set((rows || []).map((row) => dayKey(row.settledAt || row.window)).filter((day) => day && today && day < today))].sort();
+  const lastDay = finished.length ? finished[finished.length - 1] : null;
   const since = { ...(brain?.shadowSince || {}) };
+  const returned = { ...(brain?.shadowReturned || {}) };
   const shadow = new Set(brain?.shadow || []);
   for (const variant of VARIANTS) {
     if (variant.role === 'control') continue;
-    const dayPnl = (rows || []).filter((row) => row.allocated && row.variant === variant.id && dayKey(row.settledAt || row.window) === today).reduce((sum, row) => sum + (row.pnl || 0), 0);
-    if (dayPnl <= -BOT_DAY_LOSS) {
+    const todayPnl = dayPnlOf(rows, variant.id, today);
+    const priorPnl = lastDay ? dayPnlOf(rows, variant.id, lastDay) : 0;
+    const priorStillOpen = priorPnl <= -BOT_DAY_LOSS && returned[variant.id] !== lastDay;
+    if (todayPnl <= -BOT_DAY_LOSS || priorStillOpen) {
       shadow.add(variant.id);
-      if (!since[variant.id]) since[variant.id] = today;
+      if (!since[variant.id]) since[variant.id] = todayPnl <= -BOT_DAY_LOSS ? today : lastDay;
     }
   }
   for (const id of [...shadow]) {
@@ -306,9 +316,10 @@ export function riskShadow(brain, rows, now) {
     if (mean > 0) {
       shadow.delete(id);
       delete since[id];
+      if (lastDay) returned[id] = lastDay;
     }
   }
-  return { shadow: [...shadow], shadowSince: since };
+  return { shadow: [...shadow], shadowSince: since, shadowReturned: returned };
 }
 
 function controls() {

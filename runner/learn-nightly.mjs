@@ -12,6 +12,7 @@ const reviewed = reviewBrain(brain, rows, now);
 const risk = riskShadow(reviewed, rows, now);
 reviewed.shadow = risk.shadow;
 reviewed.shadowSince = risk.shadowSince;
+reviewed.shadowReturned = risk.shadowReturned || {};
 if (!reviewed.experimentSince) {
   const opened = rows.map((row) => row.openedAt).filter(Boolean).sort();
   reviewed.experimentSince = opened[0] || new Date(now).toISOString();

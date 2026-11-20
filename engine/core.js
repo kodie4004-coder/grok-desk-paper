@@ -189,16 +189,26 @@ export function lossCapHit(state, s) {
   return { hit: realized <= cap, realized, cap };
 }
 
-export function riskCheck(state, s, { token, sizeUsd }) {
+// Take-profit has to pay the round trip and then match that cost again.
+// This does not lower the fee and it does not raise the target to chase a loss.
+export function targetClearsFees({ feePct, takeProfitPct }) {
+  if (!(feePct >= 0) || !(takeProfitPct > 0)) return false;
+  const hit = tradePnl({ entryMid: 1, exitMid: 1 + takeProfitPct / 100, sizeUsd: 100, feePct });
+  const flat = tradePnl({ entryMid: 1, exitMid: 1, sizeUsd: 100, feePct });
+  return hit.pnl > 0 && hit.pnl + 1e-9 >= -flat.pnl;
+}
+
+export function riskCheck(state, s, { token, sizeUsd, repairPass = false, repairSize = null }) {
   const lc = lossCapHit(state, s);
-  if (state.halted || lc.hit) return { ok: false, reason: `loss cap hit: realized ${r2(lc.realized)} <= ${r2(lc.cap)} (new entries halted)` };
+  if ((state.halted || lc.hit) && !repairPass) return { ok: false, repair: true, reason: `loss cap hit: realized ${r2(lc.realized)} <= ${r2(lc.cap)} (new entries halted)` };
   if (state.open.length >= s.maxOpen) return { ok: false, reason: `max open positions (${s.maxOpen})` };
   if (state.open.some((p) => p.token === token)) return { ok: false, reason: 'already holding token' };
   const cap = (s.maxPositionPct / 100) * state.startBank;
-  const size = Math.min(sizeUsd, cap);
+  let size = Math.min(sizeUsd, cap);
+  if (repairPass && repairSize != null) size = Math.min(size, repairSize);
   if (size < 1) return { ok: false, reason: 'size below $1' };
   if (size > state.cash) return { ok: false, reason: `not enough cash (${r2(state.cash)})` };
-  return { ok: true, sizeUsd: r2(size) };
+  return { ok: true, sizeUsd: r2(size), repair: false };
 }
 
 export function stopLevels(entryMid, s) {
