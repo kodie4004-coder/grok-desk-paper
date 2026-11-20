@@ -13,7 +13,7 @@ import { GATE_PRIOR } from './engine/gate-prior.js';
 import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
-import { memeGate, watchHealth, watchHealthLine } from './engine/meme.js';
+import { memeBooks, watchHealth, watchHealthLine } from './engine/meme.js';
 import { upgradeLines, challengerRows } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, TRAINER_STAKE } from './engine/trainer.js';
@@ -1073,14 +1073,14 @@ function coinsView() {
   const justOpened = !!(ui.coinOpen && ui.coinOpen !== ui.sheetFor);
   ui.sheetFor = ui.coinOpen || null;
   const sheet = ui.coinOpen ? coinSheet(ui.coins.find((c) => c.ca === ui.coinOpen), justOpened) : '';
-  const gate = memeGate(ui.memeJournal || []);
-  const net = (ui.memeJournal || []).reduce((sum, row) => sum + (row.pnl || 0), 0);
+  const books = memeBooks(ui.memeJournal || []);
+  const gate = books.gate;
   const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
-  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(net, true)} after the 1.25% fee and 1% slippage each side. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p>${watchStatus()}<p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}${sheet}</section>`;
+  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(books.net, true)} after the 1.25% fee and 1% slippage each side. Shadow and early logs are separate: n ${books.shadowN}, net ${money(books.shadowNet, true)} after fees, and they are not in that total. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p>${watchStatus()}<p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}${sheet}</section>`;
 }
 function coinLinks(ca, dexUrl) {
   const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;
-  return `<div class="linkrow">${item(`https://pump.fun/coin/${ca}`, 'icons/pump.svg', 'Pump.fun')}${item(`https://fomo.family/tokens/solana/${ca}`, 'icons/fomo.svg', 'FOMO')}${item(dexUrl, 'icons/dex.svg', 'DexScreener')}${item(`https://solscan.io/token/${ca}`, 'icons/solscan.svg', 'Solscan')}</div>`;
+  return `<div class="linkrow">${item(`https://pump.fun/coin/${ca}`, 'icons/pump.svg', 'Pump.fun')}${item(`https://fomo.family/tokens/solana/${ca}`, 'icons/fomo.svg', 'FOMO')}${item(dexUrl || `https://dexscreener.com/solana/${ca}`, 'icons/dex.svg', 'DexScreener')}${item(`https://solscan.io/token/${ca}`, 'icons/solscan.svg', 'Solscan')}</div>`;
 }
 function coinLogo(coin) {
   const initials = esc(String(coin.symbol || '?').replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || '?');
@@ -1100,7 +1100,7 @@ function coinCard(coin, watch = watchSet()) {
 function coinSheet(coin, animate) {
   if (!coin) return '';
   const why = (coin.reasons || []).map((r) => `<li><span class="tag ${r.ok === true ? 'normal' : r.ok === false ? 'off' : ''}">${r.ok === true ? 'pass' : r.ok === false ? 'fail' : 'unknown'}</span> ${esc(r.name)} · ${esc(r.detail)}</li>`).join('');
-  const paper = (ui.memeOpen || []).find((row) => row.ca === coin.ca) || (ui.memeJournal || []).find((row) => row.ca === coin.ca);
+  const paper = (ui.memeOpen || []).find((row) => row.ca === coin.ca) || [...(ui.memeJournal || [])].reverse().find((row) => row.ca === coin.ca);
   const paperLine = !paper ? 'No paper trade on this coin yet.' : paper.pnl == null ? `Paper open · $${paper.sizeUsd || 2}` : `Paper ${paper.exit || 'open'} · ${money(paper.pnl, true)} after fees`;
   const age = coin.ageMin == null ? 'age unknown' : `${Math.round(coin.ageMin)} min old`;
   const liq = coin.liq == null ? 'liquidity unknown' : `liquidity $${Math.round(Number(coin.liq)).toLocaleString('en-US')}`;
@@ -1420,8 +1420,15 @@ function bind() {
   document.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = async (e) => {
     e.stopPropagation();
     const ca = b.dataset.copy;
-    try { await navigator.clipboard.writeText(ca); } catch { /* the address stays on screen */ }
+    let copied = false;
+    try { await navigator.clipboard.writeText(ca); copied = true; } catch { copied = false; }
     haptic(12);
+    if (!copied) {
+      const chip = b.parentElement?.querySelector('[data-expand-ca]');
+      if (chip) chip.setAttribute('aria-expanded', 'true');
+      toast({ text: 'Copy did not stick. The full address is on the card.' });
+      return;
+    }
     b.classList.add('is-copied');
     b.textContent = 'Copied';
     toast({ kind: 'copy' });
@@ -1636,7 +1643,7 @@ function dismissSplash() {
   const q = new URLSearchParams(location.search);
   if (q.get('shot')) ui.shotLock = true;
   if (!ui.shotLock) refreshKalshi();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   if (q.get('replay') === '1') startReplay();
   if (q.get('tab')) document.querySelector(`[data-tab="${q.get('tab')}"]`)?.click();
   if (q.get('shot')) applyShot(q.get('shot'));

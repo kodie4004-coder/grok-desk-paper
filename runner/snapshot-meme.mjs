@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { bestPair, candidateMints, lookupMints, openMemeCount, pricesForOpen, pricesFromDex, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
 import { cacheDoc, cacheFromDoc, prepareJevState, reviewCandidates, JEV_CALL_CAP } from '../engine/jev.js';
 import {
-  EARLY_SCAN, advanceEarlyExits, candidatesFromSources, decideCandidate, loadSources, needsChain, nextLog, openEarly, readRug, withPair,
+  EARLY_SCAN, advanceEarlyExits, candidatesFromSources, decideCandidate, loadSources, needsChain, nextLog, openEarly, readRug, rollEarlyLog, withPair,
 } from '../engine/early.js';
 import { withShadowScores } from '../engine/upgrades.js';
 import { watchKickDecision } from './kick-watch.mjs';
@@ -71,8 +71,18 @@ function writeEarly(decisions, sources, at) {
     coins: decisions,
   };
   fs.writeFileSync('data/early-board.json', JSON.stringify(board, null, 2) + '\n');
-  const extra = nextLog(readEarlyLog(), decisions, at);
-  if (extra.length) fs.appendFileSync('data/early-log.jsonl', extra.map((row) => JSON.stringify(row)).join('\n') + '\n');
+  const prev = readEarlyLog();
+  const extra = nextLog(prev, decisions, at);
+  let priorSummary = null;
+  try { priorSummary = JSON.parse(fs.readFileSync('data/early-log-summary.json', 'utf8')); } catch { priorSummary = null; }
+  const rolled = rollEarlyLog(prev, extra, priorSummary);
+  if (rolled.rewritten) {
+    const body = rolled.rows.map((row) => JSON.stringify(row)).join('\n');
+    fs.writeFileSync('data/early-log.jsonl', body ? body + '\n' : '');
+    fs.writeFileSync('data/early-log-summary.json', JSON.stringify(rolled.summary, null, 2) + '\n');
+  } else if (extra.length) {
+    fs.appendFileSync('data/early-log.jsonl', extra.map((row) => JSON.stringify(row)).join('\n') + '\n');
+  }
   const tally = { enter: 0, pass: 0, kill: 0 };
   for (const row of decisions) if (tally[row.action] != null) tally[row.action] += 1;
   console.log('early', JSON.stringify(tally), 'sources', board.sources.map((source) => `${source.id}:${source.ok ? 'ok' : source.status}`).join(','));

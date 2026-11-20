@@ -16,9 +16,13 @@ const usd = (x) => {
 
 const pct = (x) => (x == null || !Number.isFinite(x) ? '—' : `${x > 0 ? '+' : ''}${x.toFixed(1)}%`);
 
-function earlyBook(variant) {
+export function isEarlyBook(variant) {
   const name = String(variant || '');
   return name === 'early-entry' || name === 'early-track' || name.startsWith('early-exit');
+}
+
+function earlyBook(variant) {
+  return isEarlyBook(variant);
 }
 
 export function sleeveBenched(rows) {
@@ -158,7 +162,9 @@ function latestIncident(sorted) {
 }
 
 export function diagnoseMeme(rows) {
-  const sorted = [...(rows || [])].filter((row) => row && row.pnl != null).sort((a, b) => Date.parse(a.openedAt) - Date.parse(b.openedAt));
+  // Early-entry and its exit shadows are a different book. They do not fill
+  // the safety sleeve's repair bar or the incident window.
+  const sorted = [...(rows || [])].filter((row) => row && row.pnl != null && !isEarlyBook(row.variant)).sort((a, b) => Date.parse(a.openedAt) - Date.parse(b.openedAt));
   const incidentPick = latestIncident(sorted);
   const incidentRows = incidentPick.rows;
   const trainRows = sorted.slice(0, incidentPick.index);

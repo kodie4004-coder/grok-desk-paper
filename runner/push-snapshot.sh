@@ -41,7 +41,8 @@ add_existing \
   data/research-upgrades.json \
   data/jev-cache.json \
   data/early-board.json \
-  data/early-log.jsonl
+  data/early-log.jsonl \
+  data/early-log-summary.json
 
 if git diff --cached --quiet; then
   echo "snapshot unchanged"

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreCoin, memePnl, stepMeme, memeTargetClearsFees, MEME_SIZE, MEME_RULES, tokenMint, bestPair, parseMintAccount, topHolderShare, candidateMints, lookupMints } from '../engine/meme.js';
+import { scoreCoin, memePnl, stepMeme, memeTargetClearsFees, memeGate, memeBooks, MEME_SIZE, MEME_RULES, tokenMint, bestPair, parseMintAccount, topHolderShare, candidateMints, lookupMints } from '../engine/meme.js';
 import { chaseBlocked } from '../engine/repair.js';
 
 const now = Date.parse('2026-11-19T18:00:00Z');
@@ -222,4 +222,28 @@ test('a coin that passes the bars opens one $2 paper position', () => {
   assert.equal(next.open[0].ca, 'CA');
   const blocked = stepMeme({ coins: [{ ca: 'CA', symbol: 'TEST', priceUsd: 1, pass: false }], open: [], now });
   assert.equal(blocked.open.length, 0);
+});
+
+test('the meme gate scores allocated safety trades and leaves early shadows out', () => {
+  const day = (n, pnl, variant, allocated, key) => Array.from({ length: n }, (_, i) => ({
+    pnl, variant, allocated, settledAt: `${key}T00:00:00Z`, ca: `${variant}-${key}-${i}`,
+  }));
+  const early = day(20, 1, 'early-exit-fast', false, '2026-11-01')
+    .concat(day(20, 1, 'early-entry', false, '2026-11-02'))
+    .concat(day(20, 1, 'early-exit-half', false, '2026-11-03'));
+  assert.equal(memeGate(early).graduated, false);
+  assert.equal(memeGate(early).n, 0);
+  const shadow = day(20, 1, 'meme-safety', false, '2026-11-01');
+  assert.equal(memeGate(shadow).n, 0);
+  const one = day(20, 0.2, 'meme-safety', true, '2026-11-01');
+  assert.equal(memeGate(one).graduated, false);
+  assert.equal(memeGate(one).n, 20);
+  assert.ok(memeGate(one).windows[0].lo > 0);
+  const cleared = one.concat(day(20, 0.2, 'meme-safety', true, '2026-11-02'), day(20, 0.2, 'meme-safety', true, '2026-11-03'));
+  const books = memeBooks(cleared.concat(early));
+  assert.equal(books.gate.graduated, true);
+  assert.equal(books.gate.n, 60);
+  assert.ok(Math.abs(books.net - 12) < 1e-9);
+  assert.equal(books.shadowN, 60);
+  assert.ok(Math.abs(books.shadowNet - 60) < 1e-9);
 });

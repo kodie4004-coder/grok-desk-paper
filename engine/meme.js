@@ -1,8 +1,9 @@
 // Solana meme signals. Thresholds are frozen in EVAL_PROTOCOL.md before any live pass.
 // Paper only. This module cannot sign, connect a wallet, or send an order.
 
+import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
-import { sleeveBenched } from './repair.js';
+import { isEarlyBook, sleeveBenched } from './repair.js';
 import { jevStamp } from './jev.js';
 
 export const MEME_SIZE = 2;
@@ -459,7 +460,7 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
       if (exit) {
         const deal = fillPnl(pos, exit);
         if (deal && deal.sizeUsd === MEME_SIZE) {
-          const row = { ...withoutTrack(pos), ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true };
+          const row = { ...withoutTrack(pos), ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true, open: false };
           settled.push(row);
           if (row.id) knownIds.add(row.id);
           if (tracked?.hold) still.push(tracked.hold);
@@ -469,7 +470,7 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
     }
     if (exit) {
       const deal = fillPnl(pos, exit);
-      if (deal && deal.sizeUsd === MEME_SIZE) settled.push({ ...withoutTrack(pos), ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true });
+      if (deal && deal.sizeUsd === MEME_SIZE) settled.push({ ...withoutTrack(pos), ...deal, exit: why, exitPx: exit, settledAt: new Date(now).toISOString(), won: deal.pnl > 0, paper: true, open: false });
     } else still.push(pos);
   }
   const known = new Set(still.map((p) => p.ca).concat(settled.map((p) => p.ca)));
@@ -621,6 +622,7 @@ export function watchExit(pos, px, now) {
     settledAt: new Date(now).toISOString(),
     won: deal.pnl > 0,
     paper: true,
+    open: false,
     watch: true,
     ruleMove,
     realizedMove,
@@ -681,20 +683,41 @@ export function pricesFromDex(book, mints) {
   return out;
 }
 
+function safetyBook(rows) {
+  return (rows || []).filter((row) => row && row.pnl != null && row.allocated !== false && !isEarlyBook(row.variant));
+}
+
+function shadowBook(rows) {
+  return (rows || []).filter((row) => row && row.pnl != null && (row.allocated === false || isEarlyBook(row.variant)));
+}
+
+// Allocated safety-sleeve rows only. Early shadows and $0 logs are not a
+// second copy of the same bet, and they do not count toward graduates().
 export function memeGate(rows) {
+  const book = safetyBook(rows);
   const groups = new Map();
-  for (const row of rows || []) {
+  for (const row of book) {
     const key = (row.settledAt || '').slice(0, 10);
-    if (!key || row.pnl == null) continue;
+    if (!key) continue;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);
   }
-  const windows = [...groups.entries()].map(([key, list]) => ({
-    key,
-    seen: false,
-    n: list.length,
-    mean: list.reduce((sum, row) => sum + row.pnl, 0) / list.length,
-    lo: null,
-  }));
-  return { windows, graduated: graduates(windows), n: (rows || []).filter((row) => row.pnl != null).length };
+  const windows = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, list]) => {
+    const boot = clusterBootstrap(list.map((row) => ({ pnl: row.pnl, pool: row.ca || row.id || '?' })), { iters: 200, seed: 7, qLo: 0.05, qHi: 0.95 });
+    return { key, seen: false, n: list.length, mean: boot.mean, lo: boot.lo, hi: boot.hi };
+  });
+  return { windows, graduated: graduates(windows), n: book.length };
+}
+
+export function memeBooks(rows) {
+  const allocated = safetyBook(rows);
+  const shadow = shadowBook(rows);
+  const sum = (list) => list.reduce((total, row) => total + row.pnl, 0);
+  return {
+    gate: memeGate(rows),
+    net: sum(allocated),
+    fees: allocated.reduce((total, row) => total + (row.fees || 0), 0),
+    shadowN: shadow.length,
+    shadowNet: sum(shadow),
+  };
 }

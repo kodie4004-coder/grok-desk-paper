@@ -218,3 +218,25 @@ test('feature lessons wait for 8 trades and the gate still needs three windows',
   assert.equal(gateProgress(oneWindow, 30).graduated, false);
   assert.equal(graduates([{ n: 20, mean: 0.1, lo: 0.01, seen: false }, { n: 20, mean: 0.1, lo: 0.01, seen: false }]), false);
 });
+
+test('a market that leaves the board is closed without a made-up P&L', () => {
+  const entry = {
+    id: 'flip:OLD', variant: 'flip', family: 'flip', role: 'control', allocated: true,
+    ticker: 'KXCRYPTOLEAD15M-OLD', series: 'KXCRYPTOLEAD15M', side: 'yes', ask: 0.4,
+    contracts: 5, sizeUsd: 2, fee: 0.08, openedAt: '2026-11-20T10:00:00.000Z',
+    closeTime: '2026-11-20T10:15:00Z', paper: true,
+  };
+  const soon = stepJournal({ markets: [], open: [entry], quotes: {}, brain: defaultBrain(), now: Date.parse('2026-11-20T12:00:00Z') });
+  assert.equal(soon.open.length, 1);
+  assert.equal(soon.settled.length, 0);
+  const later = stepJournal({ markets: [], open: [entry], quotes: {}, brain: defaultBrain(), now: Date.parse('2026-11-20T18:00:00Z') });
+  assert.equal(later.open.length, 0);
+  assert.equal(later.settled.length, 1);
+  assert.equal(later.settled[0].result, 'missing');
+  assert.equal(later.settled[0].pnl, null);
+  assert.equal(later.settled[0].skipped, true);
+  assert.equal(later.settled[0].sizeUsd, 2);
+  assert.equal(later.settled[0].allocated, true);
+  const scored = reviewBrain(defaultBrain(), later.settled, Date.parse('2026-11-21T00:00:00Z'));
+  assert.equal(scored.paper, true);
+});

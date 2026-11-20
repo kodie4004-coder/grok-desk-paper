@@ -14,6 +14,7 @@ export const HOLD_MIN = 20;
 export const BOT_DAY_LOSS = 6;
 export const SNAPSHOT_ALLOC_CAP = 8;
 export const SNAPSHOT_LINE_CAP = 16;
+export const MISSING_RESULT_MS = 6 * 3600000;
 
 export const VARIANTS = [
   { id: 'late', family: 'late', label: 'Late favorite', role: 'champion', minAsk: 0.85, minLeft: 180, maxLeft: 300 },
@@ -135,6 +136,24 @@ export function signal(variant, market, now, ctx = {}) {
   };
 }
 
+// The market left the board and never came back with a yes/no result.
+// pnl stays null so the row is not a win, a loss, or a fee that was not paid.
+export function unresolvedRow(entry, now) {
+  return {
+    ...entry,
+    result: 'missing',
+    won: null,
+    pnl: null,
+    fees: entry.fee || entry.fees || 0,
+    settledAt: new Date(now).toISOString(),
+    window: dayKey(entry.closeTime) || dayKey(now),
+    skipped: true,
+    skipReason: 'result left the board',
+    paper: true,
+    open: false,
+  };
+}
+
 export function settleRow(entry, result, now) {
   const won = result === entry.side;
   const contracts = entry.contracts;
@@ -231,7 +250,13 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
       continue;
     }
     const close = Date.parse(entry.closeTime);
-    if (Number.isFinite(close) && now - close > 6 * 3600000 && !market) continue;
+    if (Number.isFinite(close) && now - close > MISSING_RESULT_MS && !market) {
+      if (!known.has(entry.id)) {
+        settled.push(unresolvedRow(entry, now));
+        known.add(entry.id);
+      }
+      continue;
+    }
     still.push(entry);
   }
   for (let i = still.length - 1; i >= 0; i -= 1) {
@@ -485,9 +510,10 @@ export function replayAllocated(rows) {
 }
 
 function windowStats(rows, iters = 300) {
-  if (!rows.length) return { n: 0, mean: null, lo: null, hi: null, wins: 0 };
-  const boot = clusterBootstrap(rows.map((r) => ({ pnl: r.pnl, pool: r.series || r.ticker || '?' })), { iters, seed: 7, qLo: 0.05, qHi: 0.95 });
-  return { n: rows.length, mean: boot.mean, lo: boot.lo, hi: boot.hi, wins: rows.filter((r) => r.won || r.pnl > 0).length };
+  const list = (rows || []).filter((row) => row && Number.isFinite(row.pnl));
+  if (!list.length) return { n: 0, mean: null, lo: null, hi: null, wins: 0 };
+  const boot = clusterBootstrap(list.map((r) => ({ pnl: r.pnl, pool: r.series || r.ticker || '?' })), { iters, seed: 7, qLo: 0.05, qHi: 0.95 });
+  return { n: list.length, mean: boot.mean, lo: boot.lo, hi: boot.hi, wins: list.filter((r) => r.won || r.pnl > 0).length };
 }
 
 export function sampleLabel(n, lo, hi) {
@@ -685,6 +711,7 @@ export function botCards(rows, brain) {
 }
 
 export function journalSummary(rows) {
+  rows = (rows || []).filter((row) => row && Number.isFinite(row.pnl));
   const stats = windowStats(rows, 160);
   const net = rows.reduce((sum, row) => sum + (row.pnl || 0), 0);
   const alloc = rows.filter((row) => row.allocated);

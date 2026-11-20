@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { DEFAULT_SETTINGS, lossCapHit, riskCheck, targetClearsFees } from '../engine/core.js';
 import { newState, startSession, tick } from '../engine/engine.js';
-import { diagnoseMeme, repairGate, sleeveBenched, REPAIR_MIN_N, REPAIR_SIZE_USD } from '../engine/repair.js';
+import { diagnoseMeme, isEarlyBook, repairGate, sleeveBenched, REPAIR_MIN_N, REPAIR_SIZE_USD } from '../engine/repair.js';
 
 const S = DEFAULT_SETTINGS;
 
@@ -31,6 +31,12 @@ test('resume needs 20 shadow trades with a positive mean', () => {
   assert.equal(repairGate([...wins, { pnl: 0.1, allocated: false }]).pass, true);
   assert.equal(repairGate(Array.from({ length: 20 }, () => ({ pnl: -0.1, allocated: false }))).pass, false);
   assert.equal(repairGate(Array.from({ length: 20 }, () => ({ pnl: 0.2, allocated: false }))).sizeUsd, 2);
+  const earlyWins = Array.from({ length: 20 }, (_, i) => ({ pnl: 0.4, allocated: false, variant: 'early-exit-fast', ca: 'E' + i }));
+  const memeLosses = Array.from({ length: 5 }, (_, i) => ({ pnl: -0.2, allocated: false, variant: 'meme-safety', ca: 'M' + i }));
+  const mixed = diagnoseMeme([...earlyWins, ...memeLosses]);
+  assert.equal(mixed.repair.n, 5);
+  assert.equal(mixed.repair.pass, false);
+  assert.equal(mixed.incident.n, 5);
   assert.equal(sleeveBenched(Array.from({ length: 20 }, () => ({ pnl: -0.1, allocated: true }))).benched, true);
   assert.equal(sleeveBenched(Array.from({ length: 19 }, () => ({ pnl: -0.1, allocated: true }))).benched, false);
 });
@@ -40,7 +46,7 @@ test('the stored meme journal is summed, not invented, and a negative book stays
   const report = diagnoseMeme(rows);
   const incident = report.incident;
   assert.equal(incident.n, incident.wins + incident.losses);
-  const picked = rows.filter((row) => row.pnl != null);
+  const picked = rows.filter((row) => row.pnl != null && !isEarlyBook(row.variant));
   assert.ok(picked.length >= incident.n);
   assert.ok(Math.abs(incident.pnl - incident.mean * incident.n) < 1e-6);
   assert.equal(report.findings.length, 3);
