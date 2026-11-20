@@ -612,7 +612,7 @@ function challengerCard() {
     const tone = (n) => (n > 0 ? 'g' : n < 0 ? 'r' : '');
     const unknown = row.unknownRate == null ? '—' : `${Math.round(row.unknownRate * 100)}%`;
     const weight = row.id === 'jev-check' ? `<p class="note">Weight ${row.weight}. Unknown ${unknown} of settled verdicts. DexScreener, public X facts, RugCheck, age, liquidity, and similar tickers are in the prompt. A flag drops that trade from this mean only.</p>` : '';
-    const age = row.id === 'early-entry' ? `<p class="note">Median age at entry ${row.medianAgeMin == null ? '—' : `${Math.round(row.medianAgeMin)} min`}. Weight ${row.weight}. Discovery rides the Kalshi chain. GitHub cron cannot run faster than every 5 minutes, and that kick has been dropped before.</p>` : '';
+    const age = row.id === 'early-entry' ? `<p class="note">Median age at entry ${row.medianAgeMin == null ? '—' : `${Math.round(row.medianAgeMin)} min`}. Weight ${row.weight}. Discovery scans about every 60 seconds. The Kalshi chain starts that job when it is not already running.</p>` : '';
     const exitNote = String(row.id || '').startsWith('early-exit') ? '<p class="note">Weight 0. Same early entries, this exit, after fees.</p>' : '';
     return `<li class="slot" data-challenger="${esc(row.id)}"><div class="row"><b>${esc(row.name)}</b><span class="tag explore">${esc(row.status)}</span></div><dl class="challenger-metrics"><div><dt>Sample</dt><dd>${row.n}</dd></div><div><dt>After fees</dt><dd class="${tone(row.mean)}">${mean}</dd></div><div><dt>Baseline</dt><dd class="${tone(row.baselineMean)}">${base}</dd></div></dl>${weight}${age}${exitNote}</li>`;
   }).join('');
@@ -830,7 +830,8 @@ function settingsView(st) {
   <button class="btn pri wide" style="margin-top:10px" ${locked ? 'disabled' : ''}>Save rules</button>
   <button type="button" class="btn wide" id="defaults" style="margin-top:8px" ${locked ? 'disabled' : ''}>Reset to defaults</button></form>
   <div class="note" style="margin-top:8px">There is no "make it back" setting on purpose. Raising size or loosening rules after a loss is loss-chasing and drains accounts; the loss cap stops new entries instead. The edge gate only shrinks or stops. It never sizes above the position you set, and a loss never increases size.</div></div>
-  <div class="card"><h2>Notifications</h2><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Nothing is sent outside this device.</div></div>
+  <div class="card"><h2>Notifications</h2><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Browser notifications stay on this device.</div></div>
+  <div class="card"><h2>Phone alerts</h2><p class="note">Install the ntfy app and subscribe to the topic your assistant gave you. A push means a coin passed the early paper checks. It is an unproven paper signal. The strategy has not passed the edge gate. This page does not show the topic.</p></div>
   <div class="card" id="pro"><h2>Pro</h2><p class="note">Coming soon. There is no payment and no account. If you would pay for a finished version, you can leave an email on this phone. It is stored only in this browser and is not sent anywhere.</p><label class="f">Email on this phone<input id="proEmail" type="email" inputmode="email" autocomplete="off" value="${esc(localStorage.getItem('gd.proEmail') || '')}"></label><button type="button" class="btn wide" id="proSave">Save on this phone</button></div>
   <div class="card"><h2>Feel</h2>
   <label class="f">Sounds<input type="checkbox" id="soundSet" ${ui.sound ? 'checked' : ''}></label>
@@ -846,7 +847,7 @@ function settingsView(st) {
     <button class="btn wide" id="exportCsv" type="button" style="margin-top:8px">Export paper CSV</button>
     <label class="btn wide" style="margin-top:8px;display:block;text-align:center">Import paper JSON<input id="importJson" type="file" accept="application/json" hidden></label>
     <button class="btn dng wide" id="wipe" style="margin-top:8px" ${live.running ? 'disabled' : ''}>Erase local data</button></div>
-  <div class="note" style="text-align:center;margin-bottom:10px">Grok Desk paper v1 · not financial advice</div>`;
+  <div class="note" style="text-align:center;margin-bottom:10px">Grok Desk paper v1 · not financial advice. Phone alerts: install the ntfy app and subscribe to the topic your assistant gave you.</div>`;
 }
 
 function loadMorning() {

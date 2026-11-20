@@ -47,7 +47,7 @@ export const EARLY_SOURCES = [
   { id: 'pump-latest', url: 'https://frontend-api-v3.pump.fun/coins/latest?limit=30&offset=0&includeNsfw=false' },
 ];
 
-export const DETECTION_NOTE = 'Discovery runs on the Kalshi snapshot chain, not on a faster cron. GitHub cron cannot fire more often than every 5 minutes, and the 5-minute meme kick has been dropped before. A new coin waits for the next chain pass.';
+export const DETECTION_NOTE = 'Discovery loops about every 60 seconds inside one Actions job for 5 hours 50 minutes. A new job starts every 6 hours, and the Kalshi chain starts one when none is running. The checks are unchanged. A phone push is not a trade.';
 
 const num = (x) => {
   const n = typeof x === 'string' ? Number(x) : x;

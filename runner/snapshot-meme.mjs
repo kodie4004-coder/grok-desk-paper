@@ -6,8 +6,9 @@
 // call is the dispatch. The Kalshi workflow step calls the same script again.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { bestPair, candidateMints, lookupMints, openMemeCount, pricesForOpen, pricesFromDex, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
-import { cacheDoc, cacheFromDoc, prepareJevState, reviewCandidates, JEV_CALL_CAP } from '../engine/jev.js';
+import { cacheDoc, cacheFromDoc, jevRunCap, noteJevCalls, prepareJevState, reviewCandidates, JEV_CALL_CAP } from '../engine/jev.js';
 import {
   EARLY_SCAN, advanceEarlyExits, candidatesFromSources, decideCandidate, loadSources, needsChain, nextLog, openEarly, readRug, rollEarlyLog, withPair,
 } from '../engine/early.js';
@@ -43,6 +44,18 @@ function saveJevCache(cache) {
   const next = JSON.stringify(cacheDoc(cache), null, 2) + '\n';
   const prev = fs.existsSync('data/jev-cache.json') ? fs.readFileSync('data/jev-cache.json', 'utf8') : '';
   if (next !== prev) fs.writeFileSync('data/jev-cache.json', next);
+}
+
+function loadJevCalls() {
+  try { return JSON.parse(fs.readFileSync('data/jev-calls.json', 'utf8')); }
+  catch { return { paper: true, liveExecution: false, batches: [] }; }
+}
+
+function saveJevCalls(doc) {
+  fs.mkdirSync('data', { recursive: true });
+  const next = JSON.stringify(doc, null, 2) + '\n';
+  const prev = fs.existsSync('data/jev-calls.json') ? fs.readFileSync('data/jev-calls.json', 'utf8') : '';
+  if (next !== prev) fs.writeFileSync('data/jev-calls.json', next);
 }
 
 function saveSleeveScore(rows) {
@@ -191,6 +204,9 @@ try {
       console.log('early scan failed', e.message);
     }
     const jevCache = loadJevCache();
+    const callDoc = loadJevCalls();
+    const day = new Date(now).toISOString().slice(0, 10);
+    const runCap = jevRunCap(callDoc, day);
     const boards = [
       ...earlyRows.map((row) => ({ ca: row.ca, name: row.name, symbol: row.symbol })),
       ...coins.map((row) => ({ ca: row.ca, name: row.name, symbol: row.symbol })),
@@ -202,27 +218,35 @@ try {
       fetchImpl: fetch,
       nowMs: now,
     });
+    let askedTotal = 0;
     try {
       const reviewed = await reviewCandidates(coins, {
         cache: jevCache,
+        cap: runCap,
         now: new Date(now).toISOString(),
         prepare,
       });
       coins = reviewed.coins;
       const enters = earlyDecisions.filter((row) => row.action === 'enter').map((row) => ({ ...row, pass: true }));
+      const earlyCap = Math.max(0, Math.min(JEV_CALL_CAP - reviewed.asked, runCap - reviewed.asked));
       const earlyReview = await reviewCandidates(enters, {
         cache: jevCache,
-        cap: Math.max(0, JEV_CALL_CAP - reviewed.asked),
+        cap: earlyCap,
         now: new Date(now).toISOString(),
         prepare,
       });
+      askedTotal = reviewed.asked + earlyReview.asked;
       const byCa = new Map(earlyReview.coins.map((row) => [row.ca, row.jev]));
       earlyDecisions = earlyDecisions.map((row) => (byCa.get(row.ca) ? { ...row, jev: byCa.get(row.ca) } : row));
-      console.log('jev', `asked=${reviewed.asked + earlyReview.asked}`, `http=${reviewed.http + earlyReview.http}`, `skipped=${reviewed.skipped + earlyReview.skipped}`, `capped=${reviewed.capped + earlyReview.capped}`);
+      console.log('jev', `asked=${askedTotal}`, `http=${reviewed.http + earlyReview.http}`, `skipped=${reviewed.skipped + earlyReview.skipped}`, `capped=${reviewed.capped + earlyReview.capped}`, `dailyCap=${runCap}`);
     } catch (e) {
       console.log('jev skipped', e.message);
     }
     saveJevCache(jevCache);
+    if (askedTotal > 0) {
+      const id = `${new Date(now).toISOString()}#snapshot#${randomBytes(4).toString('hex')}`;
+      saveJevCalls(noteJevCalls(callDoc, day, askedTotal, id, new Date(now).toISOString()));
+    }
     const openDoc = fs.existsSync('data/meme-open.json') ? JSON.parse(fs.readFileSync('data/meme-open.json', 'utf8')) : { entries: [] };
     const history = fs.existsSync('data/meme-journal.jsonl')
       ? fs.readFileSync('data/meme-journal.jsonl', 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))

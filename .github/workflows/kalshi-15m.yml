@@ -32,6 +32,10 @@ name: Kalshi 15-minute snapshot
 # paper coin is open. A GITHUB_TOKEN run does not emit workflow_run, so the
 # watch workflow must not listen for this job. The meme snapshot runner
 # dispatches the same way. The 5-minute kick stays as a backup.
+#
+# Early coins are scanned by fast-scan.yml, about every 60 seconds, for
+# 5 hours 50 minutes. This chain starts that workflow when none is running.
+# fast-scan.yml keeps a single run and does not cancel the one in progress.
 on:
   workflow_dispatch:
   schedule:
@@ -73,6 +77,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash runner/kick-watch.sh || echo 'meme watch dispatch did not stick; the next snapshot will try again'
+      - name: Keep the early fast scan running
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash runner/queue-fast-scan.sh || echo 'fast scan dispatch did not stick; the next snapshot will try again'
       - name: Queue the next refresh
         if: always()
         env:
