@@ -1,6 +1,6 @@
 // Public Kalshi read. No key. Browser pages are blocked, so this writes a same-origin file.
 import fs from 'node:fs';
-import { KALSHI_SERIES } from '../engine/kalshi.js';
+import { KALSHI_SERIES, tickersNeedingResult } from '../engine/kalshi.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const ROOT = 'https://api.elections.kalshi.com/trade-api/v2';
@@ -33,7 +33,7 @@ const markets = [];
 for (const series of KALSHI_SERIES) {
   for (const status of ['open', 'settled']) {
     try {
-      const body = await get(`${ROOT}/markets?series_ticker=${series}&status=${status}&limit=${status === 'settled' ? 4 : 5}`);
+      const body = await get(`${ROOT}/markets?series_ticker=${series}&status=${status}&limit=${status === 'settled' ? 20 : 5}`);
       for (const m of body.markets || []) markets.push(row(m));
     } catch (e) {
       console.log('skip', series, status, e.message);
@@ -41,8 +41,23 @@ for (const series of KALSHI_SERIES) {
     await sleep(80);
   }
 }
+const fetchedAt = new Date().toISOString();
+let openEntries = [];
+try { openEntries = JSON.parse(fs.readFileSync('data/journal-open.json', 'utf8')).entries || []; } catch { openEntries = []; }
+const need = tickersNeedingResult(openEntries, markets, Date.parse(fetchedAt));
+for (const ticker of need.slice(0, 80)) {
+  try {
+    const body = await get(`${ROOT}/markets/${encodeURIComponent(ticker)}`);
+    const market = body.market || body;
+    if (market?.ticker) markets.push(row(market));
+  } catch (e) {
+    console.log('skip ticker', ticker, e.message);
+  }
+  await sleep(40);
+}
+console.log('result backfill', Math.min(need.length, 80), 'of', need.length);
 const doc = {
-  fetchedAt: new Date().toISOString(),
+  fetchedAt,
   source: 'api.elections.kalshi.com',
   cors: 'A browser Origin is refused. This file is the same-origin fallback.',
   markets,

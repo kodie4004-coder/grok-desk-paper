@@ -23,6 +23,28 @@ export const K1 = Object.freeze({
 // The board is stale once the snapshot is older than 15 minutes.
 export const KALSHI_STALE_MS = 15 * 60 * 1000;
 
+// A series such as KXCRYPTOLEAD15M settles several markets in one window.
+// The last few settled rows are not enough. Any open paper line whose
+// close has passed and whose ticker is not already yes/no on the board
+// still needs a direct lookup.
+export function tickersNeedingResult(entries, markets, now) {
+  const resolved = new Set();
+  for (const market of markets || []) {
+    if (market && (market.result === 'yes' || market.result === 'no') && market.ticker) resolved.add(market.ticker);
+  }
+  const out = [];
+  const seen = new Set();
+  for (const entry of entries || []) {
+    const ticker = entry?.ticker;
+    if (!ticker || resolved.has(ticker) || seen.has(ticker)) continue;
+    const close = Date.parse(entry.closeTime || '');
+    if (!Number.isFinite(close) || now < close) continue;
+    seen.add(ticker);
+    out.push(ticker);
+  }
+  return out;
+}
+
 export function quoteAge(fetchedAt, now) {
   const t = Date.parse(fetchedAt || '');
   if (!Number.isFinite(t)) return { ms: null, stale: true, label: 'unknown age' };
@@ -132,7 +154,7 @@ export async function loadKalshiBoard(fetchImpl = globalThis.fetch) {
     const markets = [];
     for (const series of KALSHI_SERIES) {
       for (const status of ['open', 'settled']) {
-        const url = `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${series}&status=${status}&limit=${status === 'settled' ? 4 : 3}`;
+        const url = `https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${series}&status=${status}&limit=${status === 'settled' ? 20 : 3}`;
         const body = await (await fetchImpl(url, { headers: { accept: 'application/json' } })).json();
         for (const m of body.markets || []) markets.push(normalizeMarket(m));
       }

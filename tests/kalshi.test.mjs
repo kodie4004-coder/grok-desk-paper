@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { kalshiTakerFee, favoriteSide, candleInWindow, asksFromCandle, settlePnl, coinFlipSide, liveK1, K1, loadKalshiBoard, reviewKalshi, quoteAge } from '../engine/kalshi.js';
+import { kalshiTakerFee, favoriteSide, candleInWindow, asksFromCandle, settlePnl, coinFlipSide, liveK1, K1, loadKalshiBoard, reviewKalshi, quoteAge, tickersNeedingResult } from '../engine/kalshi.js';
 
 test('taker fee matches the one-contract column of the July 2026 schedule', () => {
   assert.equal(kalshiTakerFee(0.5, 1), 0.02);
@@ -81,4 +81,16 @@ test('a blocked browser falls back to the snapshot and a paper bet stays out of 
   assert.equal(st.kalshiOpen.length, 0);
   assert.equal(st.kalshiClosed[0].won, true);
   assert.equal(st.closed.length, 0);
+});
+
+test('open lines past close are looked up when the settled page dropped them', () => {
+  const now = Date.parse('2026-11-20T22:40:00Z');
+  const entries = [
+    { ticker: 'KXCRYPTOLEAD15M-OLD-BTC', closeTime: '2026-11-20T16:15:00Z' },
+    { ticker: 'KXCRYPTOLEAD15M-OLD-BTC', closeTime: '2026-11-20T16:15:00Z' },
+    { ticker: 'KXBTC15M-LIVE', closeTime: '2026-11-20T22:45:00Z' },
+    { ticker: 'KXBTC15M-DONE', closeTime: '2026-11-20T22:00:00Z' },
+  ];
+  const markets = [{ ticker: 'KXBTC15M-DONE', result: 'yes' }, { ticker: 'KXBTC15M-LIVE', result: '' }];
+  assert.deepEqual(tickersNeedingResult(entries, markets, now), ['KXCRYPTOLEAD15M-OLD-BTC']);
 });

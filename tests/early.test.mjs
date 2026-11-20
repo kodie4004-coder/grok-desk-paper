@@ -8,7 +8,7 @@ import { mergeEarlyLog } from '../runner/merge-meme.mjs';
 import {
   EARLY_EXITS, EARLY_EXIT_FAST, EARLY_EXIT_HALF, EARLY_EXIT_TRAIL, EARLY_RULES, EARLY_SOURCES,
   advanceEarlyExits, candidatesFromSources, decideCandidate, earlyClears, earlyExitReport, earlyShadow, earlySlip, mergeOpenEntry,
-  fromGeckoPools, fromPump, launchMultiple, loadSources, needsChain, nextLog, openEarly, readLp, readRug,
+  EARLY_LOG_CAP, fromGeckoPools, fromPump, launchMultiple, loadSources, needsChain, nextLog, openEarly, readLp, readRug, rollEarlyLog,
 } from '../engine/early.js';
 
 const now = Date.parse('2026-11-20T18:00:00Z');
@@ -355,4 +355,25 @@ test('exit variants are registered before the sample and stay at weight 0', () =
   );
   assert.equal(merged.exitTrack.peak, 1.4);
   assert.equal(merged.exitTrack.fast.settledAt, '2026-11-20T00:00:00Z');
+});
+
+test('the early log keeps every enter and the counts of compacted passes', () => {
+  const enters = [{ at: '2026-11-20T01:00:00Z', ca: 'ENTER', action: 'enter', reason: 'early shadow $2', paper: true }];
+  const passes = Array.from({ length: EARLY_LOG_CAP + 40 }, (_, i) => ({
+    at: `2026-11-20T02:${String(i % 60).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}.${String(i).padStart(3, '0')}Z`,
+    ca: 'P' + i,
+    action: 'pass',
+    reason: i % 2 ? 'top 10 holders: 100.0%' : 'not early',
+    paper: true,
+  }));
+  const first = rollEarlyLog([...enters, ...passes], [], null);
+  assert.equal(first.rewritten, true);
+  assert.equal(first.rows.filter((row) => row.action === 'enter').length, 1);
+  assert.equal(first.rows.filter((row) => row.action === 'pass').length, EARLY_LOG_CAP);
+  assert.equal(first.summary.dropped, 40);
+  assert.equal(first.summary.liveExecution, false);
+  assert.equal(first.summary.counts['pass :: top 10 holders: 100.0%'] + first.summary.counts['pass :: not early'], 40);
+  const again = rollEarlyLog(first.rows, [], first.summary);
+  assert.equal(again.rewritten, false);
+  assert.equal(again.summary.dropped, 40);
 });

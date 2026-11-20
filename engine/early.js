@@ -378,6 +378,50 @@ export function nextLog(prevRows, decisions, at) {
   return out;
 }
 
+// Pass and kill lines are an audit, not the score. Every enter stays.
+// Older pass/kill lines collapse to the latest per mint, and the dropped
+// reason counts stay in the summary so the histogram is not thrown away.
+export const EARLY_LOG_CAP = 600;
+
+function reasonKey(row) {
+  return `${row.action || '?'} :: ${row.reason || ''}`;
+}
+
+function rowKey(row) {
+  return JSON.stringify([row.ca, row.action, row.reason, row.at]);
+}
+
+export function rollEarlyLog(prevRows, extra = [], summary = null) {
+  const combined = [...(prevRows || []), ...(extra || [])].filter((row) => row && row.ca);
+  const enters = combined.filter((row) => row.action === 'enter');
+  const rest = combined.filter((row) => row.action !== 'enter');
+  if (rest.length <= EARLY_LOG_CAP) return { rows: combined, summary: summary || null, rewritten: false };
+  const latest = new Map();
+  for (const row of rest) latest.set(row.ca, row);
+  const newest = [...latest.values()].sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')) || String(b.ca).localeCompare(String(a.ca)));
+  const keptRest = newest.slice(0, EARLY_LOG_CAP);
+  const kept = new Set(keptRest.map(rowKey));
+  const dropped = rest.filter((row) => !kept.has(rowKey(row)));
+  const counts = { ...(summary?.counts || {}) };
+  for (const row of dropped) {
+    const key = reasonKey(row);
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  const rows = [...enters, ...keptRest].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')) || String(a.ca).localeCompare(String(b.ca)));
+  return {
+    rows,
+    rewritten: true,
+    summary: {
+      paper: true,
+      liveExecution: false,
+      keptEnters: enters.length,
+      keptLatest: keptRest.length,
+      dropped: (summary?.dropped || 0) + dropped.length,
+      counts,
+    },
+  };
+}
+
 function slipOf(pos) {
   return Number.isFinite(pos?.slip) ? pos.slip : undefined;
 }
