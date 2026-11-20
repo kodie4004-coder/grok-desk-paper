@@ -63,6 +63,34 @@ export function kalshiTakerFee(price, contracts) {
   return Math.ceil((raw - 1e-9) * 100) / 100;
 }
 
+// Fee per contract after the same cent round-up. Null when the quote is not a price.
+export function feePerContract(price, contracts) {
+  const p = Number(price);
+  const c = Number(contracts);
+  if (!(p > 0 && p < 1) || !(c >= 1)) return null;
+  return kalshiTakerFee(p, c) / c;
+}
+
+// Strict: estimated win probability minus the ask must clear the per-contract fee plus margin.
+// 1e-9 ignores binary dust. It is not a second margin.
+export function feeEdgeClears(prob, ask, contracts, margin) {
+  if (!(margin >= 0) || !(prob >= 0 && prob <= 1)) return false;
+  const per = feePerContract(ask, contracts);
+  if (per == null) return false;
+  return prob - ask - per - margin > 1e-9;
+}
+
+// Break-even win rate on the fixed $2 paper chip. The chip size is not an argument.
+export function breakEvenWinRate(ask) {
+  const price = Number(ask);
+  if (!(price > 0 && price < 1)) return null;
+  const contracts = Math.floor(2 / price);
+  if (contracts < 1) return null;
+  const fee = kalshiTakerFee(price, contracts);
+  const per = fee / contracts;
+  return { ask: price, contracts, fee, feePerContract: per, breakEven: price + per, sizeUsd: 2 };
+}
+
 export function contractCount(ask) {
   if (!(ask > 0 && ask < 1)) return 0;
   return Math.floor(K1.budgetUsd / ask);

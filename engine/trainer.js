@@ -2,7 +2,7 @@
 // The readiness bar is graduates() from the bot rules: 3 windows, 20+ calls,
 // positive mean, 90% lower bound above 0. Clearing it does not turn anything on.
 
-import { kalshiTakerFee, normalizeMarket, quoteAge } from './kalshi.js';
+import { kalshiTakerFee, breakEvenWinRate, normalizeMarket, quoteAge } from './kalshi.js';
 import { arenaIdeas, SPOT } from './arena.js';
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
@@ -48,6 +48,53 @@ export function trainerDeal(ask) {
   if (contracts < 1) return null;
   const fee = kalshiTakerFee(price, contracts);
   return { contracts, fee, cost: contracts * price, sizeUsd: TRAINER_STAKE, ask: price };
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+}
+
+function feeCell(row) {
+  if (!row) {
+    return '<td>—</td><td>—</td><td>No ask between 0 and 1</td>';
+  }
+  const pct = (row.breakEven * 100).toFixed(1);
+  return `<td>${row.ask.toFixed(2)}</td><td><span class="fee-mint">$${row.fee.toFixed(2)}</span></td><td><span class="fee-gold">${pct}%</span></td>`;
+}
+
+export function feeAskNote(ask, side) {
+  const row = breakEvenWinRate(ask);
+  if (!row) return '';
+  const pct = (row.breakEven * 100).toFixed(1);
+  const who = side === 'yes' || side === 'no' ? side.toUpperCase() : 'This side';
+  const over = row.breakEven > 1 ? ' That rate is above a sure win, so the fee is larger than the contract can pay.' : '';
+  return `<p class="note">${who} ask ${row.ask.toFixed(2)}. Fee <span class="fee-mint">$${row.fee.toFixed(2)}</span> on ${row.contracts} contracts, ${row.feePerContract.toFixed(4)} each. Break-even win rate <span class="fee-gold">${pct}%</span>.${over} A win rate under that line still loses. The chip stays $2.</p>`;
+}
+
+// Compact break-even table for the asks on screen. Every figure comes from breakEvenWinRate.
+export function feeBreakEvenTable(input) {
+  const { yesAsk = null, noAsk = null, captionId, looking = '', context = '' } = input || {};
+  if (yesAsk == null && noAsk == null) {
+    return '<p class="note">No ask is in front of you, so there is no break-even win rate.</p>';
+  }
+  const id = String(captionId || 'fee-cap').replace(/[^A-Za-z0-9_-]/g, '') || 'fee-cap';
+  const sides = [['YES', yesAsk, 'yes'], ['NO', noAsk, 'no']];
+  const body = sides.map(([label, ask, key]) => {
+    const row = breakEvenWinRate(ask);
+    const look = looking === key ? ' class="is-looking"' : '';
+    const current = looking === key ? ' aria-current="true"' : '';
+    return `<tr${look}><th scope="row"${current}>${label}</th>${feeCell(row)}</tr>`;
+  }).join('');
+  const lines = sides.map(([label, ask]) => {
+    const row = breakEvenWinRate(ask);
+    if (!row) return '';
+    const pct = (row.breakEven * 100).toFixed(1);
+    const over = row.breakEven > 1 ? ' That rate is above a sure win, so the fee is larger than the contract can pay.' : '';
+    return `<p class="note">${label} ask ${row.ask.toFixed(2)} + ${row.feePerContract.toFixed(4)} fee per contract = <span class="fee-gold">${pct}%</span> break-even. ${row.contracts} contracts, fee <span class="fee-mint">$${row.fee.toFixed(2)}</span>.${over}</p>`;
+  }).join('');
+  const where = context ? `<p class="note">${escHtml(context)}</p>` : '';
+  const picked = looking === 'yes' || looking === 'no' ? `<p class="note">The side you have selected is ${looking.toUpperCase()}.</p>` : '';
+  return `<div class="fee-card"><h2 id="${id}">Break-even after fees</h2>${where}<div class="fee-region" tabindex="0" role="region" aria-labelledby="${id}"><table class="fee-break"><caption>Ask, fee, and break-even win rate on a $2 chip.</caption><thead><tr><th>Side</th><th>Ask</th><th>Fee</th><th>Break-even</th></tr></thead><tbody>${body}</tbody></table></div>${lines}${picked}<p class="note">Break-even is the ask plus the taker fee per contract. The fee is round up of 0.07 × contracts × price × (1 − price). A win rate under that line still loses. Paper only.</p></div>`;
 }
 
 function fmtPx(n) {

@@ -360,6 +360,25 @@ Three exit books use the same early entries and the same stored slip. They were 
 
 If the baseline position hits its 25% take-profit while a trail is still open, a paper shell keeps that mint on the watcher until the shadow book closes. The shell does not take an early-entry slot and it is not an allocated trade. Weight on all three books stays 0.
 
+## v15 fee-aware challengers (frozen before any fee-aware trade)
+
+This does not change `graduates()`, the v6 edge gate, the holdout rule, the loss cap, or the $2 size. `live_execution` stays off. A challenger is promoted only by the v7 rule already in `reviewBrain`: both sides need at least 20 holdout trades, and the challenger's after-fee mean has to be positive and higher. Rows from the added day or earlier are not that sample.
+
+The journal had already described late favorites and intra-window scalps losing after fees. That description picked the question. It did not pick the margin below.
+
+Variants, role challenger, same entry window as the champion in that family:
+
+- `late-fee`. Ask at least 0.85, 180 to 300 seconds left. Same favorite rule as `late`.
+- `scalp-fee`. A 4 cent ask jump and a spread of 3 cents or less, with more than 120 seconds left. Same entry as `scalp`. It holds to the result. It does not take the scalp exit challengers.
+
+Neither bot publishes a win probability. The 0.85 cut is a price filter. The 4 cent jump is a price change. The proxy, chosen before any trade from these variants, is the quote mid of the side being bought. YES uses `(yes bid + yes ask) / 2`. NO uses one minus that mid. A missing bid, a bid outside (0, 1), or a bid above the ask is no estimate and no trade. The mid was not fit to past win rates.
+
+Entry also requires `p − ask > feePerContract + 0.01`. `feePerContract` is `kalshiTakerFee(ask, contracts) / contracts` with `contracts = floor(2 / ask)`. The fee is the July 2026 Kalshi taker schedule, `round up(0.07 × C × P × (1 − P))` to the next cent (https://kalshi.com/docs/kalshi-fee-schedule.pdf), the same function already in `engine/kalshi.js`. The margin is 0.01, one cent per contract, because that is the unit the fee rounds to. A smaller margin would treat rounding dust as an edge. It is not a search. The v4 half-spread haircut of 0.005 is a different cost and is not reused here.
+
+On a normal book the YES mid is at or below the YES ask, so a YES buy does not clear a positive fee. `scalp-fee` buys YES only, so it stands aside on a normal book. `late-fee` can buy NO when the YES mid says that NO ask is cheap by more than the fee plus one cent. Standing aside is the rule, not a missing implementation.
+
+`addedAt` is `2026-11-20T23:20:00.000Z`, stored on the variant. A holdout day on or before 2026-11-20 cannot promote either variant. The same days cannot bench them. A later finished day uses the existing holdout gate. The edge gate is not part of that promotion.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

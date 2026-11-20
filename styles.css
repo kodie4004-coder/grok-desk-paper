@@ -318,3 +318,25 @@ html.motion-off .tab-indicator,
 html.motion-off .flame,
 html.motion-off .ptr-spin{animation:none}
 html.motion-off .intro-track{scroll-behavior:auto}
+.fee-card{min-inline-size:0;margin:8px 0}
+.fee-card h2{text-wrap:balance}
+.fee-card p{text-wrap:pretty}
+.fee-region{overflow:auto;max-inline-size:100%;inline-size:100%;container:fee / inline-size}
+.fee-mint{color:var(--g);font-variant-numeric:tabular-nums}
+.fee-gold{color:var(--y);font-weight:800;font-variant-numeric:tabular-nums}
+.fee-break{--fee-ask:"Ask";--fee-fee:"Fee";--fee-be:"Break-even";inline-size:100%}
+.fee-break caption{caption-side:top;display:block;inline-size:100%;text-align:left;padding:0 0 6px;color:var(--mut);font-size:12px}
+.fee-break tbody th{color:var(--txt)}
+.fee-break tr.is-looking{box-shadow:inset 3px 0 0 var(--y)}
+@container fee (width < 24rem){
+  .fee-break,.fee-break thead,.fee-break tbody,.fee-break tr,.fee-break th,.fee-break td{display:block}
+  .fee-break{inline-size:100%}
+  .fee-break caption{display:block;inline-size:100%;max-inline-size:100%}
+  .fee-break thead{display:none}
+  .fee-break tr{margin-block-end:8px;border:1px solid var(--line);border-radius:12px;padding:8px}
+  .fee-break tbody th{border:0;padding:0 0 4px}
+  .fee-break td{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;border:0;padding:2px 0;overflow-wrap:anywhere}
+  .fee-break td:nth-child(2)::before{content:var(--fee-ask) ": ";color:var(--mut);font-weight:600}
+  .fee-break td:nth-child(3)::before{content:var(--fee-fee) ": ";color:var(--mut);font-weight:600}
+  .fee-break td:nth-child(4)::before{content:var(--fee-be) ": ";color:var(--mut);font-weight:600}
+}

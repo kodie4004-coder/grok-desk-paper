@@ -16,7 +16,7 @@ import { newState, startSession, endSession, tick, mark, recap, equityNow, seria
 import { memeBooks, watchHealth, watchHealthLine } from './engine/meme.js';
 import { upgradeLines, challengerRows } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
-import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, TRAINER_STAKE } from './engine/trainer.js';
+import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -637,10 +637,13 @@ function scoreView(st, tabs, sound) {
     by.set(t.rule, row);
   }
   const race = [...by.entries()].sort((a, b) => b[1].pnl - a[1].pnl).map(([rule, row]) => `<li><span><b>${esc(rule)}</b><br><span class="note">n ${row.n} · fees ${money(row.fees)} · PAPER</span></span><b class="${row.pnl >= 0 ? 'g' : 'r'}">${money(row.pnl, true)}</b></li>`).join('');
+  const next = nextOpenMarket(st);
+  const feeCard = feeBreakEvenTable(next ? { yesAsk: next.yesAsk, noAsk: next.noAsk, captionId: 'fee-cap-score', context: 'Next open window in this snapshot.' } : null);
   return `${upgradesCard()}<div class="card arcade"><div class="row"><h2 style="margin:0">Honest scoreboard</h2>${sound || ''}</div>
     <p class="tag explore">PAPER · after fees · not real money</p>
     <p class="note">${esc(GATE_PRIOR.summary || '')} Crypto and Kalshi means are on a $2 paper bet. The 13F copy is on $100 paper per name, entered on the filing date.</p>
     <div class="hype"><b>Hype check.</b> Posts that say a bot turned $68 into $500k are not a track record. This desk does not copy them. A scalp that cannot pay the fee is a loss, even if the screenshot looks green.</div>
+    ${feeCard}
     <h2>Ready for real money?</h2>
     <p class="note">Informational only. live_execution is disabled. Passing a study does not turn on a wallet.</p>
     <ul class="feed">${gate || '<li><span class="empty">No gate table in this build yet.</span></li>'}</ul>
@@ -1187,6 +1190,9 @@ function reminderBanner() {
   if (practicedToday(loadTrainer())) return '';
   return `<div class="card remind" role="status"><p><b>Practice reminder.</b> No 15-minute paper call yet today. This stays in the app. It is not a phone notification and not advice.</p><div class="row"><button type="button" class="btn pri" id="remindOpen">Open trainer</button><button type="button" class="btn" id="remindSnooze">Not today</button></div></div>`;
 }
+function nextOpenMarket(st, now = Date.now()) {
+  return openMarkets(st, now)[0] || null;
+}
 function openMarkets(st, now) {
   return (st.kalshiBoard?.markets || [])
     .filter((m) => m && m.result !== 'yes' && m.result !== 'no' && Date.parse(m.closeTime) > now)
@@ -1208,16 +1214,21 @@ function callPanel(st, book, age, now) {
   const waitList = `<h2>Waiting</h2><ul class="feed">${waiting || '<li><span class="empty">No open practice call.</span></li>'}</ul>`;
   if (age.stale || !markets.length) {
     const extra = age.stale ? '' : '<p class="empty">No 15-minute window is still open in this snapshot. Settled calls stay on Lesson and Progress.</p>';
-    return `${quoteBox(st)}${extra}${waitList}`;
+    const shown = markets[0];
+    const fee = shown
+      ? feeBreakEvenTable({ yesAsk: shown.yesAsk, noAsk: shown.noAsk, captionId: 'fee-cap-call', context: 'This snapshot is stale, so this is not a live call. The rate below is the fee math for that ask.' })
+      : feeBreakEvenTable(null);
+    return `${quoteBox(st)}${extra}${fee}${waitList}`;
   }
   if (!markets.some((m) => m.ticker === ui.trainTicker)) ui.trainTicker = markets[0].ticker;
   const market = markets.find((m) => m.ticker === ui.trainTicker) || markets[0];
   const ideas = arenaIdeas(market, now, st.spots || {}, st.arenaQuotes || {});
   const botLine = ideas.length ? ideas.map((b) => `${b.rule} ${String(b.side).toUpperCase()}`).join(', ') : 'No paper bot setup on this quote.';
+  const feeCard = feeBreakEvenTable({ yesAsk: market.yesAsk, noAsk: market.noAsk, captionId: 'fee-cap-call', looking: ui.trainSide, context: 'This window.' });
   const left = Math.max(0, Math.round((Date.parse(market.closeTime) - now) / 1000));
   const late = left < 60 ? '<p class="note">Under a minute left. The fee still applies. Size stays $2.</p>' : '';
   const options = markets.map((m) => `<option value="${esc(m.ticker)}" ${m.ticker === market.ticker ? 'selected' : ''}>${esc(m.series || m.ticker)} · ${esc(m.title || '')}</option>`).join('');
-  return `${quoteBox(st)}<div class="ring-row">${ringHtml(market.closeTime, true)}<div><p class="lvl">${esc(market.series || '15m')}</p><p class="note">${esc(market.title || '')}</p></div></div><label class="stack">Window<select id="trainMarket">${options}</select></label><p class="note">Bots on this quote: ${esc(botLine)}. Quote YES ${esc(marketYesText(market))}.</p>${late}<form data-train-form="${esc(market.ticker)}"><div class="yesno"><button type="button" class="btn" data-side="yes" aria-pressed="${ui.trainSide === 'yes'}">YES</button><button type="button" class="btn" data-side="no" aria-pressed="${ui.trainSide === 'no'}">NO</button></div><label class="f">Confidence %<input name="confidence" type="number" inputmode="numeric" min="51" max="99" step="1" required value="${esc(ui.trainConf || '60')}"></label><button class="btn pri wide" type="submit">Record paper call</button></form><p class="note">A whole number from 51 to 99. Under 50 means pick the other side. One call per window.</p>${waitList}`;
+  return `${quoteBox(st)}<div class="ring-row">${ringHtml(market.closeTime, true)}<div><p class="lvl">${esc(market.series || '15m')}</p><p class="note">${esc(market.title || '')}</p></div></div><label class="stack">Window<select id="trainMarket">${options}</select></label><p class="note">Bots on this quote: ${esc(botLine)}. Quote YES ${esc(marketYesText(market))}.</p>${feeCard}${late}<form data-train-form="${esc(market.ticker)}"><div class="yesno"><button type="button" class="btn" data-side="yes" aria-pressed="${ui.trainSide === 'yes'}">YES</button><button type="button" class="btn" data-side="no" aria-pressed="${ui.trainSide === 'no'}">NO</button></div><label class="f">Confidence %<input name="confidence" type="number" inputmode="numeric" min="51" max="99" step="1" required value="${esc(ui.trainConf || '60')}"></label><button class="btn pri wide" type="submit">Record paper call</button></form><p class="note">A whole number from 51 to 99. Under 50 means pick the other side. One call per window.</p>${waitList}`;
 }
 function lessonPanel(book) {
   const rows = [...(book.closed || [])].sort((a, b) => (b.settledAt || 0) - (a.settledAt || 0));
@@ -1227,7 +1238,7 @@ function lessonPanel(book) {
   const picks = rows.slice(0, 8).map((r) => `<option value="${esc(r.id)}" ${r.id === row.id ? 'selected' : ''}>${esc(r.series || r.ticker)} · ${r.won ? 'hit' : 'miss'}</option>`).join('');
   const bots = row.bots?.length ? row.bots.map((b) => `${b.rule} ${String(b.side).toUpperCase()}`).join(', ') : 'No setup fired';
   const quote = row.marketYes == null ? 'No YES price' : `YES ${Number(row.marketYes).toFixed(2)}`;
-  return `<label class="stack">Settled call<select id="lessonPick">${picks}</select></label><article class="card" id="lessonCard"><p class="${row.won ? 'g' : 'r'}">${row.won ? 'Hit' : 'Miss'}</p><ul class="compare"><li><b>You</b><span>${esc(String(row.side || '').toUpperCase())} ${esc(row.confidence)}%</span></li><li><b>Bots</b><span>${esc(bots)}</span></li><li><b>Quote</b><span>${esc(quote)}</span></li></ul><p>${countSpan(row.pnl, true, 'train-' + row.id)} after fees</p><p class="note">${esc(lessonText(row))}</p><button type="button" class="btn wide" data-share="${esc(row.id)}">Save result card</button></article>`;
+  return `<label class="stack">Settled call<select id="lessonPick">${picks}</select></label><article class="card" id="lessonCard"><p class="${row.won ? 'g' : 'r'}">${row.won ? 'Hit' : 'Miss'}</p><ul class="compare"><li><b>You</b><span>${esc(String(row.side || '').toUpperCase())} ${esc(row.confidence)}%</span></li><li><b>Bots</b><span>${esc(bots)}</span></li><li><b>Quote</b><span>${esc(quote)}</span></li></ul><p>${countSpan(row.pnl, true, 'train-' + row.id)} after fees</p>${feeAskNote(row.ask, row.side)}<p class="note">${esc(lessonText(row))}</p><button type="button" class="btn wide" data-share="${esc(row.id)}">Save result card</button></article>`;
 }
 function bucketChart(buckets) {
   const w = 320;
