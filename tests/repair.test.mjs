@@ -47,8 +47,10 @@ test('the stored meme journal is summed, not invented, and a negative book stays
   assert.equal(report.repair.pass, false);
   assert.equal(report.benched, true);
   assert.equal(report.repair.sizeUsd, 2);
+  assert.equal(incident.exits.stop.n, picked.filter((row) => row.exit === 'stop').length);
+  assert.equal(incident.exits['time-stop'].n, picked.filter((row) => row.exit === 'time-stop').length);
   assert.ok(incident.exits.stop.n > 0);
-  assert.ok(incident.exits['time-stop'].n > incident.exits.stop.n);
+  assert.ok(incident.exits['time-stop'].n > 0);
 });
 
 test('a loss-cap halt logs a shadow and does not touch the balance, then resumes at $2', async () => {

@@ -25,6 +25,19 @@ export function mergeMemeJournal(ours, theirs) {
   return rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length ? '\n' : '');
 }
 
+export function mergeEarlyLog(ours, theirs) {
+  const seen = new Set();
+  const rows = [];
+  for (const row of [...parseLines(ours), ...parseLines(theirs)]) {
+    const key = JSON.stringify([row.ca, row.action, row.reason, row.at]);
+    if (!row?.ca || seen.has(key)) continue;
+    seen.add(key);
+    rows.push(row);
+  }
+  rows.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')) || String(a.ca).localeCompare(String(b.ca)));
+  return rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length ? '\n' : '');
+}
+
 export function mergeMemeOpen(ours, theirs, journalText) {
   const settled = new Set(parseLines(journalText).filter((row) => row.exit || row.pnl != null).map((row) => row.id));
   const map = new Map();
@@ -54,6 +67,9 @@ if (invoked) {
   fs.mkdirSync('data', { recursive: true });
   const journalMerged = mergeMemeJournal(gitShow(':2', 'data/meme-journal.jsonl'), gitShow(':3', 'data/meme-journal.jsonl'));
   if (unmerged.has('data/meme-journal.jsonl')) fs.writeFileSync('data/meme-journal.jsonl', journalMerged);
+  if (unmerged.has('data/early-log.jsonl')) {
+    fs.writeFileSync('data/early-log.jsonl', mergeEarlyLog(gitShow(':2', 'data/early-log.jsonl'), gitShow(':3', 'data/early-log.jsonl')));
+  }
   if (unmerged.has('data/meme-open.json')) {
     const journalText = unmerged.has('data/meme-journal.jsonl') || !fs.existsSync('data/meme-journal.jsonl')
       ? journalMerged

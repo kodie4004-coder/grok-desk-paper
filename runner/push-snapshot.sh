@@ -39,7 +39,9 @@ add_existing \
   data/meme-stops.json \
   data/meme-watch.json \
   data/research-upgrades.json \
-  data/jev-cache.json
+  data/jev-cache.json \
+  data/early-board.json \
+  data/early-log.jsonl
 
 if git diff --cached --quiet; then
   echo "snapshot unchanged"
@@ -61,16 +63,16 @@ rebase_onto_main() {
   fi
   local f meme=0
   for f in "${conflicts[@]}"; do
-    if [ "$f" = "data/meme-journal.jsonl" ] || [ "$f" = "data/meme-open.json" ]; then
+    if [ "$f" = "data/meme-journal.jsonl" ] || [ "$f" = "data/meme-open.json" ] || [ "$f" = "data/early-log.jsonl" ]; then
       meme=1
     fi
   done
   if [ "$meme" = 1 ]; then
     node runner/merge-meme.mjs
-    git add -- data/meme-journal.jsonl data/meme-open.json
+    git add -- data/meme-journal.jsonl data/meme-open.json data/early-log.jsonl
   fi
   for f in "${conflicts[@]}"; do
-    if [ "$f" = "data/meme-journal.jsonl" ] || [ "$f" = "data/meme-open.json" ]; then
+    if [ "$f" = "data/meme-journal.jsonl" ] || [ "$f" = "data/meme-open.json" ] || [ "$f" = "data/early-log.jsonl" ]; then
       continue
     fi
     git checkout --theirs -- "$f"
