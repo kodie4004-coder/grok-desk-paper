@@ -92,16 +92,18 @@ export function makerPick(market) {
   return { side: 'yes', ask: +bid.toFixed(4), limit: +bid.toFixed(4), maker: true };
 }
 
-// A later trade or ask at or through the resting price. The bid reprinting is not a fill.
+// Last in the queue at our price. A later trade that only touches the bid fills
+// someone ahead of us. We are filled only when a trade prints strictly below
+// the bid, or the ask drops strictly below it.
 export function quoteCrossed(limit, market) {
   const price = Number(limit);
   if (!(price > 0 && price < 1) || !market) return false;
   const trade = num(market.lastTrade ?? market.tradePrice);
   const askLow = num(market.yesAskLow);
   const ask = num(market.yesAsk);
-  if (trade > 0 && trade <= price) return true;
-  if (askLow > 0 && askLow <= price) return true;
-  if (ask > 0 && ask <= price) return true;
+  if (trade > 0 && trade < price) return true;
+  if (askLow > 0 && askLow < price) return true;
+  if (ask > 0 && ask < price) return true;
   return false;
 }
 
@@ -114,7 +116,8 @@ function dealAt(price, won, maker) {
 }
 
 // One attempt per market, on the minute closest to five minutes before the close,
-// inside the two to ten minute window. Fill only if a later candle trades through the bid.
+// inside the two to ten minute window. We join last at the bid. A later trade
+// at the bid is not our fill. The trade low or the ask has to go strictly below it.
 export function replayResting(market) {
   const close = Number(market?.close);
   const rows = [...(market?.candles || [])].sort((a, b) => a.end_period_ts - b.end_period_ts);
@@ -139,7 +142,7 @@ export function replayResting(market) {
     const low = num(rows[k].price?.low_dollars);
     const askLow = num(rows[k].yes_ask?.low_dollars);
     const askClose = num(rows[k].yes_ask?.close_dollars);
-    if ((low > 0 && low <= bid) || (askLow > 0 && askLow <= bid) || (askClose > 0 && askClose <= bid)) {
+    if ((low > 0 && low < bid) || (askLow > 0 && askLow < bid) || (askClose > 0 && askClose < bid)) {
       filled = true;
       break;
     }
@@ -149,6 +152,8 @@ export function replayResting(market) {
   return {
     filled,
     attempt: true,
+    queue: 'last',
+    won,
     limit: bid,
     ask,
     maker: filled ? dealAt(bid, won, true) : null,
@@ -160,14 +165,19 @@ export function restingExpectancy(rows) {
   const attempts = (rows || []).filter((row) => row?.attempt && row.taker);
   const filled = attempts.filter((row) => row.filled && row.maker);
   const mean = (list, key) => (list.length ? list.reduce((sum, row) => sum + row[key].pnl, 0) / list.length : null);
+  const wins = (list) => (list.length ? list.filter((row) => row.won).length / list.length : null);
   return {
     measured: attempts.length > 0,
+    queue: 'last',
     attempts: attempts.length,
     filled: filled.length,
     unfilled: attempts.length - filled.length,
+    fillRate: attempts.length ? filled.length / attempts.length : null,
     makerMean: mean(filled, 'maker'),
     takerMean: mean(attempts, 'taker'),
     takerMeanOnFilled: mean(filled, 'taker'),
+    makerWinRate: wins(filled),
+    takerWinRate: wins(attempts),
   };
 }
 
@@ -196,8 +206,14 @@ export function upgradeLines(report) {
   } else lines.push('Faster coin stops. No snapshot stop has been measured yet. The fast checker has no fast fill yet.');
   const maker = report?.maker;
   if (maker?.measured && maker.attempts) {
+    const rate = maker.fillRate == null ? Math.round((100 * maker.filled) / maker.attempts) : Math.round(maker.fillRate * 100);
     const skipped = maker.unfilled === 1 ? '1 was not a trade' : `${maker.unfilled} were not a trade`;
-    lines.push(`Resting Kalshi orders are a challenger. A resting order pays no fee. A taker pays 0.07 × contracts × price × (1 − price). On ${maker.attempts} shadow attempts, ${maker.filled} filled because a later trade or quote crossed the bid, and ${skipped}. Filled maker orders averaged ${money(maker.makerMean)} after fees. The taker on every attempt averaged ${money(maker.takerMean)}. On the same filled attempts the taker averaged ${money(maker.takerMeanOnFilled)}. The maker fill is the bid with no fee, held to the same result. It still has to clear the holdout gate.`);
+    const beats = maker.makerMean > 0 && maker.takerMean != null && maker.makerMean > maker.takerMean;
+    const winNote = maker.makerWinRate == null ? '' : ` Filled maker orders won ${pctDown(maker.makerWinRate)}% of the time, against ${pctDown(maker.takerWinRate)}% for the taker on every attempt.`;
+    const verdict = beats
+      ? 'The dollar average is still higher than the taker. That comes from buying the bid with no fee and leaving the order working until the close. It is not a promotion.'
+      : 'That edge is not in this sample. The stricter fill does not beat the taker, so this bot does not get more weight.';
+    lines.push(`Resting Kalshi orders are a challenger. We join last at the bid, so a trade that only touches our price is not our fill. A later trade has to print strictly below the bid, or the ask has to drop strictly below it. A resting fill pays no fee. A taker pays 0.07 × contracts × price × (1 − price). On ${maker.attempts} shadow attempts, ${maker.filled} filled (${rate}%) and ${skipped}. Filled maker orders averaged ${money(maker.makerMean)} after fees. The taker on every attempt averaged ${money(maker.takerMean)}. On the same filled attempts the taker averaged ${money(maker.takerMeanOnFilled)}.${winNote} ${verdict}`);
   } else {
     lines.push('Resting Kalshi orders are a challenger. A resting order pays no fee. It becomes a trade only if a later quote crosses its price. If it never crosses, it is not a trade. The shadow comparison is not in this file yet.');
   }
