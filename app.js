@@ -14,6 +14,7 @@ import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 import { memeGate } from './engine/meme.js';
+import { upgradeLines } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, TRAINER_STAKE } from './engine/trainer.js';
 
@@ -583,6 +584,31 @@ function arenaView(st) {
     <p class="lvl">${soon ? `Next close ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}</p>
     <p class="note">${(st.arenaLog || []).length} paper lines · ${(st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length} windows still open.</p><div class="seg">${tabs}</div><ul class="feed">${rows || '<li><span class="empty">The feed fills as windows open. Countdown is on each market in Pick.</span></li>'}</ul></div>`;
 }
+function loadUpgrades() {
+  if (ui.upgradeState === 'ready' || ui.upgradeState === 'loading' || ui.upgradeState === 'error') return;
+  ui.upgradeState = 'loading';
+  Promise.all([
+    fetch('data/research-upgrades.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)),
+    fetch('data/meme-stops.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)),
+  ]).then(([doc, stops]) => {
+    if (!doc && !stops) throw new Error('upgrades unavailable');
+    const report = { ...(doc || {}), meme: stops || doc?.meme, settlement: doc?.settlement || { n: 0 } };
+    ui.upgrades = report;
+    ui.upgradeLines = upgradeLines(report);
+    ui.upgradeState = 'ready';
+    if (ui.tab === 'brain' || ui.tab === 'score' || ui.arena === 'score') render();
+  }).catch(() => {
+    ui.upgradeState = 'error';
+    ui.upgradeLines = upgradeLines({ maker: { measured: false }, settlement: { n: 0 } });
+    if (ui.tab === 'brain' || ui.tab === 'score') render();
+  });
+}
+function upgradesCard() {
+  if (!ui.upgradeLines) loadUpgrades();
+  const lines = ui.upgradeLines || upgradeLines({ maker: { measured: false }, settlement: { n: 0 } });
+  const body = lines.slice(1).map((line) => `<li>${esc(line)}</li>`).join('');
+  return `<section class="card" aria-label="New research upgrades"><h2>New research upgrades</h2><ul class="upgrades">${body}</ul><p class="note">Paper only. The $2 size stays put. The edge gate is unchanged. live_execution stays off.</p></section>`;
+}
 function scoreView(st, tabs, sound) {
   const rules = GATE_PRIOR.rules || [];
   const gate = rules.map((r) => `<li class="slot"><div class="row"><b>${esc(r.label)}</b><span class="tag ${r.graduated ? 'normal' : 'off'}">${r.graduated ? 'passed' : 'not ready'}</span></div><p class="note">${esc(r.venue || '')} · ${esc(r.windowLabel || '')} · n ${r.n ?? 0} · mean ${r.mean == null ? '—' : money(r.mean, true)} · low ${r.lo == null ? '—' : money(r.lo, true)}</p>${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}</li>`).join('');
@@ -596,7 +622,7 @@ function scoreView(st, tabs, sound) {
     by.set(t.rule, row);
   }
   const race = [...by.entries()].sort((a, b) => b[1].pnl - a[1].pnl).map(([rule, row]) => `<li><span><b>${esc(rule)}</b><br><span class="note">n ${row.n} · fees ${money(row.fees)} · PAPER</span></span><b class="${row.pnl >= 0 ? 'g' : 'r'}">${money(row.pnl, true)}</b></li>`).join('');
-  return `<div class="card arcade"><div class="row"><h2 style="margin:0">Honest scoreboard</h2>${sound || ''}</div>
+  return `${upgradesCard()}<div class="card arcade"><div class="row"><h2 style="margin:0">Honest scoreboard</h2>${sound || ''}</div>
     <p class="tag explore">PAPER · after fees · not real money</p>
     <p class="note">${esc(GATE_PRIOR.summary || '')} Crypto and Kalshi means are on a $2 paper bet. The 13F copy is on $100 paper per name, entered on the filing date.</p>
     <div class="hype"><b>Hype check.</b> Posts that say a bot turned $68 into $500k are not a track record. This desk does not copy them. A scalp that cannot pay the fee is a loss, even if the screenshot looks green.</div>
@@ -920,7 +946,7 @@ function brainView() {
   const learned = (doc.lessons || []).slice(0, 6).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const frozen = (doc.frozen || []).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const decisions = (doc.decisions || []).map((l) => `<li>${esc(l)}</li>`).join('');
-  return `<section class="card arcade" aria-label="Bot brain">
+  return `${upgradesCard()}<section class="card arcade" aria-label="Bot brain">
     <div class="row"><h2 style="margin:0">Bot brain</h2><span class="tag explore">PAPER · after fees</span></div>
     <p class="lvl" id="runFor">${esc(since)}</p>
     <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. A bot that loses $6 of its own allocated paper goes to shadow. The others keep trading. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result.</p>

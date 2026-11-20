@@ -2,7 +2,7 @@
 // Mint and freeze come from the mint account. Top 10 holders come from the
 // largest token accounts. A slow or failed RPC is a failed check, not a hang.
 import fs from 'node:fs';
-import { bestPair, candidateMints, lookupMints, scoreCoin, stepMeme } from '../engine/meme.js';
+import { bestPair, candidateMints, lookupMints, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
 
 async function get(url) {
   const res = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
@@ -67,6 +67,8 @@ try {
     if (next.settled.length) fs.appendFileSync('data/meme-journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
     else if (!fs.existsSync('data/meme-journal.jsonl')) fs.writeFileSync('data/meme-journal.jsonl', '');
     fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date(now).toISOString(), entries: next.open }, null, 2));
+    const slipRows = history.concat(next.settled);
+    fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(slipRows), updatedAt: new Date(now).toISOString() }, null, 2) + '\n');
     fs.writeFileSync('data/meme-board.json', JSON.stringify({ fetchedAt: new Date(now).toISOString(), source: 'dexscreener+solana-rpc', pumpFun: 'blocked', coins }, null, 2));
     const tally = {};
     for (const coin of coins) {

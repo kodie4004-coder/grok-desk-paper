@@ -431,6 +431,107 @@ export function stepMeme({ coins, open = [], history = [], now }) {
   return { settled, open: still.filter((p) => p.pnl == null) };
 }
 
+// One DexScreener call can take 30 mints. A 4s poll of a full book is 15 calls a minute.
+export const DEX_BATCH = 30;
+
+export function watchIntervalMs(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n)) return 4000;
+  return Math.min(5000, Math.max(2000, n));
+}
+
+export function watchBudget(positions, intervalMs) {
+  const n = Number(positions) || 0;
+  if (n <= 0) return 0;
+  const interval = watchIntervalMs(intervalMs);
+  return Math.ceil(n / DEX_BATCH) * (60000 / interval);
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2) return sorted[mid];
+  return (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function stopPack(list) {
+  if (!list.length) return { n: 0, meanRealized: null, medianRealized: null, meanGap: null };
+  const realized = list.map((row) => row.exitPx / row.entry - 1);
+  const mean = realized.reduce((sum, value) => sum + value, 0) / realized.length;
+  return {
+    n: list.length,
+    meanRealized: mean,
+    medianRealized: median(realized),
+    meanGap: mean - (MEME_RULES.stop - 1),
+  };
+}
+
+// Snapshot stops are the before sample. Rows marked watch are the fast checker.
+export function stopSlippage(rows) {
+  const stops = (rows || []).filter((row) => row.exit === 'stop' && row.entry > 0 && row.exitPx > 0);
+  return {
+    paper: true,
+    rule: MEME_RULES.stop - 1,
+    before: stopPack(stops.filter((row) => !row.watch)),
+    after: stopPack(stops.filter((row) => row.watch)),
+  };
+}
+
+export function watchExit(pos, px, now) {
+  if (!(px > 0) || !(pos?.entry > 0)) return null;
+  const stopPx = pos.entry * MEME_RULES.stop;
+  const tpPx = pos.entry * MEME_RULES.tp;
+  let why = null;
+  if (px <= stopPx) why = 'stop';
+  else if (px >= tpPx) why = 'take-profit';
+  else return null;
+  const deal = memePnl(pos.entry, px);
+  if (!deal || deal.sizeUsd !== MEME_SIZE) return null;
+  const ruleMove = why === 'stop' ? MEME_RULES.stop - 1 : MEME_RULES.tp - 1;
+  const realizedMove = px / pos.entry - 1;
+  return {
+    ...pos,
+    ...deal,
+    exit: why,
+    exitPx: px,
+    settledAt: new Date(now).toISOString(),
+    won: deal.pnl > 0,
+    paper: true,
+    watch: true,
+    ruleMove,
+    realizedMove,
+    gap: realizedMove - ruleMove,
+  };
+}
+
+// Prices already observed. This does not open a coin and does not change the 15% rule.
+export function applyWatch({ open, prices, now, history = [] }) {
+  const known = new Set((history || []).map((row) => row.id).filter(Boolean));
+  const settled = [];
+  const still = [];
+  for (const pos of open || []) {
+    if (pos?.id && known.has(pos.id)) continue;
+    const hit = watchExit(pos, prices?.[pos.ca], now);
+    if (hit) {
+      settled.push(hit);
+      if (hit.id) known.add(hit.id);
+    } else still.push(pos);
+  }
+  return { settled, open: still };
+}
+
+export function pricesFromDex(book, mints) {
+  const pairs = Array.isArray(book) ? book : (book?.pairs || []);
+  const out = {};
+  for (const mint of mints || []) {
+    const pair = bestPair(pairs, mint);
+    const px = num(pair?.priceUsd);
+    if (px > 0) out[mint] = px;
+  }
+  return out;
+}
+
 export function memeGate(rows) {
   const groups = new Map();
   for (const row of rows || []) {

@@ -35,7 +35,9 @@ add_existing \
   data/alloc-curve.json \
   data/meme-board.json \
   data/meme-open.json \
-  data/meme-journal.jsonl
+  data/meme-journal.jsonl \
+  data/meme-stops.json \
+  data/research-upgrades.json
 
 if git diff --cached --quiet; then
   echo "snapshot unchanged"
@@ -55,8 +57,20 @@ rebase_onto_main() {
     git rebase --abort || true
     return 1
   fi
-  local f
+  local f meme=0
   for f in "${conflicts[@]}"; do
+    if [ "$f" = "data/meme-journal.jsonl" ] || [ "$f" = "data/meme-open.json" ]; then
+      meme=1
+    fi
+  done
+  if [ "$meme" = 1 ]; then
+    node runner/merge-meme.mjs
+    git add -- data/meme-journal.jsonl data/meme-open.json
+  fi
+  for f in "${conflicts[@]}"; do
+    if [ "$f" = "data/meme-journal.jsonl" ] || [ "$f" = "data/meme-open.json" ]; then
+      continue
+    fi
     git checkout --theirs -- "$f"
     git add -- "$f"
   done
