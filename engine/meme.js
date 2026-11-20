@@ -3,6 +3,7 @@
 
 import { graduates } from './strategies.js';
 import { sleeveBenched } from './repair.js';
+import { jevStamp } from './jev.js';
 
 export const MEME_SIZE = 2;
 export const MEME_FEE = 0.0125;
@@ -411,6 +412,7 @@ export function stepMeme({ coins, open = [], history = [], now }) {
     if (!coin.pass || known.has(coin.ca) || !(coin.priceUsd > 0)) continue;
     if (still.length >= 8) break;
     if (!feeOk) continue;
+    const jev = jevStamp(coin.jev);
     still.push({
       id: `meme:${coin.ca}`,
       ca: coin.ca,
@@ -425,6 +427,7 @@ export function stepMeme({ coins, open = [], history = [], now }) {
       shadow: bench.benched,
       paper: true,
       open: true,
+      ...(jev ? { jev } : {}),
     });
     known.add(coin.ca);
   }

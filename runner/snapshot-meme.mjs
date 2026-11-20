@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { bestPair, candidateMints, lookupMints, openMemeCount, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
+import { cacheDoc, cacheFromDoc, describeCoin, jevShadow, reviewCandidates } from '../engine/jev.js';
 import { watchKickDecision } from './kick-watch.mjs';
 
 function dispatchMemeWatch() {
@@ -20,10 +21,36 @@ function dispatchMemeWatch() {
     return;
   }
   try {
-    execFileSync('bash', ['runner/kick-watch.sh'], { stdio: 'inherit' });
+    const env = { ...process.env };
+    delete env.TYPESAFE_API_KEY;
+    execFileSync('bash', ['runner/kick-watch.sh'], { stdio: 'inherit', env });
   } catch (e) {
     console.log('watch dispatch failed', e.status ?? e.message);
   }
+}
+
+function loadJevCache() {
+  try { return cacheFromDoc(JSON.parse(fs.readFileSync('data/jev-cache.json', 'utf8'))); }
+  catch { return new Map(); }
+}
+
+function saveJevCache(cache) {
+  fs.mkdirSync('data', { recursive: true });
+  const next = JSON.stringify(cacheDoc(cache), null, 2) + '\n';
+  const prev = fs.existsSync('data/jev-cache.json') ? fs.readFileSync('data/jev-cache.json', 'utf8') : '';
+  if (next !== prev) fs.writeFileSync('data/jev-cache.json', next);
+}
+
+function saveJevScore(rows) {
+  const path = 'data/research-upgrades.json';
+  let doc = { paper: true, liveExecution: false };
+  try { doc = { ...doc, ...JSON.parse(fs.readFileSync(path, 'utf8')) }; } catch { /* start a paper report */ }
+  const jev = jevShadow(rows);
+  if (JSON.stringify(doc.jev) === JSON.stringify(jev) && fs.existsSync(path)) return;
+  doc.paper = true;
+  doc.liveExecution = false;
+  doc.jev = jev;
+  fs.writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
 }
 
 async function get(url) {
@@ -80,6 +107,23 @@ try {
         ...score,
       };
     });
+    const blurbs = new Map();
+    for (const row of Array.isArray(profiles) ? profiles : []) {
+      if (row?.chainId === 'solana' && row.tokenAddress) blurbs.set(row.tokenAddress, row);
+    }
+    const jevCache = loadJevCache();
+    try {
+      const reviewed = await reviewCandidates(coins, {
+        cache: jevCache,
+        now: new Date(now).toISOString(),
+        describe: (coin) => describeCoin({ coin, pair: meta.get(coin.ca)?.pair, profile: blurbs.get(coin.ca) }),
+      });
+      coins = reviewed.coins;
+      console.log('jev', `asked=${reviewed.asked}`, `http=${reviewed.http}`, `skipped=${reviewed.skipped}`, `capped=${reviewed.capped}`);
+    } catch (e) {
+      console.log('jev skipped', e.message);
+    }
+    saveJevCache(jevCache);
     const openDoc = fs.existsSync('data/meme-open.json') ? JSON.parse(fs.readFileSync('data/meme-open.json', 'utf8')) : { entries: [] };
     const history = fs.existsSync('data/meme-journal.jsonl')
       ? fs.readFileSync('data/meme-journal.jsonl', 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
@@ -90,6 +134,7 @@ try {
     else if (!fs.existsSync('data/meme-journal.jsonl')) fs.writeFileSync('data/meme-journal.jsonl', '');
     fs.writeFileSync('data/meme-open.json', JSON.stringify({ updatedAt: new Date(now).toISOString(), entries: next.open }, null, 2));
     const slipRows = history.concat(next.settled);
+    saveJevScore(slipRows);
     fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(slipRows), updatedAt: new Date(now).toISOString() }, null, 2) + '\n');
     fs.writeFileSync('data/meme-board.json', JSON.stringify({ fetchedAt: new Date(now).toISOString(), source: 'dexscreener+solana-rpc', pumpFun: 'blocked', coins }, null, 2));
     const tally = {};

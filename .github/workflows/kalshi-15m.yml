@@ -64,6 +64,7 @@ jobs:
       - name: Snapshot meme coins and start a stop pass when one is open
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
         run: node runner/snapshot-meme.mjs || echo 'meme snapshot skipped'
       - name: Commit the snapshot when it changed
         run: bash runner/push-snapshot.sh

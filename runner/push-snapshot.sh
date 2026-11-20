@@ -38,7 +38,8 @@ add_existing \
   data/meme-journal.jsonl \
   data/meme-stops.json \
   data/meme-watch.json \
-  data/research-upgrades.json
+  data/research-upgrades.json \
+  data/jev-cache.json
 
 if git diff --cached --quiet; then
   echo "snapshot unchanged"
