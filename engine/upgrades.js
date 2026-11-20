@@ -219,5 +219,45 @@ export function upgradeLines(report) {
   }
   const n = report?.settlement?.n || 0;
   lines.push(`Settlement prices are a challenger. Kalshi pays the 60-second average against the average from before the open, not one Coinbase tick. This bot uses that average from public trades. It has ${n} settled paper trades, so it has not earned a larger share. Live execution stays off.`);
+  const jev = report?.jev;
+  if (jev?.n) {
+    lines.push(`Jev check is a shadow challenger on meme coins. On ${jev.n} of the same paper trades, the baseline filter averaged ${money(jev.baselineMean)} after fees and the book with flags removed averaged ${money(jev.mean)}. Weight is ${jev.weight === 1 ? 1 : 0}. A flag does not block an entry. Live execution stays off.`);
+  } else {
+    lines.push('Jev check is a shadow challenger on meme coins. It asks whether the linked X account is plausibly the real project, whether the coin copies an existing ticker or narrative, and whether the description has an obvious rug flag. No settled comparison is in this file yet. Weight is 0. It does not block an entry. Live execution stays off.');
+  }
   return lines;
+}
+
+export function challengerRows(report) {
+  const maker = report?.maker;
+  const settlement = report?.settlement || {};
+  const jev = report?.jev || {};
+  const makerOn = !!(maker?.measured && maker.attempts);
+  return [
+    {
+      id: 'rest-maker',
+      name: 'Resting maker',
+      n: makerOn ? maker.filled || 0 : 0,
+      mean: makerOn ? maker.makerMean ?? null : null,
+      baselineMean: makerOn ? maker.takerMean ?? null : null,
+      status: 'shadow',
+    },
+    {
+      id: 'mom-settle',
+      name: 'Settlement average',
+      n: settlement.n || 0,
+      mean: settlement.mean ?? null,
+      baselineMean: settlement.baselineMean ?? null,
+      status: 'shadow',
+    },
+    {
+      id: 'jev-check',
+      name: 'Jev check',
+      n: jev.n || 0,
+      mean: jev.mean ?? null,
+      baselineMean: jev.baselineMean ?? null,
+      status: 'shadow',
+      weight: jev.weight === 1 ? 1 : 0,
+    },
+  ];
 }

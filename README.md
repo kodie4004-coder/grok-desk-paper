@@ -67,6 +67,8 @@ One video's bot is told "if you lose my money, make it back." That's loss-chasin
 losses, which is the fastest way to drain an account. This desk does the opposite. When realized session losses
 reach the loss cap (10% of the bank by default), live entries halt and the desk switches to repair mode. Shadow trades keep logging. They are not added to the balance, and size does not go up. Live entries come back only after 20 shadow trades with a positive mean after fees, at a fixed $2. The loss cap itself is unchanged.
 
+The meme snapshot can also ask TypeSafe Jev, as a shadow challenger, whether a coin that already passed the safety list has a plausible X account, looks like a copycat, or shows an obvious rug flag. That call runs only when the workflow step has `TYPESAFE_API_KEY`. A missing key skips it. A flag is a paper comparison, not a block. Weight starts at 0 and moves only if the existing edge gate clears. The desk still has no wallet.
+
 ## Calibration ("Sunday check")
 
 The Agents tab groups JUDGE buys into p buckets (0.70–0.79, 0.80–0.89, 0.90+) and shows how many closed green.

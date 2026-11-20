@@ -14,7 +14,7 @@ import { MAJORS_PRIOR } from './engine/majors-prior.js';
 import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 import { memeGate, watchHealth, watchHealthLine } from './engine/meme.js';
-import { upgradeLines } from './engine/upgrades.js';
+import { upgradeLines, challengerRows } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, TRAINER_STAKE } from './engine/trainer.js';
 
@@ -604,11 +604,22 @@ function loadUpgrades() {
     if (ui.tab === 'brain' || ui.tab === 'score') render();
   });
 }
+function challengerCard() {
+  const report = ui.upgrades || { maker: { measured: false }, settlement: { n: 0 }, jev: { n: 0, weight: 0, status: 'shadow' } };
+  const items = challengerRows(report).map((row) => {
+    const mean = row.mean == null ? '—' : money(row.mean, true);
+    const base = row.baselineMean == null ? '—' : money(row.baselineMean, true);
+    const tone = (n) => (n > 0 ? 'g' : n < 0 ? 'r' : '');
+    const weight = row.id === 'jev-check' ? `<p class="note">Weight ${row.weight}. A flag drops that trade from this mean only.</p>` : '';
+    return `<li class="slot"><div class="row"><b>${esc(row.name)}</b><span class="tag explore">${esc(row.status)}</span></div><dl class="challenger-metrics"><div><dt>Sample</dt><dd>${row.n}</dd></div><div><dt>After fees</dt><dd class="${tone(row.mean)}">${mean}</dd></div><div><dt>Baseline</dt><dd class="${tone(row.baselineMean)}">${base}</dd></div></dl>${weight}</li>`;
+  }).join('');
+  return `<section class="card" aria-label="Shadow challengers"><h2>Shadow challengers</h2><ul class="feed">${items}</ul><p class="note">Paper only. These bots do not place or block a trade. Jev check starts at weight 0 and can move only through the existing edge gate. live_execution stays off.</p></section>`;
+}
 function upgradesCard() {
   if (!ui.upgradeLines) loadUpgrades();
   const lines = ui.upgradeLines || upgradeLines({ maker: { measured: false }, settlement: { n: 0 } });
   const body = lines.slice(1).map((line) => `<li>${esc(line)}</li>`).join('');
-  return `<section class="card" aria-label="New research upgrades"><h2>New research upgrades</h2><ul class="upgrades">${body}</ul><p class="note">Paper only. The $2 size stays put. The edge gate is unchanged. live_execution stays off.</p></section>`;
+  return `${challengerCard()}<section class="card" aria-label="New research upgrades"><h2>New research upgrades</h2><ul class="upgrades">${body}</ul><p class="note">Paper only. The $2 size stays put. The edge gate is unchanged. live_execution stays off.</p></section>`;
 }
 function scoreView(st, tabs, sound) {
   const rules = GATE_PRIOR.rules || [];

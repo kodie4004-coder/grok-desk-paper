@@ -47,6 +47,10 @@ main{padding:12px 12px calc(108px + env(safe-area-inset-bottom));max-width:640px
 .metrics dt{color:var(--mut);font-size:11px}
 .metrics dd{margin:2px 0 0;font-size:16px;font-weight:800;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .metrics .wide{grid-column:1 / -1}
+.challenger-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 0}
+.challenger-metrics div{background:#0b0f14;border:1px solid var(--line);border-radius:12px;padding:8px;min-width:0}
+.challenger-metrics dt{color:var(--mut);font-size:11px}
+.challenger-metrics dd{margin:2px 0 0;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 @container (min-width: 520px){
   .metrics{grid-template-columns:repeat(3,1fr)}
 }

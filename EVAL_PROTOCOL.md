@@ -304,6 +304,14 @@ Family `maker`, variant `rest-maker`, role challenger. Crypto 15-minute series o
 
 Variant `mom-settle`, family `mom`, role challenger. Same 120 to 600 second window as momentum. Kalshi settles the 60-second average of the index before the close against the average before the open. The open average in this paper book is the published strike. The close average is estimated from the trailing 60 seconds of public Coinbase trades, or OKX trades when Coinbase has fewer than two prints in that minute. One last tick is not the input. Before the final minute, the expected settlement level is that trailing average. Inside the final minute, the part already printed is locked. The probability uses a normal curve whose one-minute scale is 0.05%, the same gap already frozen for mom-strict. It is not estimated from this sample. The challenger buys a side only when its fair value clears the ask by the unrounded taker fee `0.07 × P × (1 − P)`. A missing average is no trade. It does not replace momentum unless the v7 holdout says so.
 
+## v12 Jev meme check (frozen before any Jev shadow number)
+
+This does not change `graduates()`, the v6 edge gate, the holdout rule, the meme safety bars, or the $2 size. `live_execution` stays off. The variant id is `jev-check`. It is a shadow challenger. It does not open a trade and it does not block one.
+
+The snapshot asks TypeSafe System One, `POST https://api.typesafe.ai/v1/systemone`, model id `jev-1.14.0`, only for a coin the baseline meme filter already passed. The state is the name, ticker, description, websites, and social links. Price, size, and the contract address are not sent. One request asks three yes/no questions (linked X account plausibly the real project, copycat or impersonation, obvious rug flag in the description) and one choice whose only answers are `pass`, `flag`, and `unknown`. The stored verdict is that choice. A yes/no probability is not a second cutoff. A response that is not that shape is `unknown` and is not cached. Each contract address is asked at most once. A run asks at most 20 new coins, retries a transport failure once, and stops after 35 seconds. A missing `TYPESAFE_API_KEY` asks nothing. The key is an environment variable on the meme snapshot step and is not written to the log or the repo.
+
+On the settled paper trades that carry a verdict, the baseline mean keeps every trade. The veto mean drops `flag` and keeps `unknown`. Both means are after the meme fee and slippage already on the row. Weight is 0 unless `graduates()` is true on the veto book's day windows, using the same 90% lower bound the bot gate already uses. Clearing that gate still does not place or block a trade. The day the verdicts were first logged cannot be used to retune the questions.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.
