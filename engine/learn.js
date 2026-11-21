@@ -21,6 +21,10 @@ export const MISSING_RESULT_MS = 6 * 3600000;
 export const FEE_EDGE_MARGIN = 0.01;
 // Days on or before this UTC date cannot promote or bench these challengers.
 export const FEE_AWARE_ADDED_AT = '2026-11-20T23:20:00.000Z';
+// scalp-95 was written down here before its out-of-sample replay was run.
+// Parameters come from the focus plan (ask above 0.95, 5 to 10 minutes left).
+// Rows on or before this UTC day are not a forward sample.
+export const SCALP95_ADDED_AT = '2026-11-21T07:10:00.000Z';
 
 export const VARIANTS = [
   { id: 'late', family: 'late', label: 'Late favorite', role: 'champion', minAsk: 0.85, minLeft: 180, maxLeft: 300 },
@@ -42,6 +46,8 @@ export const VARIANTS = [
   { id: 'flip', family: 'flip', label: 'Coin-flip control', role: 'control', kind: 'flip', minLeft: 600, maxLeft: 840 },
   { id: 'rest-maker', family: 'maker', label: 'Resting maker', role: 'challenger', kind: 'maker', minLeft: 120, maxLeft: 600 },
   { id: 'mom-settle', family: 'mom', label: 'Momentum, 60-second average', role: 'challenger', kind: 'settle', minLeft: 120, maxLeft: 600 },
+  // Weight is pinned at 0 until graduates() clears on its own forward rows.
+  { id: 'scalp-95', family: 'scalp95', label: 'Scalp, 95¢ pocket', role: 'challenger', kind: 'pocket', askAbove: 0.95, minLeft: 300, maxLeft: 600, pinZero: true, addedAt: SCALP95_ADDED_AT },
 ];
 
 const FAMILY_LABEL = { late: 'Late favorite', mom: 'Momentum vs target', revert: 'Mean revert', scalp: 'Intra-window scalp', flip: 'Coin-flip control', maker: 'Resting maker' };
@@ -145,6 +151,11 @@ export function signal(variant, market, now, ctx = {}) {
     picked = makerPick(market);
   } else if (variant.kind === 'settle') {
     picked = settlePick(market, ctx.spots, left);
+  } else if (variant.kind === 'pocket') {
+    const yesOk = yes > variant.askAbove && yes < 1;
+    const noOk = no > variant.askAbove && no < 1;
+    if (yesOk && (!noOk || yes >= no)) picked = { side: 'yes', ask: yes };
+    else if (noOk) picked = { side: 'no', ask: no };
   }
   if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
   if (variant.feeAware) {
