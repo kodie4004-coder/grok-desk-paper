@@ -17,6 +17,7 @@ import { memeBooks, watchHealth, watchHealthLine } from './engine/meme.js';
 import { upgradeLines, challengerRows } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { focusCardHtml } from './engine/focus-view.js';
+import { todayHeaderHtml } from './engine/today-view.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -679,6 +680,16 @@ function repairCard(st) {
     <p class="note">Paper only. live_execution stays off. This does not reset the balance.</p>
   </section>`;
 }
+function todayCard() {
+  if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
+  const doc = ui.today ? {
+    ...ui.today,
+    kalshiFetchedAt: ui.today.kalshiFetchedAt || ui.heartbeat?.fetchedAt || ui.heartbeat?.at || null,
+    memeFetchedAt: ui.today.memeFetchedAt || ui.memeUpdatedAt || null,
+  } : ui.today;
+  const state = ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading';
+  return todayHeaderHtml(doc, { state, now: Date.now() });
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -687,6 +698,7 @@ function home(st) {
   const unreal = st.open.reduce((a, p) => a + (p.qty * (p.lastPrice ?? p.entryMid) * (1 - st.settings.feePct / 200) - p.sizeUsd), 0);
   const isReplay = st.mode === 'replay';
   return `
+  ${todayCard()}
   ${repairCard(st)}
   ${cockpit(st)}
   ${focusCard()}
@@ -876,14 +888,17 @@ function loadMorning() {
     fetch('data/alloc-curve.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null),
     fetch('data/meme-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }).catch(() => ({ entries: [] })),
     fetch('data/meme-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
-  ]).then(([morning, heartbeat, curve, openDoc, watchDoc]) => {
+    fetch('data/today.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
+  ]).then(([morning, heartbeat, curve, openDoc, watchDoc, today]) => {
     ui.morning = morning;
     ui.heartbeat = heartbeat;
     ui.allocCurve = curve;
+    ui.today = today;
+    ui.memeUpdatedAt = openDoc?.updatedAt || null;
     noteMemeWatch(openDoc, watchDoc);
     ui.morningState = 'ready';
     if (ui.tab === 'home') render();
-  }).catch(() => { ui.morningState = 'error'; if (ui.tab === 'home') render(); });
+  }).catch(() => { ui.morningState = 'error'; ui.today = null; if (ui.tab === 'home') render(); });
 }
 function allocCard() {
   const curve = ui.allocCurve;
@@ -1186,7 +1201,7 @@ function moveTabIndicator() {
   nav.scrollTo({ left: Math.max(0, left), behavior: motionOn() ? 'smooth' : 'auto' });
 }
 function fillXp() {
-  document.querySelectorAll('.xpbar i, .focus-bar i').forEach((el) => {
+  document.querySelectorAll('.xpbar i, .focus-bar i, .today-bar i').forEach((el) => {
     const w = el.dataset.w || '0%';
     if (!motionOn()) { el.style.width = w; return; }
     el.style.width = '0%';

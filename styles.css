@@ -358,3 +358,29 @@ html.motion-off .intro-track{scroll-behavior:auto}
 .focus-bench summary{min-height:var(--tap);display:flex;align-items:center;cursor:pointer;font-weight:700;color:var(--mut)}
 .focus-empty{margin:6px 0}
 .focus-row .row .tag{flex-shrink:0;white-space:nowrap}
+
+/* Today header on Home: freshness, allocated vs shadow, coin repair */
+.today{box-shadow:inset 3px 0 0 var(--y)}
+.today-feeds{list-style:none;margin:0 0 var(--space-3);padding:0;display:grid;gap:6px}
+.today-feed{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--card2)}
+.today-feed-name{font-weight:700;font-size:var(--text-sm)}
+.today-feed-age{font:700 var(--text-xs)/1.3 var(--mono);color:var(--mut);text-align:right;font-variant-numeric:tabular-nums}
+.today-feed.is-fresh{border-color:#1e4d34}
+.today-feed.is-fresh .today-feed-age{color:var(--g)}
+.today-feed.is-stale{border-color:#8a6a1a;background:#2a2210}
+.today-feed.is-stale .today-feed-age{color:var(--y)}
+.today-feed.is-old{border-color:#8a3040;background:#3a1820}
+.today-feed.is-old .today-feed-age{color:var(--r)}
+.today-book-label{margin:0 0 var(--space-2)}
+.today-books{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin:0 0 var(--space-3)}
+.today-books div{background:var(--card2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;min-width:0}
+.today-books small{display:block;color:var(--mut);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.6px;font-weight:700}
+.today-amt{display:block;margin:4px 0 2px;font:800 22px/1.15 var(--sans);letter-spacing:-0.6px;white-space:nowrap}
+.today-amt.up{color:var(--g)}
+.today-amt.dn{color:var(--r)}
+.today-amt::before{content:none}
+.today-repair .today-bar{height:6px;border-radius:999px;background:var(--card2);border:1px solid var(--line);overflow:hidden;margin:6px 0 8px}
+.today-repair .today-bar i{display:block;height:100%;width:0;background:var(--y);transition:width var(--dur) var(--ease)}
+@media (prefers-reduced-motion:reduce){
+  .today-repair .today-bar i{transition:none}
+}

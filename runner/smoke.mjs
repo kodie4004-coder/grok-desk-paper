@@ -31,6 +31,9 @@ try {
   const intro = page.locator('#introSkip');
   if (await intro.count()) await intro.click();
   await page.waitForSelector('text=Cockpit', { timeout: 4000 }).catch((e) => logs.push(e.message));
+  await page.waitForSelector('section.today', { timeout: 6000 }).catch((e) => logs.push(e.message));
+  const todayText = await page.locator('section.today').first().innerText().catch(() => '');
+  if (!/today/i.test(todayText) || !/kalshi snapshot/i.test(todayText) || !/coin feed/i.test(todayText) || !/allocated/i.test(todayText) || !/shadow/i.test(todayText) || !/coin repair/i.test(todayText) || !/after fees/i.test(todayText)) fails.push('home today\n' + todayText.slice(0, 400));
   const home = await page.locator('body').innerText();
   await page.waitForSelector('section.focus .focus-row', { timeout: 6000 }).catch((e) => logs.push(e.message));
   const focusText = await page.locator('section.focus').first().innerText().catch(() => '');

@@ -14,6 +14,7 @@ import {
 } from '../engine/early.js';
 import { withShadowScores } from '../engine/upgrades.js';
 import { watchKickDecision } from './kick-watch.mjs';
+import { writeTodayFile } from './write-today.mjs';
 
 function dispatchMemeWatch() {
   let count = 0;
@@ -288,6 +289,7 @@ try {
     }
     console.log('meme coins', coins.length, 'pass', coins.filter((coin) => coin.pass).length, 'open', next.open.length, 'settled', next.settled.length);
     console.log(JSON.stringify(tally));
+    try { writeTodayFile({ now, memeFetchedAt: new Date(now).toISOString() }); } catch (err) { console.log('today header skipped', err.message); }
   }
 } catch (e) {
   console.log('meme snapshot failed', e.message);

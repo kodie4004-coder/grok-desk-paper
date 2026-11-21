@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { stepJournal, defaultBrain, allocCurve } from '../engine/learn.js';
 import { loadSpots, loadSpotWindow } from '../engine/arena.js';
 import { focusDoc } from '../engine/focus.js';
+import { writeTodayFile } from './write-today.mjs';
 
 const board = JSON.parse(fs.readFileSync('data/kalshi-15m.json', 'utf8'));
 const openDoc = fs.existsSync('data/journal-open.json') ? JSON.parse(fs.readFileSync('data/journal-open.json', 'utf8')) : { entries: [] };
@@ -45,4 +46,5 @@ fs.writeFileSync('data/heartbeat.json', JSON.stringify({
   open: next.open.length,
   settled: settledRows.length + next.settled.length,
 }));
+try { writeTodayFile({ now, kalshiFetchedAt: board.fetchedAt || null }); } catch (err) { console.log('today header skipped', err.message); }
 console.log('journal settled', next.settled.length, 'open', next.open.length);
