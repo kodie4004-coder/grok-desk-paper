@@ -17,6 +17,7 @@ import { memeBooks, watchHealth, watchHealthLine } from './engine/meme.js';
 import { upgradeLines, challengerRows } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { focusCardHtml } from './engine/focus-view.js';
+import { setRollingBench } from './engine/focus-plan.js';
 import { todayHeaderHtml } from './engine/today-view.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
@@ -872,7 +873,7 @@ function loadFocus() {
   ui.focusState = 'loading';
   fetch('data/focus.json?v=' + Date.now(), { cache: 'no-store' })
     .then((r) => { if (!r.ok) throw new Error('focus ' + r.status); return r.json(); })
-    .then((doc) => { ui.focus = doc; ui.focusState = 'ready'; if (ui.tab === 'home' || ui.tab === 'score' || ui.arena === 'score') render(); })
+    .then((doc) => { ui.focus = doc; ui.focusState = 'ready'; setRollingBench(doc.rolled || []); if (ui.tab === 'home' || ui.tab === 'score' || ui.arena === 'score') render(); })
     .catch(() => { ui.focusState = 'error'; if (ui.tab === 'home' || ui.tab === 'score') render(); });
 }
 function focusCard() {

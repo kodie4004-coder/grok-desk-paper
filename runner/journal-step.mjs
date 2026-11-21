@@ -4,6 +4,7 @@ import { stepJournal, defaultBrain, allocCurve } from '../engine/learn.js';
 import { loadSpots, loadSpotWindow } from '../engine/arena.js';
 import { focusDoc } from '../engine/focus.js';
 import { writeTodayFile } from './write-today.mjs';
+import { loadRollingBench, updateRollingBench } from './rolling-bench.mjs';
 
 const board = JSON.parse(fs.readFileSync('data/kalshi-15m.json', 'utf8'));
 const openDoc = fs.existsSync('data/journal-open.json') ? JSON.parse(fs.readFileSync('data/journal-open.json', 'utf8')) : { entries: [] };
@@ -21,6 +22,8 @@ try {
   }
 } catch { /* settlement challenger skips when the minute average is missing */ }
 const now = Date.parse(board.fetchedAt || '') || Date.now();
+// Books on the rolling bench open no new paper lines this step.
+loadRollingBench();
 const next = stepJournal({ markets: board.markets || [], open: openDoc.entries || [], quotes: quoteDoc, brain, existingIds, settledRows, spots, now });
 fs.mkdirSync('data', { recursive: true });
 if (next.settled.length) {
@@ -37,7 +40,14 @@ fs.writeFileSync('data/alloc-curve.json', JSON.stringify(allocCurve(allSettled, 
 try {
   const memeRows = fs.existsSync('data/meme-journal.jsonl') ? fs.readFileSync('data/meme-journal.jsonl', 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)) : [];
   const backtest = fs.existsSync('data/backtest.json') ? JSON.parse(fs.readFileSync('data/backtest.json', 'utf8')) : null;
-  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: allSettled, memeRows, backtest, brain: { ...brain, ...(next.brain || {}) }, now }), null, 2));
+  // Re-apply the frozen bench rule on forward rows. Adds only; never unbenches.
+  let rolled = null;
+  try {
+    const roll = updateRollingBench({ rows: allSettled, memeRows, now });
+    rolled = roll.books;
+    if (roll.added.length) console.log('rolling bench added', roll.added.join(', '));
+  } catch (err) { console.log('rolling bench skipped', err.message); }
+  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: allSettled, memeRows, backtest, brain: { ...brain, ...(next.brain || {}) }, rolled, now }), null, 2));
 } catch (err) { console.log('focus board skipped', err.message); }
 fs.writeFileSync('data/heartbeat.json', JSON.stringify({
   paper: true,

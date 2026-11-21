@@ -6,6 +6,10 @@ import { execFileSync } from 'node:child_process';
 import { applyWatch, pricesFromDex, stopSlippage, watchIntervalMs, watchStamp } from '../engine/meme.js';
 import { advanceEarlyExits, mergeOpenEntry } from '../engine/early.js';
 import { withShadowScores } from '../engine/upgrades.js';
+import { loadRollingBench } from './rolling-bench.mjs';
+
+// Early and meme books on the rolling bench open no new paper lines.
+loadRollingBench();
 
 const interval = watchIntervalMs(Number(process.env.MEME_WATCH_MS || 4000));
 const duration = Number(process.env.MEME_WATCH_FOR || 240000);

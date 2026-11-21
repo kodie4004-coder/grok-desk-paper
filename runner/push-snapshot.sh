@@ -52,6 +52,7 @@ else
     data/heartbeat.json \
     data/alloc-curve.json \
     data/focus.json \
+    data/rolling-bench.json \
     data/today.json \
     data/meme-board.json \
     data/meme-open.json \

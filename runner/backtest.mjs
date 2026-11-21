@@ -2,7 +2,7 @@
 //   node runner/backtest.mjs --build-tape        rebuild data/backtest-tape.json from git history
 //   node runner/backtest.mjs [--ids a,b] [--oos] [--json out.json]
 //   node runner/backtest.mjs --bench             apply the focus bench rule to forward rows
-//   node runner/backtest.mjs --focus             write data/focus.json
+//   node runner/backtest.mjs --focus             write data/focus.json and data/rolling-bench.json
 // Out-of-sample numbers print only with --oos. A backtest never graduates a
 // strategy; only forward paper rows through graduates() can.
 import fs from 'node:fs';
@@ -11,6 +11,7 @@ import { VARIANTS } from '../engine/learn.js';
 import { compactSnapshot, resultsFrom, normalizeTape, backtestVariant, OOS_FRACTION } from '../engine/backtest.js';
 import { benchScan, focusDoc } from '../engine/focus.js';
 import { BENCH_RULE } from '../engine/focus-plan.js';
+import { readRollingBench, updateRollingBench } from './rolling-bench.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -54,8 +55,9 @@ const usd3 = (x) => (x == null ? '—' : `${x < 0 ? '−' : x > 0 ? '+' : ''}$${
 
 if (flag('--bench')) {
   console.log(`Bench rule: n ≥ ${BENCH_RULE.minN} and the 90% cluster-bootstrap high of the after-fee mean < 0. Forward paper rows only.`);
+  const rolledIds = new Set(readRollingBench().books.map((r) => r.id));
   for (const row of benchScan(recorded, memeRows)) {
-    console.log(`${row.meets ? 'BENCH' : row.control ? 'ctrl ' : 'keep '} ${row.book.padEnd(6)} ${row.id.padEnd(20)} n ${String(row.n).padStart(4)} mean ${usd3(row.mean)} 90% ${usd3(row.lo)} to ${usd3(row.hi)}`);
+    console.log(`${row.meets ? 'BENCH' : row.control ? 'ctrl ' : 'keep '} ${row.book.padEnd(6)} ${row.id.padEnd(20)} n ${String(row.n).padStart(4)} mean ${usd3(row.mean)} 90% ${usd3(row.lo)} to ${usd3(row.hi)}${rolledIds.has(row.id) ? ' (rolling bench)' : ''}`);
   }
   process.exit(0);
 }
@@ -63,7 +65,8 @@ if (flag('--bench')) {
 if (flag('--focus')) {
   const backtest = fs.existsSync('data/backtest.json') ? JSON.parse(fs.readFileSync('data/backtest.json', 'utf8')) : null;
   const brain = fs.existsSync('data/brain.json') ? JSON.parse(fs.readFileSync('data/brain.json', 'utf8')) : null;
-  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: recorded, memeRows, backtest, brain, now: Date.now() }), null, 2));
+  const roll = updateRollingBench({ rows: recorded, memeRows, now: Date.now() });
+  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: recorded, memeRows, backtest, brain, rolled: roll.books, now: Date.now() }), null, 2));
   console.log('focus written');
   process.exit(0);
 }
