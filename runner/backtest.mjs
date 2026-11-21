@@ -62,7 +62,8 @@ if (flag('--bench')) {
 
 if (flag('--focus')) {
   const backtest = fs.existsSync('data/backtest.json') ? JSON.parse(fs.readFileSync('data/backtest.json', 'utf8')) : null;
-  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: recorded, memeRows, backtest, now: Date.now() }), null, 2));
+  const brain = fs.existsSync('data/brain.json') ? JSON.parse(fs.readFileSync('data/brain.json', 'utf8')) : null;
+  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: recorded, memeRows, backtest, brain, now: Date.now() }), null, 2));
   console.log('focus written');
   process.exit(0);
 }

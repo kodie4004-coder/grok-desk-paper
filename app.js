@@ -16,6 +16,7 @@ import { newState, startSession, endSession, tick, mark, recap, equityNow, seria
 import { memeBooks, watchHealth, watchHealthLine } from './engine/meme.js';
 import { upgradeLines, challengerRows } from './engine/upgrades.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
+import { focusCardHtml } from './engine/focus-view.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -639,7 +640,7 @@ function scoreView(st, tabs, sound) {
   const race = [...by.entries()].sort((a, b) => b[1].pnl - a[1].pnl).map(([rule, row]) => `<li><span><b>${esc(rule)}</b><br><span class="note">n ${row.n} · fees ${money(row.fees)} · PAPER</span></span><b class="${row.pnl >= 0 ? 'g' : 'r'}">${money(row.pnl, true)}</b></li>`).join('');
   const next = nextOpenMarket(st);
   const feeCard = feeBreakEvenTable(next ? { yesAsk: next.yesAsk, noAsk: next.noAsk, captionId: 'fee-cap-score', context: 'Next open window in this snapshot.' } : null);
-  return `${upgradesCard()}<div class="card arcade"><div class="row"><h2 style="margin:0">Honest scoreboard</h2>${sound || ''}</div>
+  return `${focusCard()}${upgradesCard()}<div class="card arcade"><div class="row"><h2 style="margin:0">Honest scoreboard</h2>${sound || ''}</div>
     <p class="tag explore">PAPER · after fees · not real money</p>
     <p class="note">${esc(GATE_PRIOR.summary || '')} Crypto and Kalshi means are on a $2 paper bet. The 13F copy is on $100 paper per name, entered on the filing date.</p>
     <div class="hype"><b>Hype check.</b> Posts that say a bot turned $68 into $500k are not a track record. This desk does not copy them. A scalp that cannot pay the fee is a loss, even if the screenshot looks green.</div>
@@ -688,6 +689,7 @@ function home(st) {
   return `
   ${repairCard(st)}
   ${cockpit(st)}
+  ${focusCard()}
   ${reminderBanner()}
   ${allocCard()}
   ${morningCard()}
@@ -853,6 +855,18 @@ function settingsView(st) {
   <div class="note" style="text-align:center;margin-bottom:10px">Grok Desk paper v1 · not financial advice. Phone alerts: install the ntfy app and subscribe to the topic your assistant gave you.</div>`;
 }
 
+function loadFocus() {
+  if (ui.focusState === 'ready' || ui.focusState === 'loading') return;
+  ui.focusState = 'loading';
+  fetch('data/focus.json?v=' + Date.now(), { cache: 'no-store' })
+    .then((r) => { if (!r.ok) throw new Error('focus ' + r.status); return r.json(); })
+    .then((doc) => { ui.focus = doc; ui.focusState = 'ready'; if (ui.tab === 'home' || ui.tab === 'score' || ui.arena === 'score') render(); })
+    .catch(() => { ui.focusState = 'error'; if (ui.tab === 'home' || ui.tab === 'score') render(); });
+}
+function focusCard() {
+  if (!ui.focusState) loadFocus();
+  return focusCardHtml(ui.focus, { state: ui.focus ? 'ready' : ui.focusState === 'error' ? 'error' : 'loading' });
+}
 function loadMorning() {
   if (ui.morningState === 'ready' || ui.morningState === 'loading') return;
   ui.morningState = 'loading';
@@ -1789,6 +1803,7 @@ document.addEventListener('touchend', (e) => {
   if (ui.tab === 'coins') { ui.coinsState = null; loadCoins().finally(done); }
   else {
     if (ui.morningState) { ui.morningState = null; loadMorning(); }
+    if (ui.focusState) { ui.focusState = null; loadFocus(); }
     ui.quoteManual = true;
     refreshKalshi().finally(done);
   }

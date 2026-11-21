@@ -23,12 +23,12 @@ export function focusCardHtml(doc, { state = 'ready' } = {}) {
     const g = row.gate || { cleared: 0, need: 3, forwardN: 0 };
     const pct = Math.round((100 * Math.min(g.cleared, g.need)) / g.need);
     return `<li class="focus-row">
-      <div class="row"><b>${esc(row.label)}</b><span class="tag ${row.gate?.graduated ? 'normal' : 'explore'}">${row.gate?.graduated ? 'gate cleared' : 'paper · weight 0'}</span></div>
-      <dl class="focus-metrics">
+      <div class="row"><b>${esc(row.label)}</b><span class="tag ${row.gate?.graduated ? 'normal' : 'explore'}">${row.gate?.graduated ? 'gate cleared' : `paper · weight ${row.weight == null ? '—' : esc(+row.weight.toFixed(2))}`}</span></div>
+      ${row.n ? `<dl class="focus-metrics">
         <div><dt>Trades</dt><dd>${row.n}</dd></div>
         <div><dt>Mean after fees</dt><dd class="${tone(row.mean)}">${money(row.mean)}</dd></div>
         <div><dt>90% range</dt><dd>${money(row.lo)} to ${money(row.hi)}</dd></div>
-      </dl>
+      </dl>` : `<p class="note focus-empty">No forward paper trades yet${row.addedAt ? ` · added ${esc(String(row.addedAt).slice(0, 10))}` : ''}.</p>`}
       <div class="focus-gate"><span>Gate ${g.cleared}/${g.need} days</span><span class="focus-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${g.need}" aria-valuenow="${g.cleared}" aria-label="${esc(row.label)} gate progress"><i data-w="${pct}%"></i></span><span>${g.forwardN} forward</span></div>
       ${btLine(row.backtest)}
     </li>`;
@@ -36,7 +36,7 @@ export function focusCardHtml(doc, { state = 'ready' } = {}) {
   const benched = (doc.benched || []).map((row) => `<li><span><b>${esc(row.label)}</b><br><span class="note">n ${row.nowN ?? row.n} · mean ${money(row.nowMean ?? row.mean)} after fees · 90% high ${money(row.nowHi ?? row.hi)}</span></span><span class="tag off">benched</span></li>`).join('');
   return `<section class="card focus" aria-label="Focus">
     <div class="row"><h2 style="margin:0">Focus</h2><span class="tag explore">PAPER · $2 · after fees</span></div>
-    <p class="note">Only the near-winners. Each stays at weight 0 until it clears 3 days of 20+ forward trades with a 90% low above zero. A backtest never counts toward that.</p>
+    <p class="note">Only the near-winners. None is ready for real money until it has 3 days of 20+ forward trades and every such day has a 90% low above zero after fees. scalp-95 stays at weight 0 until then. A backtest never counts toward that.</p>
     <ul class="focus-list">${rows || '<li><span class="empty">No near-winners in this file.</span></li>'}</ul>
     <details class="focus-bench"><summary>Benched (${(doc.benched || []).length})</summary>
       <p class="note">At least ${doc.rule?.minN ?? 40} trades with the 90% high of the mean below zero after fees. No new paper lines. History is kept.</p>

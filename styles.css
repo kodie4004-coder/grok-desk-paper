@@ -340,3 +340,21 @@ html.motion-off .intro-track{scroll-behavior:auto}
   .fee-break td:nth-child(3)::before{content:var(--fee-fee) ": ";color:var(--mut);font-weight:600}
   .fee-break td:nth-child(4)::before{content:var(--fee-be) ": ";color:var(--mut);font-weight:600}
 }
+/* Focus board: near-winners only, benched list collapsed */
+.focus{box-shadow:inset 3px 0 0 var(--b)}
+.focus-list{list-style:none;margin:var(--space-2) 0 0;padding:0}
+.focus-row{padding:var(--space-3) 0;border-top:1px solid var(--line)}
+.focus-row:first-child{border-top:0;padding-top:var(--space-1)}
+.focus-row .row b{font-size:var(--text-md)}
+.focus-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);margin:var(--space-2) 0}
+.focus-metrics div{background:#0b0f14;border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 8px;min-width:0}
+.focus-metrics dt{color:var(--mut);font-size:var(--text-xs)}
+.focus-metrics dd{margin:2px 0 0;font:700 var(--text-sm)/1.3 var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.focus-gate{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-xs);color:var(--mut)}
+.focus-bar{flex:1;height:6px;border-radius:999px;background:#0b0f14;border:1px solid var(--line);overflow:hidden}
+.focus-bar i{display:block;height:100%;width:0;background:var(--b);transition:width var(--dur) var(--ease)}
+.focus-bt{margin:6px 0 0;font:var(--text-xs)/1.4 var(--mono);color:var(--mut)}
+.focus-bench{margin-top:var(--space-3);border-top:1px solid var(--line);padding-top:var(--space-2)}
+.focus-bench summary{min-height:var(--tap);display:flex;align-items:center;cursor:pointer;font-weight:700;color:var(--mut)}
+.focus-empty{margin:6px 0}
+.focus-row .row .tag{flex-shrink:0;white-space:nowrap}

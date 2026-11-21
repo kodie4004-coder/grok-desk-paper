@@ -379,6 +379,24 @@ On a normal book the YES mid is at or below the YES ask, so a YES buy does not c
 
 `addedAt` is `2026-11-20T23:20:00.000Z`, stored on the variant. A holdout day on or before 2026-11-20 cannot promote either variant. The same days cannot bench them. A later finished day uses the existing holdout gate. The edge gate is not part of that promotion.
 
+## v16 offline backtest, scalp-95, and the focus bench (frozen before the out-of-sample replay)
+
+This does not change `graduates()`, the v6 edge gate, the holdout rule, the loss cap, or the $2 size. `live_execution` stays off.
+
+**A backtest never graduates a strategy.** It never sets a weight, promotes a champion, or counts toward `graduates()`. Only forward paper rows in `data/journal.jsonl` (or the meme journal) that pass `graduates()` can move a weight. `engine/backtest.js` does not import `graduates`, and `pinCleared()` reads only journal rows after the variant's added UTC day.
+
+Backtester (`engine/backtest.js`, `runner/backtest.mjs`, `npm run backtest`):
+
+- Tape: every committed version of `data/kalshi-15m.json` in git history (`npm run backtest-tape` rebuilds `data/backtest-tape.json`). Open markets become quotes. Settled markets, plus journal rows with a yes/no result, give the result map.
+- Rules: the live `signal()` from `engine/learn.js`, with the previous board's quote for the same ticker as `prev`, exactly as `stepJournal` does. One line per variant per ticker, at the first board where the rule fires. The live risk spread veto (0.10) applies. The cooldown applies only to allocated losses, so it does not apply to a $0 replay line.
+- Fills: buy at the recorded ask, `floor(2 / ask)` contracts, taker fee `round up(0.07 × C × P × (1 − P))` from `kalshiTakerFee`, maker fee 0. Hold to the result. A scalp exit variant sells at the recorded bid through `roles.shouldExit` and `roles.settleExit`, paying a second taker fee. A line whose market never shows a result is counted as unresolved and is not a trade.
+- Rules that need spot prints (momentum, the 60-second settlement bot) or trade prints (the resting maker) cannot be replayed from the board. They are reported from their recorded forward journal rows and labelled `recorded`.
+- Stats: n, after-fee mean, win rate, break-even win rate (ask plus fee per contract, held lines only), and a 90% cluster bootstrap by Kalshi series (2,000 draws, seed 7). Out-of-sample is the most recent 30% of the tape's time span. It is never used to choose a parameter. The runner prints out-of-sample numbers only with `--oos`.
+
+`scalp-95` (role challenger, family `scalp95`, `pinZero`): buy the side whose ask is above 0.95 and below 1, with 300 to 600 seconds left in the 15-minute window, $2, held to the result. The parameters come from the focus plan, not from a search. `addedAt` is `2026-11-21T07:10:00.000Z`, committed before the out-of-sample replay was run. Its weight is 0 and it logs as a shadow line until `graduates()` clears on its own forward rows after 2026-11-21.
+
+Focus bench (`engine/focus-plan.js`): a book with at least 40 settled forward rows whose 90% cluster-bootstrap upper bound of the after-fee mean is below zero opens no new paper line. Its history stays in the journal and on the page. Open lines still settle. Controls are not benched. `node runner/backtest.mjs --bench` prints the rule on the current journal. The frozen list is in `FOCUS_BENCHED` with the evidence at registration. Early exit books still close their legs so the parent position can finish, but write no new row.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

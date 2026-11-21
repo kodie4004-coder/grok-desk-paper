@@ -43,7 +43,7 @@ function gateLine(variant, rows) {
   return { forwardN: forward.length, windows: gate.windows.length, cleared, need: 3, graduated: gate.graduated };
 }
 
-export function focusDoc({ rows = [], memeRows = [], backtest = null, now = Date.now() } = {}) {
+export function focusDoc({ rows = [], memeRows = [], backtest = null, brain = null, now = Date.now() } = {}) {
   const bt = new Map((backtest?.reports || []).map((r) => [r.id, r]));
   const near = NEAR_WINNERS.map((id) => {
     const variant = VARIANTS.find((v) => v.id === id);
@@ -55,7 +55,7 @@ export function focusDoc({ rows = [], memeRows = [], backtest = null, now = Date
       id,
       label: variant?.label || id,
       addedAt: variant?.addedAt || null,
-      weight: 0,
+      weight: Number.isFinite(brain?.weights?.[id]) ? brain.weights[id] : null,
       n: stats.n,
       mean: stats.mean,
       lo: stats.lo,
