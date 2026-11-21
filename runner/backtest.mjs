@@ -1,12 +1,16 @@
 // Offline backtest over the desk's recorded Kalshi boards. Paper only.
 //   node runner/backtest.mjs --build-tape        rebuild data/backtest-tape.json from git history
 //   node runner/backtest.mjs [--ids a,b] [--oos] [--json out.json]
+//   node runner/backtest.mjs --bench             apply the focus bench rule to forward rows
+//   node runner/backtest.mjs --focus             write data/focus.json
 // Out-of-sample numbers print only with --oos. A backtest never graduates a
 // strategy; only forward paper rows through graduates() can.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { VARIANTS } from '../engine/learn.js';
 import { compactSnapshot, resultsFrom, normalizeTape, backtestVariant, OOS_FRACTION } from '../engine/backtest.js';
+import { benchScan, focusDoc } from '../engine/focus.js';
+import { BENCH_RULE } from '../engine/focus-plan.js';
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -44,8 +48,26 @@ if (flag('--build-tape')) {
   process.exit(0);
 }
 
-const tape = JSON.parse(fs.readFileSync(TAPE, 'utf8'));
 const recorded = readJsonl('data/journal.jsonl');
+const memeRows = readJsonl('data/meme-journal.jsonl');
+const usd3 = (x) => (x == null ? '—' : `${x < 0 ? '−' : x > 0 ? '+' : ''}$${Math.abs(x).toFixed(3)}`);
+
+if (flag('--bench')) {
+  console.log(`Bench rule: n ≥ ${BENCH_RULE.minN} and the 90% cluster-bootstrap high of the after-fee mean < 0. Forward paper rows only.`);
+  for (const row of benchScan(recorded, memeRows)) {
+    console.log(`${row.meets ? 'BENCH' : row.control ? 'ctrl ' : 'keep '} ${row.book.padEnd(6)} ${row.id.padEnd(20)} n ${String(row.n).padStart(4)} mean ${usd3(row.mean)} 90% ${usd3(row.lo)} to ${usd3(row.hi)}`);
+  }
+  process.exit(0);
+}
+
+if (flag('--focus')) {
+  const backtest = fs.existsSync('data/backtest.json') ? JSON.parse(fs.readFileSync('data/backtest.json', 'utf8')) : null;
+  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: recorded, memeRows, backtest, now: Date.now() }), null, 2));
+  console.log('focus written');
+  process.exit(0);
+}
+
+const tape = JSON.parse(fs.readFileSync(TAPE, 'utf8'));
 const ids = opt('--ids') ? opt('--ids').split(',') : VARIANTS.map((v) => v.id);
 const showOos = flag('--oos');
 const reports = ids.map((id) => VARIANTS.find((v) => v.id === id)).filter(Boolean).map((v) => backtestVariant(v, tape, { showOos, recorded }));

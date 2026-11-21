@@ -8,6 +8,7 @@ import { reviewRoles, shouldExit, settleExit } from './roles.js';
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { repairGate, REPAIR_MIN_N } from './repair.js';
+import { isFocusBenched } from './focus-plan.js';
 
 export const LEARN_SIZE = 2;
 export const HOLD_MIN = 20;
@@ -204,7 +205,7 @@ function addedDay(variant) {
 }
 
 // Rows from the added UTC day, and every earlier day, are not a sample.
-function eligibleRows(variant, rows) {
+export function eligibleRows(variant, rows) {
   const mine = (rows || []).filter((row) => row.variant === variant.id);
   const day = addedDay(variant);
   if (!day) return mine;
@@ -212,6 +213,13 @@ function eligibleRows(variant, rows) {
     const key = row.window || dayKey(row.closeTime);
     return key && key > day;
   });
+}
+
+// A pinned challenger keeps weight 0 until graduates() clears on its own forward
+// rows after its added day. A backtest cannot clear this.
+export function pinCleared(variant, rows) {
+  if (!variant?.pinZero) return true;
+  return gateProgress(eligibleRows(variant, rows).filter((row) => Number.isFinite(row.pnl) && row.skipped !== true)).graduated;
 }
 
 function holdoutEligible(variant, holdout) {
@@ -340,6 +348,9 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
   const demoted = rollingDemote(history, 40);
   const quiet = new Set([...(state.benched || []), ...risk.shadow, ...demoted.map((d) => d.id), ...controls()]);
   const weights = evidenceWeights(history, state, now, 40);
+  for (const variant of VARIANTS) {
+    if (isFocusBenched(variant.id) || (variant.pinZero && !pinCleared(variant, history))) quiet.add(variant.id);
+  }
   for (const id of quiet) weights[id] = 0;
   const nextQuotes = {};
   let allocLeft = SNAPSHOT_ALLOC_CAP;
@@ -354,6 +365,8 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     if (market.result === 'yes' || market.result === 'no') continue;
     const firing = [];
     for (const variant of VARIANTS) {
+      // Focus bench: no new paper lines. Old rows stay in the journal.
+      if (isFocusBenched(variant.id)) continue;
       const sig = signal(variant, market, now, { spots, prev });
       if (sig) firing.push({ variant, sig });
     }
@@ -622,7 +635,7 @@ export function reviewBrain(brain, rows, now, opts = {}) {
     const losing = stats.n >= HOLD_MIN && !(stats.mean > 0) && !(stats.lo > 0);
     if (losing) benched.add(variant.id);
     const mean = stats.mean == null ? 0 : Math.max(-0.1, Math.min(0.1, stats.mean));
-    weights[variant.id] = benched.has(variant.id) ? 0 : Math.exp(mean / 0.02);
+    weights[variant.id] = benched.has(variant.id) || isFocusBenched(variant.id) || !pinCleared(variant, rows) ? 0 : Math.exp(mean / 0.02);
   }
   const champions = { ...base.champions };
   const already = !!(holdout && base.judged.includes(holdout));

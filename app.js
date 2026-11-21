@@ -1172,7 +1172,7 @@ function moveTabIndicator() {
   nav.scrollTo({ left: Math.max(0, left), behavior: motionOn() ? 'smooth' : 'auto' });
 }
 function fillXp() {
-  document.querySelectorAll('.xpbar i').forEach((el) => {
+  document.querySelectorAll('.xpbar i, .focus-bar i').forEach((el) => {
     const w = el.dataset.w || '0%';
     if (!motionOn()) { el.style.width = w; return; }
     el.style.width = '0%';

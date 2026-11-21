@@ -6,6 +6,7 @@
 import { clusterBootstrap } from './eval.js';
 import { MEME_RULES, MEME_SIZE, MEME_SLIP, memePnl, memeTargetClearsFees, poolMint } from './meme.js';
 import { graduates } from './strategies.js';
+import { isFocusBenched } from './focus-plan.js';
 
 export const EARLY_ID = 'early-entry';
 export const EARLY_TRACK = 'early-track';
@@ -514,7 +515,9 @@ export function advanceEarlyExits(pos, px, now, opts = {}) {
   const tpPx = pos.entry * MEME_RULES.tp;
   const emit = (variant, deal, why) => {
     const id = `${variant}:${pos.ca}`;
-    if (!deal || known.has(id)) return;
+    // A focus-benched exit still closes its leg so the track can finish, but it
+    // writes no new paper row.
+    if (!deal || known.has(id) || (isFocusBenched(variant) && opts.emitBenched !== true)) return;
     rows.push(shadowRow(pos, variant, deal, why));
   };
   const seen = (variant) => known.has(`${variant}:${pos.ca}`);
@@ -704,7 +707,7 @@ export function earlyExitReport(rows) {
     return {
       id: book.id,
       name: book.name,
-      status: 'shadow',
+      status: isFocusBenched(book.id) ? 'benched' : 'shadow',
       role: 'challenger',
       weight: 0,
       paper: true,
