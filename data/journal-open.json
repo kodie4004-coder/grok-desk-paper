@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-21T05:37:54.941Z",
+  "updatedAt": "2026-11-21T05:41:59.676Z",
   "entries": [
     {
       "id": "revert:KXBNB15M-26NOV210045-45",
@@ -3382,8 +3382,8 @@
       "market": "KXHYPE15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.15,
       "roles": [
         {
@@ -3471,61 +3471,6 @@
       "skipReason": null
     },
     {
-      "id": "scalp-tp:KXNEAR15M-26NOV210045-45",
-      "family": "scalp",
-      "variant": "scalp-tp",
-      "role": "shadow",
-      "allocated": false,
-      "ticker": "KXNEAR15M-26NOV210045-45",
-      "series": "KXNEAR15M",
-      "title": "NEAR price up in next 15 mins?",
-      "side": "yes",
-      "ask": 0.4,
-      "contracts": 5,
-      "sizeUsd": 2,
-      "fee": 0.09,
-      "openedAt": "2026-11-21T05:37:54.941Z",
-      "closeTime": "2026-11-21T05:45:00Z",
-      "exit": "tp",
-      "price": 0.4,
-      "secondsLeft": 425,
-      "spread": 0.02,
-      "momentum": 0.21,
-      "volatility": null,
-      "strategy": "scalp-tp",
-      "market": "KXNEAR15M",
-      "paper": true,
-      "roles": [
-        {
-          "role": "scanner",
-          "action": "pass",
-          "reason": "scanner: KXNEAR15M-26NOV210045-45 is still open"
-        },
-        {
-          "role": "analyst",
-          "action": "score",
-          "reason": "analyst: ask 0.4 with 425s left"
-        },
-        {
-          "role": "brain",
-          "action": "shadow",
-          "reason": "brain: $0 shadow. Size is not raised."
-        },
-        {
-          "role": "risk",
-          "action": "pass",
-          "reason": "risk: no veto"
-        },
-        {
-          "role": "executor",
-          "action": "shadow",
-          "reason": "executor: paper shadow at ask 0.4, fee included"
-        }
-      ],
-      "skipped": false,
-      "skipReason": null
-    },
-    {
       "id": "scalp-stop:KXNEAR15M-26NOV210045-45",
       "family": "scalp",
       "variant": "scalp-stop",
@@ -3548,61 +3493,6 @@
       "momentum": 0.21,
       "volatility": null,
       "strategy": "scalp-stop",
-      "market": "KXNEAR15M",
-      "paper": true,
-      "roles": [
-        {
-          "role": "scanner",
-          "action": "pass",
-          "reason": "scanner: KXNEAR15M-26NOV210045-45 is still open"
-        },
-        {
-          "role": "analyst",
-          "action": "score",
-          "reason": "analyst: ask 0.4 with 425s left"
-        },
-        {
-          "role": "brain",
-          "action": "shadow",
-          "reason": "brain: $0 shadow. Size is not raised."
-        },
-        {
-          "role": "risk",
-          "action": "pass",
-          "reason": "risk: no veto"
-        },
-        {
-          "role": "executor",
-          "action": "shadow",
-          "reason": "executor: paper shadow at ask 0.4, fee included"
-        }
-      ],
-      "skipped": false,
-      "skipReason": null
-    },
-    {
-      "id": "scalp-time:KXNEAR15M-26NOV210045-45",
-      "family": "scalp",
-      "variant": "scalp-time",
-      "role": "shadow",
-      "allocated": false,
-      "ticker": "KXNEAR15M-26NOV210045-45",
-      "series": "KXNEAR15M",
-      "title": "NEAR price up in next 15 mins?",
-      "side": "yes",
-      "ask": 0.4,
-      "contracts": 5,
-      "sizeUsd": 2,
-      "fee": 0.09,
-      "openedAt": "2026-11-21T05:37:54.941Z",
-      "closeTime": "2026-11-21T05:45:00Z",
-      "exit": "time",
-      "price": 0.4,
-      "secondsLeft": 425,
-      "spread": 0.02,
-      "momentum": 0.21,
-      "volatility": null,
-      "strategy": "scalp-time",
       "market": "KXNEAR15M",
       "paper": true,
       "roles": [
@@ -3885,8 +3775,8 @@
       "market": "KXZEC15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.088,
       "roles": [
         {
@@ -3913,6 +3803,2096 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.088, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXBNB15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV210045-45",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.999,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.999,
+      "secondsLeft": 180,
+      "spread": 0.002,
+      "momentum": -0.03,
+      "volatility": 0.09472592042308166,
+      "strategy": "late",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.999 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.999, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXBNB15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV210045-45",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.999,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.999,
+      "secondsLeft": 180,
+      "spread": 0.002,
+      "momentum": -0.03,
+      "volatility": 0.09472592042308166,
+      "strategy": "late-loose",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.999 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.999, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXBNB15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBNB15M-26NOV210045-45",
+      "series": "KXBNB15M",
+      "title": "BNB price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.999,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.999,
+      "secondsLeft": 180,
+      "spread": 0.002,
+      "momentum": -0.03,
+      "volatility": 0.09472592042308166,
+      "strategy": "late-tight",
+      "market": "KXBNB15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBNB15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.999 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.999, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXBTC15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV210045-45",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.994,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.994,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.069,
+      "volatility": 0.11416800485833732,
+      "strategy": "late",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.994 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.994, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXBTC15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV210045-45",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.994,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.994,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.069,
+      "volatility": 0.11416800485833732,
+      "strategy": "late-loose",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.994 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.994, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXBTC15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV210045-45",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.994,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.994,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.069,
+      "volatility": 0.11416800485833732,
+      "strategy": "late-tight",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.994 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.994, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXCRYPTOLEAD15M-26NOV210045-BTC",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXCRYPTOLEAD15M-26NOV210045-BTC",
+      "series": "KXCRYPTOLEAD15M",
+      "title": "Which of these cryptocurrencies will have the highest return from Nov 21 - 12:30AM EST to 12:45AM EST?",
+      "side": "no",
+      "ask": 0.86,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.86,
+      "secondsLeft": 180,
+      "spread": 0.06,
+      "momentum": -0.32,
+      "volatility": 0.16653327995729061,
+      "strategy": "late",
+      "market": "KXCRYPTOLEAD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCRYPTOLEAD15M-26NOV210045-BTC is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.86 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.86, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXCRYPTOLEAD15M-26NOV210045-BTC",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXCRYPTOLEAD15M-26NOV210045-BTC",
+      "series": "KXCRYPTOLEAD15M",
+      "title": "Which of these cryptocurrencies will have the highest return from Nov 21 - 12:30AM EST to 12:45AM EST?",
+      "side": "no",
+      "ask": 0.86,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.86,
+      "secondsLeft": 180,
+      "spread": 0.06,
+      "momentum": -0.32,
+      "volatility": 0.16653327995729061,
+      "strategy": "late-loose",
+      "market": "KXCRYPTOLEAD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCRYPTOLEAD15M-26NOV210045-BTC is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.86 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.86, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXCRYPTOLEAD15M-26NOV210045-ETH",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXCRYPTOLEAD15M-26NOV210045-ETH",
+      "series": "KXCRYPTOLEAD15M",
+      "title": "Which of these cryptocurrencies will have the highest return from Nov 21 - 12:30AM EST to 12:45AM EST?",
+      "side": "no",
+      "ask": 0.82,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.82,
+      "secondsLeft": 180,
+      "spread": 0.11,
+      "momentum": 0.21,
+      "volatility": 0.10503967504392486,
+      "strategy": "late-loose",
+      "market": "KXCRYPTOLEAD15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXCRYPTOLEAD15M-26NOV210045-ETH is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.82 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: spread 0.11 is wider than 0.1"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: spread 0.11 is wider than 0.1"
+    },
+    {
+      "id": "late:KXDOGE15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXDOGE15M-26NOV210045-45",
+      "series": "KXDOGE15M",
+      "title": "DOGE price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.002,
+      "momentum": -0.048,
+      "volatility": 0.07386699759251984,
+      "strategy": "late",
+      "market": "KXDOGE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXDOGE15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXDOGE15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXDOGE15M-26NOV210045-45",
+      "series": "KXDOGE15M",
+      "title": "DOGE price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.002,
+      "momentum": -0.048,
+      "volatility": 0.07386699759251984,
+      "strategy": "late-loose",
+      "market": "KXDOGE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXDOGE15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXDOGE15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXDOGE15M-26NOV210045-45",
+      "series": "KXDOGE15M",
+      "title": "DOGE price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.002,
+      "momentum": -0.048,
+      "volatility": 0.07386699759251984,
+      "strategy": "late-tight",
+      "market": "KXDOGE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXDOGE15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXETH15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV210045-45",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.99,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.99,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.031,
+      "volatility": 0.10136238618606674,
+      "strategy": "late",
+      "market": "KXETH15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.99 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.99, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXETH15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV210045-45",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.99,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.99,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.031,
+      "volatility": 0.10136238618606674,
+      "strategy": "late-loose",
+      "market": "KXETH15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.99 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.99, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXETH15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV210045-45",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.99,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.99,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.031,
+      "volatility": 0.10136238618606674,
+      "strategy": "late-tight",
+      "market": "KXETH15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.99 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.99, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXHYPE15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXHYPE15M-26NOV210045-45",
+      "series": "KXHYPE15M",
+      "title": "HYPE price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.969,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.969,
+      "secondsLeft": 180,
+      "spread": 0.008,
+      "momentum": -0.141,
+      "volatility": 0.1505999114652241,
+      "strategy": "late",
+      "market": "KXHYPE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXHYPE15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.969 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.969, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXHYPE15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXHYPE15M-26NOV210045-45",
+      "series": "KXHYPE15M",
+      "title": "HYPE price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.969,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.969,
+      "secondsLeft": 180,
+      "spread": 0.008,
+      "momentum": -0.141,
+      "volatility": 0.1505999114652241,
+      "strategy": "late-loose",
+      "market": "KXHYPE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXHYPE15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.969 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.969, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXHYPE15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXHYPE15M-26NOV210045-45",
+      "series": "KXHYPE15M",
+      "title": "HYPE price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.969,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.969,
+      "secondsLeft": 180,
+      "spread": 0.008,
+      "momentum": -0.141,
+      "volatility": 0.1505999114652241,
+      "strategy": "late-tight",
+      "market": "KXHYPE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXHYPE15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.969 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.969, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom:KXNEAR15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXNEAR15M-26NOV210045-45",
+      "series": "KXNEAR15M",
+      "title": "NEAR price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.48,
+      "contracts": 4,
+      "sizeUsd": 2,
+      "fee": 0.07,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.48,
+      "secondsLeft": 180,
+      "spread": 0.03,
+      "momentum": 0.08,
+      "volatility": 0.14977761292440647,
+      "strategy": "mom",
+      "market": "KXNEAR15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXNEAR15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.48 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.17 does not clear fee 0.07 plus half-spread 0.06"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.17 does not clear fee 0.07 plus half-spread 0.06"
+    },
+    {
+      "id": "mom-settle:KXNEAR15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom-settle",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXNEAR15M-26NOV210045-45",
+      "series": "KXNEAR15M",
+      "title": "NEAR price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.48,
+      "contracts": 4,
+      "sizeUsd": 2,
+      "fee": 0.07,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.48,
+      "secondsLeft": 180,
+      "spread": 0.03,
+      "momentum": 0.08,
+      "volatility": 0.14977761292440647,
+      "strategy": "mom-settle",
+      "market": "KXNEAR15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXNEAR15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.48 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.48, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXSOL15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV210045-45",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.022,
+      "volatility": 0.05537448269133837,
+      "strategy": "late",
+      "market": "KXSOL15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXSOL15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV210045-45",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.022,
+      "volatility": 0.05537448269133837,
+      "strategy": "late-loose",
+      "market": "KXSOL15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXSOL15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV210045-45",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.022,
+      "volatility": 0.05537448269133837,
+      "strategy": "late-tight",
+      "market": "KXSOL15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom:KXSOL15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV210045-45",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.022,
+      "volatility": 0.05537448269133837,
+      "strategy": "mom",
+      "market": "KXSOL15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.17 does not clear fee 0.01 plus half-spread 0.00"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.17 does not clear fee 0.01 plus half-spread 0.00"
+    },
+    {
+      "id": "mom-strict:KXSOL15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV210045-45",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.022,
+      "volatility": 0.05537448269133837,
+      "strategy": "mom-strict",
+      "market": "KXSOL15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-settle:KXSOL15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom-settle",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV210045-45",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.022,
+      "volatility": 0.05537448269133837,
+      "strategy": "mom-settle",
+      "market": "KXSOL15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXXRP15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXXRP15M-26NOV210045-45",
+      "series": "KXXRP15M",
+      "title": "XRP price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.049,
+      "volatility": 0.06833983708887031,
+      "strategy": "late",
+      "market": "KXXRP15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXXRP15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXXRP15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXXRP15M-26NOV210045-45",
+      "series": "KXXRP15M",
+      "title": "XRP price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.049,
+      "volatility": 0.06833983708887031,
+      "strategy": "late-loose",
+      "market": "KXXRP15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXXRP15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXXRP15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXXRP15M-26NOV210045-45",
+      "series": "KXXRP15M",
+      "title": "XRP price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.049,
+      "volatility": 0.06833983708887031,
+      "strategy": "late-tight",
+      "market": "KXXRP15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXXRP15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom:KXXRP15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXXRP15M-26NOV210045-45",
+      "series": "KXXRP15M",
+      "title": "XRP price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.049,
+      "volatility": 0.06833983708887031,
+      "strategy": "mom",
+      "market": "KXXRP15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXXRP15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.17 does not clear fee 0.01 plus half-spread 0.00"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.17 does not clear fee 0.01 plus half-spread 0.00"
+    },
+    {
+      "id": "mom-strict:KXXRP15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXXRP15M-26NOV210045-45",
+      "series": "KXXRP15M",
+      "title": "XRP price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.049,
+      "volatility": 0.06833983708887031,
+      "strategy": "mom-strict",
+      "market": "KXXRP15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXXRP15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-settle:KXXRP15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom-settle",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXXRP15M-26NOV210045-45",
+      "series": "KXXRP15M",
+      "title": "XRP price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.996,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.996,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.049,
+      "volatility": 0.06833983708887031,
+      "strategy": "mom-settle",
+      "market": "KXXRP15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXXRP15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.996 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.996, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late:KXZEC15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXZEC15M-26NOV210045-45",
+      "series": "KXZEC15M",
+      "title": "ZEC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.095,
+      "volatility": 0.14021531062381645,
+      "strategy": "late",
+      "market": "KXZEC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXZEC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-loose:KXZEC15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-loose",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXZEC15M-26NOV210045-45",
+      "series": "KXZEC15M",
+      "title": "ZEC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.095,
+      "volatility": 0.14021531062381645,
+      "strategy": "late-loose",
+      "market": "KXZEC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXZEC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "late-tight:KXZEC15M-26NOV210045-45",
+      "family": "late",
+      "variant": "late-tight",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXZEC15M-26NOV210045-45",
+      "series": "KXZEC15M",
+      "title": "ZEC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.095,
+      "volatility": 0.14021531062381645,
+      "strategy": "late-tight",
+      "market": "KXZEC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXZEC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom:KXZEC15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXZEC15M-26NOV210045-45",
+      "series": "KXZEC15M",
+      "title": "ZEC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.095,
+      "volatility": 0.14021531062381645,
+      "strategy": "mom",
+      "market": "KXZEC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXZEC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "allocate",
+          "reason": "brain: $2 paper. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "veto",
+          "reason": "risk: shadow mean -0.17 does not clear fee 0.01 plus half-spread 0.00"
+        },
+        {
+          "role": "executor",
+          "action": "skip",
+          "reason": "executor: no fill"
+        }
+      ],
+      "skipped": true,
+      "skipReason": "risk: shadow mean -0.17 does not clear fee 0.01 plus half-spread 0.00"
+    },
+    {
+      "id": "mom-strict:KXZEC15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "champion",
+      "allocated": false,
+      "ticker": "KXZEC15M-26NOV210045-45",
+      "series": "KXZEC15M",
+      "title": "ZEC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.095,
+      "volatility": 0.14021531062381645,
+      "strategy": "mom-strict",
+      "market": "KXZEC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXZEC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-settle:KXZEC15M-26NOV210045-45",
+      "family": "mom",
+      "variant": "mom-settle",
+      "role": "challenger",
+      "allocated": false,
+      "ticker": "KXZEC15M-26NOV210045-45",
+      "series": "KXZEC15M",
+      "title": "ZEC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.997,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-21T05:41:59.676Z",
+      "closeTime": "2026-11-21T05:45:00Z",
+      "exit": null,
+      "price": 0.997,
+      "secondsLeft": 180,
+      "spread": 0.001,
+      "momentum": -0.095,
+      "volatility": 0.14021531062381645,
+      "strategy": "mom-settle",
+      "market": "KXZEC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXZEC15M-26NOV210045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.997 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.997, fee included"
         }
       ],
       "skipped": false,
