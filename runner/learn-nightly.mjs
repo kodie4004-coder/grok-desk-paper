@@ -2,11 +2,14 @@
 import fs from 'node:fs';
 import { reviewBrain, riskShadow, lessonsDocument, lessonsMarkdown, morningReport, defaultBrain } from '../engine/learn.js';
 import { GATE_PRIOR } from '../engine/gate-prior.js';
+import { loadRollingBench } from './rolling-bench.mjs';
 
 const rows = fs.existsSync('data/journal.jsonl')
   ? fs.readFileSync('data/journal.jsonl', 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
   : [];
 const brain = fs.existsSync('data/brain.json') ? JSON.parse(fs.readFileSync('data/brain.json', 'utf8')) : defaultBrain();
+// Rolling-bench books keep weight 0, like the static focus bench.
+loadRollingBench();
 const now = Date.now();
 const reviewed = reviewBrain(brain, rows, now);
 const risk = riskShadow(reviewed, rows, now);

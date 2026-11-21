@@ -40,6 +40,43 @@ export const FOCUS_BENCHED = Object.freeze([
 
 export const FOCUS_BENCHED_IDS = new Set(FOCUS_BENCHED.map((row) => row.id));
 
+// Rolling bench. The frozen rule above is applied again on every snapshot to
+// each non-control book that is not already benched, on settled forward paper
+// rows only (engine/focus.js rollingBenchDoc). A book that meets it is added to
+// data/rolling-bench.json with the time and the evidence. Nothing is ever taken
+// off. The rule itself does not change.
+let rolling = [];
+let rollingIds = new Set();
+
+// Node runners load data/rolling-bench.json and pass its books here before they
+// step a journal. Static entries are ignored so a book is listed once.
+export function setRollingBench(books) {
+  rolling = (Array.isArray(books) ? books : []).filter((row) => row && typeof row.id === 'string' && !FOCUS_BENCHED_IDS.has(row.id));
+  rollingIds = new Set(rolling.map((row) => row.id));
+  return rolling.slice();
+}
+
+export function rollingBench() {
+  return rolling.slice();
+}
+
 export function isFocusBenched(id) {
-  return FOCUS_BENCHED_IDS.has(id);
+  return FOCUS_BENCHED_IDS.has(id) || rollingIds.has(id);
+}
+
+// Pure step. scan rows are { id, book, label, control, n, mean, lo, hi }.
+// Keeps every earlier entry (no auto-unbench), never adds a control or a book
+// on the static list, and adds a book only when meetsBench() holds.
+export function rollBench(scan, prev = [], now = Date.now()) {
+  const books = (Array.isArray(prev) ? prev : []).filter((row) => row && typeof row.id === 'string' && !FOCUS_BENCHED_IDS.has(row.id));
+  const have = new Set(books.map((row) => row.id));
+  const added = [];
+  for (const row of scan || []) {
+    if (!row || row.control || FOCUS_BENCHED_IDS.has(row.id) || have.has(row.id) || !meetsBench(row)) continue;
+    const entry = { id: row.id, book: row.book, label: row.label || row.id, benchedAt: new Date(now).toISOString(), n: row.n, mean: row.mean, lo: row.lo ?? null, hi: row.hi };
+    books.push(entry);
+    added.push(entry);
+    have.add(row.id);
+  }
+  return { books, added };
 }

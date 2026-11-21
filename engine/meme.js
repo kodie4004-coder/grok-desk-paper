@@ -4,6 +4,7 @@
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { isEarlyBook, sleeveBenched } from './repair.js';
+import { isFocusBenched } from './focus-plan.js';
 import { jevStamp } from './jev.js';
 
 export const MEME_SIZE = 2;
@@ -477,7 +478,10 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
   const book = [...(history || []), ...settled];
   const bench = sleeveBenched(book);
   const feeOk = memeTargetClearsFees();
+  // Focus bench (static or rolling): the safety sleeve opens no new lines.
+  const focusBenched = isFocusBenched('meme-safety');
   for (const coin of coins || []) {
+    if (focusBenched) break;
     if (!coin.pass || known.has(coin.ca) || !(coin.priceUsd > 0)) continue;
     if (still.filter((p) => p.variant !== 'early-entry' && p.variant !== 'early-track').length >= 8) break;
     if (!feeOk) continue;

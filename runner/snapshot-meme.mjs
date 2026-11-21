@@ -13,6 +13,10 @@ import {
   EARLY_SCAN, advanceEarlyExits, candidatesFromSources, decideCandidate, loadSources, needsChain, nextLog, openEarly, readRug, rollEarlyLog, withPair,
 } from '../engine/early.js';
 import { withShadowScores } from '../engine/upgrades.js';
+import { loadRollingBench } from './rolling-bench.mjs';
+
+// Early and meme books on the rolling bench open no new paper lines.
+loadRollingBench();
 import { watchKickDecision } from './kick-watch.mjs';
 import { writeTodayFile } from './write-today.mjs';
 

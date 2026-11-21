@@ -323,6 +323,8 @@ export async function readRug(ca, fetchImpl) {
 }
 
 export function openEarly({ decisions, open = [], now }) {
+  // Focus bench (static or rolling): no new early-entry lines. Open ones still settle.
+  if (isFocusBenched(EARLY_ID)) return [];
   const have = new Set((open || []).map((pos) => pos?.ca).filter(Boolean));
   let n = (open || []).filter((pos) => pos?.variant === EARLY_ID && pos.pnl == null && !pos.exit).length;
   const added = [];
