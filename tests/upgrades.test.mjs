@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { applyWatch, openMemeCount, stopSlippage, watchBudget, watchHealth, watchHealthLine, watchIntervalMs, watchStamp, WATCH_STALE_MS, MEME_RULES, MEME_SIZE } from '../engine/meme.js';
-import { quoteCrossed, replayResting, restingExpectancy, settlementProb, upgradeLines } from '../engine/upgrades.js';
+import { makerPick, quoteCrossed, replayResting, restingExpectancy, settlementProb, upgradeLines } from '../engine/upgrades.js';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -92,9 +92,18 @@ test('the watcher stays inside 2 to 5 seconds and well under 300 DexScreener cal
 test('a resting order fills only after a later quote crosses, and an unfilled order is not a trade', () => {
   const when = Date.parse('2026-11-20T12:02:00Z');
   const brain = defaultBrain();
-  const first = stepJournal({ markets: [market()], open: [], quotes: {}, brain, existingIds: [], now: when });
-  const rest = first.open.find((row) => row.variant === 'rest-maker');
-  assert.ok(rest);
+  // rest-maker is on the focus bench, so a fresh snapshot opens no new resting line.
+  const fresh = stepJournal({ markets: [market()], open: [], quotes: {}, brain, existingIds: [], now: when });
+  assert.equal(fresh.open.some((row) => row.variant === 'rest-maker'), false);
+  // Resting lines already open before the bench still fill and settle by the same rule.
+  const pick = makerPick(market());
+  const rest = {
+    id: 'rest-maker:KXBTC15M-T', family: 'maker', variant: 'rest-maker', role: 'challenger', allocated: false,
+    ticker: 'KXBTC15M-T', series: 'KXBTC15M', title: 'BTC', side: pick.side, ask: pick.limit, limit: pick.limit,
+    contracts: Math.floor(LEARN_SIZE / pick.limit), sizeUsd: LEARN_SIZE, fee: 0, maker: true, resting: true, filled: false,
+    openedAt: new Date(when).toISOString(), closeTime: '2026-11-20T12:05:00Z', paper: true,
+  };
+  const first = { open: [rest] };
   assert.equal(rest.resting, true);
   assert.equal(rest.fee, 0);
   assert.equal(rest.sizeUsd, LEARN_SIZE);
@@ -183,7 +192,8 @@ test('the new variants stay challengers and a short sample does not replace the 
   assert.equal(brain.champions.mom, 'mom');
   assert.equal(brain.decisions.some((line) => /mom-settle replaces/.test(line)), false);
   const fresh = stepJournal({ markets: [market()], open: [], quotes: {}, brain: defaultBrain(), existingIds: [], now: Date.parse('2026-11-20T12:02:00Z') });
-  assert.equal(fresh.brain.weights['rest-maker'], 0.25);
+  // Focus bench: a benched book carries weight 0.
+  assert.equal(fresh.brain.weights['rest-maker'], 0);
   assert.equal(fresh.brain.weights['mom-settle'], 0.25);
   const lines = upgradeLines({
     meme: stopSlippage([{ exit: 'stop', entry: 1, exitPx: 0.8 }]),

@@ -15,6 +15,8 @@
     "paper": "node runner/headless.mjs --minutes 60 --out runner/state.json",
     "record": "node runner/headless.mjs --minutes 60 --out runner/session-state.json --tape replay/tape.json",
     "replay-check": "node runner/replay-check.mjs",
-    "serve": "python3 -m http.server 8765"
+    "serve": "python3 -m http.server 8765",
+    "backtest": "node runner/backtest.mjs --oos --json data/backtest.json && node runner/backtest.mjs --focus",
+    "backtest-tape": "node runner/backtest.mjs --build-tape"
   }
 }

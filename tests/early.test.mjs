@@ -312,7 +312,13 @@ test('exit variants are registered before the sample and stay at weight 0', () =
     id: 'early-entry:CA', ca: 'CA', symbol: 'T', name: 'T', entry: 1, sizeUsd: 2,
     openedAt: new Date(now - 10 * 60 * 1000).toISOString(), variant: 'early-entry', allocated: false, shadow: true, slip: 0.01,
   };
-  const fast = applyWatch({ open: [pos], prices: { CA: 1 }, now, history: [], track: advanceEarlyExits });
+  // The exit legs still run while benched. emitBenched shows their rows for this check.
+  const leg = (p, px, t, o = {}) => advanceEarlyExits(p, px, t, { ...o, emitBenched: true });
+  const quiet = applyWatch({ open: [pos], prices: { CA: 1 }, now, history: [], track: advanceEarlyExits });
+  assert.equal(quiet.shadows.some((row) => row.variant === EARLY_EXIT_FAST), false);
+  assert.equal(quiet.open.length, 1);
+  assert.ok(quiet.open[0].exitTrack.fast);
+  const fast = applyWatch({ open: [pos], prices: { CA: 1 }, now, history: [], track: leg });
   assert.equal(fast.settled.length, 0);
   assert.equal(fast.open.length, 1);
   const booked = fast.shadows.find((row) => row.variant === EARLY_EXIT_FAST);
@@ -321,11 +327,11 @@ test('exit variants are registered before the sample and stay at weight 0', () =
   assert.equal(booked.allocated, false);
   assert.equal(booked.shadow, true);
   assert.ok(booked.pnl < 0);
-  const up = advanceEarlyExits(fast.open[0], 1.2, now + 1000);
+  const up = leg(fast.open[0], 1.2, now + 1000);
   assert.equal(up.rows.length, 0);
   assert.equal(up.pos.exitTrack.half.taken, true);
   assert.ok(up.pos.exitTrack.half.takePnl > 0);
-  const giveback = advanceEarlyExits(up.pos, 1.0, now + 2000);
+  const giveback = leg(up.pos, 1.0, now + 2000);
   const half = giveback.rows.find((row) => row.variant === EARLY_EXIT_HALF);
   const trail = giveback.rows.find((row) => row.variant === EARLY_EXIT_TRAIL);
   assert.equal(half.exit, 'half-trail');
@@ -346,7 +352,7 @@ test('exit variants are registered before the sample and stay at weight 0', () =
   })));
   const report = earlyExitReport(cleared);
   assert.equal(report.length, 3);
-  assert.ok(report.every((row) => row.weight === 0 && row.status === 'shadow' && row.liveExecution === false && row.sizeUsd === 2));
+  assert.ok(report.every((row) => row.weight === 0 && row.status === 'benched' && row.liveExecution === false && row.sizeUsd === 2));
   assert.equal(report[0].n, 60);
   assert.equal(sleeveBenched(cleared.map((row) => ({ ...row, allocated: false }))).benched, false);
   const merged = mergeOpenEntry(

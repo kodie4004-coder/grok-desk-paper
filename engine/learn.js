@@ -8,6 +8,7 @@ import { reviewRoles, shouldExit, settleExit } from './roles.js';
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { repairGate, REPAIR_MIN_N } from './repair.js';
+import { isFocusBenched } from './focus-plan.js';
 
 export const LEARN_SIZE = 2;
 export const HOLD_MIN = 20;
@@ -21,6 +22,10 @@ export const MISSING_RESULT_MS = 6 * 3600000;
 export const FEE_EDGE_MARGIN = 0.01;
 // Days on or before this UTC date cannot promote or bench these challengers.
 export const FEE_AWARE_ADDED_AT = '2026-11-20T23:20:00.000Z';
+// scalp-95 was written down here before its out-of-sample replay was run.
+// Parameters come from the focus plan (ask above 0.95, 5 to 10 minutes left).
+// Rows on or before this UTC day are not a forward sample.
+export const SCALP95_ADDED_AT = '2026-11-21T07:10:00.000Z';
 
 export const VARIANTS = [
   { id: 'late', family: 'late', label: 'Late favorite', role: 'champion', minAsk: 0.85, minLeft: 180, maxLeft: 300 },
@@ -42,6 +47,8 @@ export const VARIANTS = [
   { id: 'flip', family: 'flip', label: 'Coin-flip control', role: 'control', kind: 'flip', minLeft: 600, maxLeft: 840 },
   { id: 'rest-maker', family: 'maker', label: 'Resting maker', role: 'challenger', kind: 'maker', minLeft: 120, maxLeft: 600 },
   { id: 'mom-settle', family: 'mom', label: 'Momentum, 60-second average', role: 'challenger', kind: 'settle', minLeft: 120, maxLeft: 600 },
+  // Weight is pinned at 0 until graduates() clears on its own forward rows.
+  { id: 'scalp-95', family: 'scalp95', label: 'Scalp, 95¢ pocket', role: 'challenger', kind: 'pocket', askAbove: 0.95, minLeft: 300, maxLeft: 600, pinZero: true, addedAt: SCALP95_ADDED_AT },
 ];
 
 const FAMILY_LABEL = { late: 'Late favorite', mom: 'Momentum vs target', revert: 'Mean revert', scalp: 'Intra-window scalp', flip: 'Coin-flip control', maker: 'Resting maker' };
@@ -145,6 +152,11 @@ export function signal(variant, market, now, ctx = {}) {
     picked = makerPick(market);
   } else if (variant.kind === 'settle') {
     picked = settlePick(market, ctx.spots, left);
+  } else if (variant.kind === 'pocket') {
+    const yesOk = yes > variant.askAbove && yes < 1;
+    const noOk = no > variant.askAbove && no < 1;
+    if (yesOk && (!noOk || yes >= no)) picked = { side: 'yes', ask: yes };
+    else if (noOk) picked = { side: 'no', ask: no };
   }
   if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
   if (variant.feeAware) {
@@ -193,7 +205,7 @@ function addedDay(variant) {
 }
 
 // Rows from the added UTC day, and every earlier day, are not a sample.
-function eligibleRows(variant, rows) {
+export function eligibleRows(variant, rows) {
   const mine = (rows || []).filter((row) => row.variant === variant.id);
   const day = addedDay(variant);
   if (!day) return mine;
@@ -201,6 +213,13 @@ function eligibleRows(variant, rows) {
     const key = row.window || dayKey(row.closeTime);
     return key && key > day;
   });
+}
+
+// A pinned challenger keeps weight 0 until graduates() clears on its own forward
+// rows after its added day. A backtest cannot clear this.
+export function pinCleared(variant, rows) {
+  if (!variant?.pinZero) return true;
+  return gateProgress(eligibleRows(variant, rows).filter((row) => Number.isFinite(row.pnl) && row.skipped !== true)).graduated;
 }
 
 function holdoutEligible(variant, holdout) {
@@ -329,6 +348,9 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
   const demoted = rollingDemote(history, 40);
   const quiet = new Set([...(state.benched || []), ...risk.shadow, ...demoted.map((d) => d.id), ...controls()]);
   const weights = evidenceWeights(history, state, now, 40);
+  for (const variant of VARIANTS) {
+    if (isFocusBenched(variant.id) || (variant.pinZero && !pinCleared(variant, history))) quiet.add(variant.id);
+  }
   for (const id of quiet) weights[id] = 0;
   const nextQuotes = {};
   let allocLeft = SNAPSHOT_ALLOC_CAP;
@@ -343,6 +365,8 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     if (market.result === 'yes' || market.result === 'no') continue;
     const firing = [];
     for (const variant of VARIANTS) {
+      // Focus bench: no new paper lines. Old rows stay in the journal.
+      if (isFocusBenched(variant.id)) continue;
       const sig = signal(variant, market, now, { spots, prev });
       if (sig) firing.push({ variant, sig });
     }
@@ -611,7 +635,7 @@ export function reviewBrain(brain, rows, now, opts = {}) {
     const losing = stats.n >= HOLD_MIN && !(stats.mean > 0) && !(stats.lo > 0);
     if (losing) benched.add(variant.id);
     const mean = stats.mean == null ? 0 : Math.max(-0.1, Math.min(0.1, stats.mean));
-    weights[variant.id] = benched.has(variant.id) ? 0 : Math.exp(mean / 0.02);
+    weights[variant.id] = benched.has(variant.id) || isFocusBenched(variant.id) || !pinCleared(variant, rows) ? 0 : Math.exp(mean / 0.02);
   }
   const champions = { ...base.champions };
   const already = !!(holdout && base.judged.includes(holdout));

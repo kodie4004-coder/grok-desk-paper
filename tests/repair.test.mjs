@@ -53,8 +53,11 @@ test('the stored meme journal is summed, not invented, and a negative book stays
   assert.equal(report.repair.pass, false);
   assert.equal(report.benched, true);
   assert.equal(report.repair.sizeUsd, 2);
-  assert.equal(incident.exits.stop.n, picked.filter((row) => row.exit === 'stop').length);
-  assert.equal(incident.exits['time-stop'].n, picked.filter((row) => row.exit === 'time-stop').length);
+  // The incident is a 34-trade window. Later safety rows can fall outside it,
+  // so the window's exits are bounded by, and sum to, its own rows.
+  assert.equal(Object.values(incident.exits).reduce((sum, bucket) => sum + bucket.n, 0), incident.n);
+  assert.ok(incident.exits.stop.n <= picked.filter((row) => row.exit === 'stop').length);
+  assert.ok(incident.exits['time-stop'].n <= picked.filter((row) => row.exit === 'time-stop').length);
   assert.ok(incident.exits.stop.n > 0);
   assert.ok(incident.exits['time-stop'].n > 0);
 });

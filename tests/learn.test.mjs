@@ -180,16 +180,16 @@ test('control and shadow logs do not spend the cap that repair practice needs', 
     noAsk: 0.12,
     yesBid: 0.88,
     noBid: 0.1,
-    closeTime: new Date(now + 400000).toISOString(),
+    closeTime: new Date(now + 250000).toISOString(),
     floorStrike: 100,
     result: '',
   });
-  const brain = { ...defaultBrain(), shadow: ['late-early'], shadowSince: { 'late-early': '2026-11-19' } };
+  const brain = { ...defaultBrain(), shadow: ['late-loose'], shadowSince: { 'late-loose': '2026-11-19' } };
   const next = stepJournal({ markets, open: [], quotes: {}, brain, existingIds: [], settledRows: [], now });
   const flips = next.open.filter((row) => row.variant === 'flip');
   assert.equal(flips.length, SNAPSHOT_LINE_CAP);
   assert.ok(flips.every((row) => row.allocated === false && row.role === 'control' && row.skipped === false));
-  const repair = next.open.filter((row) => row.variant === 'late-early' && row.ticker === 'ZZZ-REPAIR');
+  const repair = next.open.filter((row) => row.variant === 'late-loose' && row.ticker === 'ZZZ-REPAIR');
   assert.equal(repair.length, 1);
   assert.equal(repair[0].skipped, false);
   assert.equal(repair[0].allocated, false);
@@ -199,7 +199,7 @@ test('control and shadow logs do not spend the cap that repair practice needs', 
   assert.ok(allocated.length > 0 && allocated.length <= SNAPSHOT_ALLOC_CAP);
   assert.ok(allocated.every((row) => row.role !== 'shadow' && row.role !== 'control'));
   assert.equal(next.open.some((row) => row.skipReason === 'risk: this snapshot is at its bet cap'), false);
-  const gate = repairPracticeGate([{ ...repair[0], pnl: 0.04, settledAt: '2026-11-20T12:10:00Z' }], 'late-early', '2026-11-19');
+  const gate = repairPracticeGate([{ ...repair[0], pnl: 0.04, settledAt: '2026-11-20T12:10:00Z' }], 'late-loose', '2026-11-19');
   assert.equal(gate.n, 1);
   assert.equal(gate.need, 20);
   assert.equal(gate.pass, false);

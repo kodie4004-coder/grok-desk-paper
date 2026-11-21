@@ -32,6 +32,10 @@ try {
   if (await intro.count()) await intro.click();
   await page.waitForSelector('text=Cockpit', { timeout: 4000 }).catch((e) => logs.push(e.message));
   const home = await page.locator('body').innerText();
+  await page.waitForSelector('section.focus .focus-row', { timeout: 6000 }).catch((e) => logs.push(e.message));
+  const focusText = await page.locator('section.focus').first().innerText().catch(() => '');
+  if (!/focus/i.test(focusText) || !/benched/i.test(focusText) || !/late favorite, looser ask/i.test(focusText)) fails.push('home focus\n' + focusText.slice(0, 400));
+  if (await page.locator('section.focus details[open]').count()) fails.push('benched list should start collapsed');
   if (!/paper/i.test(home) || !/cockpit/i.test(home)) fails.push('home cockpit missing\n' + home.slice(0, 400) + '\n' + logs.join('\n'));
   await page.locator('nav.tabs button[data-tab="arena"]').click();
   const arena = await page.locator('#view').innerText();
@@ -48,6 +52,7 @@ try {
   if (!/bot brain/i.test(brain) || !/after fees/i.test(brain) || !/nonstop/i.test(brain) || !/new research upgrades/i.test(brain) || !/jev check/i.test(brain) || !/early entry/i.test(brain) || !/shadow/i.test(brain)) fails.push('brain\n' + brain.slice(0, 400) + '\n' + logs.join('\n'));
   await page.locator('nav.tabs button[data-tab="score"]').click();
   const score = await page.locator('#view').innerText();
+  if (!/focus/i.test(score)) fails.push('score focus\n' + score.slice(0, 200));
   if (!/ready for real money/i.test(score) || !/hype check/i.test(score) || !/new research upgrades/i.test(score) || !/jev check/i.test(score) || !/early entry/i.test(score) || !/shadow/i.test(score)) fails.push('score\n' + score.slice(0, 400));
   await page.locator('nav.tabs button[data-tab="settings"]').click();
   if (await page.locator('input[type="checkbox"][disabled]').count() < 1) fails.push('live execution toggle');

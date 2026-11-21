@@ -71,6 +71,12 @@ The meme snapshot can also ask TypeSafe Jev, as a shadow challenger, whether a c
 
 A second shadow, Early entry, looks at coins under 30 minutes old. A public Actions job scans those same checks about every 60 seconds for 5 hours 50 minutes. A new run starts every 6 hours, and the Kalshi chain starts one when none is running. The historical gap between boards is in `data/early-audit.json`. pump.fun's public API still returns a challenge from the runner, so that source is skipped when it fails. The safety sleeve stays halted while it is in repair. Early entry does not raise size and does not turn on live execution. Three more shadows score the same entries with a 10 minute time stop, a fee-aware half sale then a trail, and a trail off the watched peak. Their weight stays 0. A phone push goes out when a coin passes the early checks and Jev is not a flag. The push says the signal is unproven. Install the ntfy app and subscribe to the topic your assistant gave you. The topic is not shown on the site.
 
+## Focus and the offline backtest
+
+Home and Score open with a **Focus** card. It shows only the near-winners (scalp-95, late-loose, the 60-second settlement bot, the two fee-aware challengers, mom-strict and mean revert) with n, after-fee mean, the 90% range, and progress toward the gate. A collapsed **Benched** list shows the books that have at least 40 forward trades and a 90% upper bound below zero after fees. Benched books open no new paper lines. Their history is kept.
+
+`npm run backtest` replays every recorded Kalshi board in git history (`data/backtest-tape.json`) through the live entry rules, with the exact taker fee and the journal's fill model, and writes `data/backtest.json` and `data/focus.json`. It reports in-sample and out-of-sample (the last 30% of time) separately. **A backtest never graduates a strategy.** Only forward paper rows through `graduates()` can. See `EVAL_PROTOCOL.md` v16.
+
 ## Calibration ("Sunday check")
 
 The Agents tab groups JUDGE buys into p buckets (0.70–0.79, 0.80–0.89, 0.90+) and shows how many closed green.

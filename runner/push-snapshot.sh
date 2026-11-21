@@ -51,6 +51,7 @@ else
     data/morning.json \
     data/heartbeat.json \
     data/alloc-curve.json \
+    data/focus.json \
     data/meme-board.json \
     data/meme-open.json \
     data/meme-journal.jsonl \

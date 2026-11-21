@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import { stepJournal, defaultBrain, allocCurve } from '../engine/learn.js';
 import { loadSpots, loadSpotWindow } from '../engine/arena.js';
+import { focusDoc } from '../engine/focus.js';
 
 const board = JSON.parse(fs.readFileSync('data/kalshi-15m.json', 'utf8'));
 const openDoc = fs.existsSync('data/journal-open.json') ? JSON.parse(fs.readFileSync('data/journal-open.json', 'utf8')) : { entries: [] };
@@ -31,6 +32,12 @@ fs.writeFileSync('data/journal-quotes.json', JSON.stringify(next.quotes));
 if (next.brain) fs.writeFileSync('data/brain.json', JSON.stringify({ ...brain, ...next.brain, experimentSince: brain.experimentSince || null }, null, 2));
 const allSettled = settledRows.concat(next.settled);
 fs.writeFileSync('data/alloc-curve.json', JSON.stringify(allocCurve(allSettled, new Date(now).toISOString().slice(0, 10))));
+// Focus board: near-winners and the bench, after fees. Reads rows only.
+try {
+  const memeRows = fs.existsSync('data/meme-journal.jsonl') ? fs.readFileSync('data/meme-journal.jsonl', 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)) : [];
+  const backtest = fs.existsSync('data/backtest.json') ? JSON.parse(fs.readFileSync('data/backtest.json', 'utf8')) : null;
+  fs.writeFileSync('data/focus.json', JSON.stringify(focusDoc({ rows: allSettled, memeRows, backtest, brain: { ...brain, ...(next.brain || {}) }, now }), null, 2));
+} catch (err) { console.log('focus board skipped', err.message); }
 fs.writeFileSync('data/heartbeat.json', JSON.stringify({
   paper: true,
   at: new Date(now).toISOString(),
