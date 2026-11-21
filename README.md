@@ -73,6 +73,8 @@ A second shadow, Early entry, looks at coins under 30 minutes old. A public Acti
 
 ## Focus and the offline backtest
 
+Home opens with a **Today** header. It shows how fresh the Kalshi snapshot and the coin feed are ("updated 3 min ago", amber after 20 minutes, red after 60), today's after-fee paper P&L split into the allocated book and the shadow book, and a progress bar for coin repair mode (shadow trade count and mean versus the 20-trade, positive-mean resume rule). Those numbers are computed from the journals. They are not a promise.
+
 Home and Score open with a **Focus** card. It shows only the near-winners (scalp-95, late-loose, the 60-second settlement bot, the two fee-aware challengers, mom-strict and mean revert) with n, after-fee mean, the 90% range, and progress toward the gate. A collapsed **Benched** list shows the books that have at least 40 forward trades and a 90% upper bound below zero after fees. Benched books open no new paper lines. Their history is kept.
 
 `npm run backtest` replays every recorded Kalshi board in git history (`data/backtest-tape.json`) through the live entry rules, with the exact taker fee and the journal's fill model, and writes `data/backtest.json` and `data/focus.json`. It reports in-sample and out-of-sample (the last 30% of time) separately. **A backtest never graduates a strategy.** Only forward paper rows through `graduates()` can. See `EVAL_PROTOCOL.md` v16.

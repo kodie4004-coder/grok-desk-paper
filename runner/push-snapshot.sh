@@ -52,6 +52,7 @@ else
     data/heartbeat.json \
     data/alloc-curve.json \
     data/focus.json \
+    data/today.json \
     data/meme-board.json \
     data/meme-open.json \
     data/meme-journal.jsonl \
@@ -122,6 +123,10 @@ rebase_onto_main() {
     git checkout --theirs -- "$f"
     git add -- "$f"
   done
+  if [ -f runner/write-today.mjs ]; then
+    node runner/write-today.mjs || true
+    git add -- data/today.json || true
+  fi
   if ! GIT_EDITOR=true git rebase --continue; then
     git rebase --skip
   fi
