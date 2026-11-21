@@ -3,13 +3,25 @@
   "paper": true,
   "note": "Paper only. The newest finished UTC day is the holdout and is judged once. The edge gate is not changed here. A loss does not raise size.",
   "champions": {
-    "late": "late",
+    "late": "late-tight",
     "mom": "mom-strict",
-    "revert": "revert-no-longshot",
+    "revert": "revert",
     "scalp": "scalp",
     "flip": "flip"
   },
-  "benched": [],
+  "benched": [
+    "late",
+    "late-loose",
+    "late-tight",
+    "late-early",
+    "revert",
+    "revert-wide",
+    "scalp",
+    "scalp-tight",
+    "scalp-tp",
+    "scalp-stop",
+    "scalp-time"
+  ],
   "shadow": [
     "rest-maker"
   ],
@@ -18,34 +30,46 @@
   },
   "experimentSince": "2026-11-19T04:20:29.490Z",
   "judged": [
-    "2026-11-19"
+    "2026-11-19",
+    "2026-11-20"
   ],
+  "addedAt": {
+    "late-fee": "2026-11-20T23:20:00.000Z",
+    "scalp-fee": "2026-11-20T23:20:00.000Z"
+  },
   "weights": {
     "late": 0,
     "late-loose": 0,
     "late-tight": 0,
     "late-early": 0,
-    "late-fee": 0.25,
-    "mom": 0,
-    "mom-strict": 0,
+    "late-fee": 1,
+    "mom": 9.390463532530744,
+    "mom-strict": 80.19219809329728,
     "revert": 0,
     "revert-wide": 0,
-    "revert-no-longshot": 0,
+    "revert-no-longshot": 148.4131591025766,
     "scalp": 0,
     "scalp-tight": 0,
     "scalp-tp": 0,
     "scalp-stop": 0,
     "scalp-time": 0,
-    "scalp-fee": 0.25,
-    "flip": 0,
-    "rest-maker": 0,
-    "mom-settle": 0
+    "scalp-fee": 1,
+    "flip": 1,
+    "rest-maker": 1,
+    "mom-settle": 1
   },
   "decisions": [
-    "Holdout 2026-11-19 was already judged. It was not used to retune."
+    "Late favorite, fee-aware was added on 2026-11-20. 2026-11-20 is not after that day, so it cannot promote this challenger.",
+    "Late favorite, tighter ask replaces late on the 2026-11-20 holdout. n 187, mean +$0.01 after fees, against the champion's −$0.02.",
+    "Momentum vs target keeps mom-strict. The 2026-11-20 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Mean revert replaces revert-no-longshot on the 2026-11-20 holdout. n 342, mean +$0.28 after fees, against the champion's −$0.28.",
+    "Scalp, fee-aware was added on 2026-11-20. 2026-11-20 is not after that day, so it cannot promote this challenger.",
+    "Intra-window scalp keeps scalp. The 2026-11-20 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Resting maker has no champion. A challenger stays at the starter weight until the holdout can compare it.",
+    "rest-maker is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day."
   ],
-  "holdout": "2026-11-19",
-  "reviewedAt": "2026-11-20T16:08:30.191Z",
+  "holdout": "2026-11-20",
+  "reviewedAt": "2026-11-21T00:00:15.325Z",
   "lessons": [],
   "shadowReturned": {
     "revert-wide": "2026-11-19",
