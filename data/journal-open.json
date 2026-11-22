@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-22T01:38:38.558Z",
+  "updatedAt": "2026-11-22T01:42:47.389Z",
   "entries": [
     {
       "id": "revert:KXBNB15M-26NOV212045-45",
@@ -3241,6 +3241,61 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.76, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-strict:KXSOL15M-26NOV212045-45",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV212045-45",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.73,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-22T01:42:47.389Z",
+      "closeTime": "2026-11-22T01:45:00Z",
+      "exit": null,
+      "price": 0.73,
+      "secondsLeft": 133,
+      "spread": 0.01,
+      "momentum": -0.24,
+      "volatility": 0.12858201014657272,
+      "strategy": "mom-strict",
+      "market": "KXSOL15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV212045-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.73 with 133s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.73, fee included"
         }
       ],
       "skipped": false,
