@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-22T03:37:26.082Z",
+  "updatedAt": "2026-11-22T03:42:00.061Z",
   "entries": [
     {
       "id": "revert:KXBNB15M-26NOV212245-45",
@@ -2636,6 +2636,61 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.56, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-strict:KXZEC15M-26NOV212245-45",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXZEC15M-26NOV212245-45",
+      "series": "KXZEC15M",
+      "title": "ZEC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.67,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.04,
+      "openedAt": "2026-11-22T03:42:00.061Z",
+      "closeTime": "2026-11-22T03:45:00Z",
+      "exit": null,
+      "price": 0.67,
+      "secondsLeft": 180,
+      "spread": 0.03,
+      "momentum": 0.22,
+      "volatility": 0.15947831618540917,
+      "strategy": "mom-strict",
+      "market": "KXZEC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXZEC15M-26NOV212245-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.67 with 180s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.67, fee included"
         }
       ],
       "skipped": false,
