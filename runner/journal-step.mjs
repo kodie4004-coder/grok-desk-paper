@@ -15,6 +15,9 @@ const settledRows = prior.map((line) => JSON.parse(line));
 const existingIds = settledRows.map((row) => row.id);
 let spots = {};
 try { spots = await loadSpots(); } catch { spots = {}; }
+// fair-spot-v2 needs the spot's own venue and fetch time; later merges overwrite source.
+const spotAt = Date.now();
+for (const value of Object.values(spots)) { value.pxSource = value.source; value.pxAt = spotAt; }
 try {
   const windowed = await loadSpotWindow();
   for (const [key, value] of Object.entries(windowed)) {

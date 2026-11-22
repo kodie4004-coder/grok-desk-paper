@@ -9,8 +9,9 @@ import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { repairGate, REPAIR_MIN_N } from './repair.js';
 import { isFocusBenched } from './focus-plan.js';
-import { fairPick, FAIR_ADDED_AT, FAIR_MARGIN, FAIR_MIN_LEFT, FAIR_MAX_LEFT } from './fair.js';
+import { fairPick, fairPickV2, FAIR_ADDED_AT, FAIR_MARGIN, FAIR_MIN_LEFT, FAIR_MAX_LEFT, FAIR_V2_ADDED_AT, FAIR_V2_MARGIN } from './fair.js';
 import { pairsPick, PAIRS_ADDED_AT, PAIRS_MARGIN, PAIRS_MIN_LEFT, PAIRS_MAX_LEFT } from './pairs.js';
+import { modelCalibration } from './calibration.js';
 
 export const LEARN_SIZE = 2;
 export const HOLD_MIN = 20;
@@ -52,6 +53,8 @@ export const VARIANTS = [
   // Weight is pinned at 0 until graduates() clears on its own forward rows.
   { id: 'scalp-95', family: 'scalp95', label: 'Scalp, 95¢ pocket', role: 'challenger', kind: 'pocket', askAbove: 0.95, minLeft: 300, maxLeft: 600, pinZero: true, addedAt: SCALP95_ADDED_AT },
   { id: 'fair-spot', family: 'fair', label: 'Spot-implied fair value', role: 'challenger', kind: 'fair', minLeft: FAIR_MIN_LEFT, maxLeft: FAIR_MAX_LEFT, feeMargin: FAIR_MARGIN, pinZero: true, addedAt: FAIR_ADDED_AT },
+  // Basis-corrected fair value, same venue on both sides. Rules are in engine/fair.js.
+  { id: 'fair-spot-v2', family: 'fair', label: 'Spot fair value, same-venue anchor', role: 'challenger', kind: 'fair2', minLeft: FAIR_MIN_LEFT, maxLeft: FAIR_MAX_LEFT, feeMargin: FAIR_V2_MARGIN, pinZero: true, addedAt: FAIR_V2_ADDED_AT },
   { id: 'pairs-lag', family: 'pairs', label: 'BTC/ETH/SOL quote lag', role: 'challenger', kind: 'pairs', minLeft: PAIRS_MIN_LEFT, maxLeft: PAIRS_MAX_LEFT, feeMargin: PAIRS_MARGIN, pinZero: true, addedAt: PAIRS_ADDED_AT },
 ];
 
@@ -163,6 +166,8 @@ export function signal(variant, market, now, ctx = {}) {
     else if (noOk) picked = { side: 'no', ask: no };
   } else if (variant.kind === 'fair') {
     picked = fairPick(market, ctx.spots, left);
+  } else if (variant.kind === 'fair2') {
+    picked = fairPickV2(market, ctx.spots);
   } else if (variant.kind === 'pairs') {
     picked = pairsPick(market, ctx);
   }
@@ -870,7 +875,13 @@ export function morningReport(rows, brain, summary, now) {
     lessons: (summary || []).slice(0, 3),
     changed: (brain?.decisions || []).slice(0, 6),
     shadow: brain?.shadow || [],
+    modelVsMarket: modelCalibration(rows, variantAddedAt()).map((row) => row.text),
   };
+}
+
+// Each registered bot's addedAt. Model-vs-market rows before it are not counted.
+export function variantAddedAt() {
+  return Object.fromEntries(VARIANTS.filter((v) => v.addedAt).map((v) => [v.id, v.addedAt]));
 }
 
 export function lessonsDocument(rows, prior, brain, now) {
@@ -887,6 +898,7 @@ export function lessonsDocument(rows, prior, brain, now) {
     filters,
     frozen,
     bots,
+    calibration: modelCalibration(rows, variantAddedAt()),
     decisions: brain?.decisions || [],
     holdout: brain?.holdout || null,
     experimentSince: brain?.experimentSince || null,
@@ -903,6 +915,9 @@ export function lessonsMarkdown(doc) {
   lines.push('## This week from the journal', '');
   if (!doc.lessons.length) lines.push('No feature bucket has 8 settled paper trades yet. Nothing was retuned.', '');
   for (const lesson of doc.lessons) lines.push(`- ${lesson.text}`, '');
+  lines.push('## Model vs market', '');
+  if (!(doc.calibration || []).length) lines.push('No model-priced bot has a settled paper line since it was added.', '');
+  for (const row of doc.calibration || []) lines.push(`- ${row.text}`, '');
   lines.push('## Frozen studies', '');
   for (const lesson of doc.frozen) lines.push(`- ${lesson.text}`, '');
   lines.push('## Champion check', '');

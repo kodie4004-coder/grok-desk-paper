@@ -959,7 +959,8 @@ function morningCard() {
   const worst = report.worst ? `${report.worst.id} ${money(report.worst.mean, true)}` : '—';
   const lessons = (report.lessons || []).slice(0, 2).map((l) => `<li>${esc(l)}</li>`).join('');
   const changed = (report.changed || []).slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join('');
-  return `<section class="card" aria-label="Morning report"><h2>Morning report</h2>${watchStatus()}<p class="note">${esc(beatLine)}</p><p class="note">${esc(report.day || '')} · n ${report.trades ?? 0} · net ${money(report.net, true)} after fees</p><p class="note">Best ${esc(best)} · Worst ${esc(worst)}</p><ul class="feed">${lessons}</ul>${changed ? `<ul class="feed">${changed}</ul>` : ''}</section>`;
+  const mvm = (report.modelVsMarket || []).slice(0, 2).map((l) => `<li>${esc(l)}</li>`).join('');
+  return `<section class="card" aria-label="Morning report"><h2>Morning report</h2>${watchStatus()}<p class="note">${esc(beatLine)}</p><p class="note">${esc(report.day || '')} · n ${report.trades ?? 0} · net ${money(report.net, true)} after fees</p><p class="note">Best ${esc(best)} · Worst ${esc(worst)}</p><ul class="feed">${lessons}</ul>${mvm ? `<p class="note"><b>Model vs market</b></p><ul class="feed">${mvm}</ul>` : ''}${changed ? `<ul class="feed">${changed}</ul>` : ''}</section>`;
 }
 function loadBrain() {
   if (ui.brainState === 'ready' || ui.brainState === 'loading') return;
@@ -977,6 +978,36 @@ function loadBrain() {
     ui.brainError = e.message;
     if (ui.tab === 'brain') render();
   });
+}
+// Model vs market: Brier of each model-priced bot against Kalshi's own ask.
+// Numbers come from data/lessons.json (calibration); nothing here is hard-coded.
+function modelMarketCard(doc) {
+  const rows = Array.isArray(doc?.calibration) ? doc.calibration : [];
+  if (!rows.length) {
+    const why = Array.isArray(doc?.calibration) ? 'No model-priced bot has a settled paper line since it was added.' : 'The nightly lessons run has not written this audit yet. It appears after the next run.';
+    return `<section class="card mvm" aria-label="Model vs market"><div class="row"><h2 style="margin:0">Model vs market</h2><span class="tag explore">PAPER</span></div><p class="note">${why}</p></section>`;
+  }
+  const top = Math.max(0.25, ...rows.map((r) => Math.max(Number(r.brierModel) || 0, Number(r.brierMarket) || 0)));
+  const pct = (v) => Math.max(2, Math.min(100, Math.round((100 * (Number(v) || 0)) / top)));
+  const items = rows.map((r) => {
+    const better = r.beatsMarket === true;
+    const same = Number(r.brierModel).toFixed(3) === Number(r.brierMarket).toFixed(3);
+    const verdict = same ? 'about even' : better ? 'beats Kalshi' : 'behind Kalshi';
+    return `<li class="mvm-row">
+      <div class="row"><b>${esc(r.id)}</b><span class="mvm-pill ${same ? 'even' : better ? 'up' : 'down'}">${verdict}</span></div>
+      <div class="mvm-bars" role="img" aria-label="Brier ${esc(r.id)} ${Number(r.brierModel).toFixed(3)}, Kalshi ${Number(r.brierMarket).toFixed(3)}. Lower is better.">
+        <span class="mvm-k">Model</span><span class="mvm-bar"><i class="m" style="width:${pct(r.brierModel)}%"></i></span><span class="mvm-v">${Number(r.brierModel).toFixed(3)}</span>
+        <span class="mvm-k">Kalshi</span><span class="mvm-bar"><i class="k" style="width:${pct(r.brierMarket)}%"></i></span><span class="mvm-v">${Number(r.brierMarket).toFixed(3)}</span>
+      </div>
+      <dl class="mvm-stats"><div><dt>Won</dt><dd>${r.wins}/${r.n}</dd></div><div><dt>Model expected</dt><dd>${Number(r.sumPEst).toFixed(1)}</dd></div><div><dt>Kalshi implied</dt><dd>${Number(r.sumAsk).toFixed(1)}</dd></div><div><dt>Mean / $2</dt><dd class="${r.mean < 0 ? 'neg' : 'pos'}">${money(r.mean, true)}</dd></div></dl>
+      <p class="note">${esc(r.text || '')}</p>
+    </li>`;
+  }).join('');
+  return `<section class="card mvm" aria-label="Model vs market">
+    <div class="row"><h2 style="margin:0">Model vs market</h2><span class="tag explore">PAPER · Brier, lower is better</span></div>
+    <p class="note">How close each model's win chance was to what happened, next to the price Kalshi asked. Settled paper lines since each bot was added, after fees.</p>
+    <ul class="mvm-list">${items}</ul>
+  </section>`;
 }
 function brainView() {
   if (ui.brainState !== 'ready') {
@@ -1009,7 +1040,7 @@ function brainView() {
   const learned = (doc.lessons || []).slice(0, 6).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const frozen = (doc.frozen || []).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const decisions = (doc.decisions || []).map((l) => `<li>${esc(l)}</li>`).join('');
-  return `${upgradesCard()}<section class="card arcade" aria-label="Bot brain">
+  return `${upgradesCard()}${modelMarketCard(doc)}<section class="card arcade" aria-label="Bot brain">
     <div class="row"><h2 style="margin:0">Bot brain</h2><span class="tag explore">PAPER · after fees</span></div>
     <p class="lvl" id="runFor">${esc(since)}</p>
     <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. A bot that loses $6 of its own allocated paper goes to shadow. The others keep trading. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result.</p>
