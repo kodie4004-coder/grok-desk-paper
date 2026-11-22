@@ -61,14 +61,17 @@
   "addedAt": {
     "late-fee": "2026-11-20T23:20:00.000Z",
     "scalp-fee": "2026-11-20T23:20:00.000Z",
-    "scalp-95": "2026-11-21T07:10:00.000Z"
+    "scalp-95": "2026-11-21T07:10:00.000Z",
+    "fair-spot": "2026-11-22T08:45:00.000Z",
+    "fair-spot-v2": "2026-11-22T14:30:00.000Z",
+    "pairs-lag": "2026-11-22T08:45:00.000Z"
   },
   "weights": {
     "late": 0,
     "late-loose": 0,
     "late-tight": 0,
     "late-early": 0,
-    "late-fee": 0.25,
+    "late-fee": 1,
     "mom": 0,
     "mom-strict": 0,
     "revert": 0,
@@ -79,8 +82,8 @@
     "scalp-tp": 0,
     "scalp-stop": 0,
     "scalp-time": 0,
-    "scalp-fee": 0.25,
-    "flip": 0,
+    "scalp-fee": 1,
+    "flip": 1,
     "rest-maker": 0,
     "mom-settle": 0,
     "scalp-95": 0,
@@ -89,11 +92,7 @@
     "pairs-lag": 0
   },
   "decisions": [
-    "Late favorite keeps late-tight. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Momentum vs target keeps mom-strict. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Mean revert keeps revert. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Intra-window scalp keeps scalp. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Resting maker has no champion. A challenger stays at the starter weight until the holdout can compare it.",
+    "Holdout 2026-11-21 was already judged. It was not used to retune.",
     "late is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "late-loose is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "late-tight is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
@@ -105,12 +104,18 @@
     "scalp-tp is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "scalp-stop is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "scalp-time is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
+    "mom is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
+    "mom-strict is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
+    "revert-no-longshot is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "rest-maker is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
+    "mom-settle is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "scalp-95 is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
-    "mom is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day."
+    "fair-spot is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
+    "pairs-lag is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
+    "fair-spot-v2 is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day."
   ],
   "holdout": "2026-11-21",
-  "reviewedAt": "2026-11-22T00:17:51.679Z",
+  "reviewedAt": "2026-11-22T15:16:36.896Z",
   "lessons": [],
   "shadowReturned": {
     "revert-wide": "2026-11-19",

@@ -4,19 +4,19 @@ Paper only, after fees. Lessons do not move the edge gate, raise size, or turn o
 
 ## Plain English
 
-All settled lines: n 14376, win rate 61%, net −$1248.49 after fees, mean −$0.09, 90% interval −$0.14 to −$0.04.
+All settled lines: n 17457, win rate 61%, net −$1599.16 after fees, mean −$0.09, 90% interval −$0.13 to −$0.04.
 
 Allocated $2 picks: n 376, net −$39.33, mean −$0.10, 90% interval −$0.32 to +$0.10. uncertain. Shadows are logged and are not a second bet.
 
-Mean revert: n 3432, win rate 32%, mean −$0.01, 90% interval −$0.18 to +$0.19. uncertain.
+Mean revert: n 3985, win rate 32%, mean −$0.06, 90% interval −$0.22 to +$0.13. uncertain.
 
-Late favorite: n 2037, win rate 92%, mean −$0.05, 90% interval −$0.07 to −$0.03. clear.
+Late favorite: n 2450, win rate 93%, mean −$0.04, 90% interval −$0.06 to −$0.01. clear.
 
-Momentum vs target: n 3341, win rate 79%, mean −$0.03, 90% interval −$0.06 to +$0.01. uncertain.
+Momentum vs target: n 4370, win rate 79%, mean −$0.01, 90% interval −$0.04 to +$0.03. uncertain.
 
 Intra-window scalp: n 2166, win rate 65%, mean −$0.21, 90% interval −$0.26 to −$0.14. clear.
 
-Coin-flip control: n 3027, win rate 50%, mean −$0.13, 90% interval −$0.18 to −$0.05. clear.
+Coin-flip control: n 3834, win rate 49%, mean −$0.13, 90% interval −$0.19 to −$0.04. clear.
 
 Resting maker: n 184, win rate 23%, mean −$0.99, 90% interval −$1.18 to −$0.83. clear.
 
@@ -26,11 +26,19 @@ No champion was replaced. The only day so far is still unfinished as a holdout. 
 
 ## Filters
 
-- Skipped signals: n 5454, mean −$0.05 after fees, 90% interval −$0.12 to +$0.01. Taking them would have lost +$249.60, so the filters saved that amount. Sample: uncertain.
+- Skipped signals: n 5458, mean −$0.05 after fees, 90% interval −$0.12 to +$0.01. Taking them would have lost +$257.57, so the filters saved that amount. Sample: uncertain.
 
 ## This week from the journal
 
+- fair loses when the ask is below 0.60 and 2 to 5 minutes are left. n 17, win rate 0%, mean −$2.01 after fees, 90% interval −$2.04 to −$1.99. Sample: noise. This describes paper trades. It does not change the rule.
+
+- pairs loses when the ask is below 0.60 and 2 to 5 minutes are left. n 8, win rate 13%, mean −$1.56 after fees, 90% interval −$1.95 to −$0.91. Sample: noise. This describes paper trades. It does not change the rule.
+
+- fair loses when the ask is below 0.60 and more than 10 minutes are left. n 21, win rate 19%, mean −$1.19 after fees, 90% interval −$1.44 to −$0.91. Sample: thin. This describes paper trades. It does not change the rule.
+
 - Resting maker loses when the ask is below 0.60 and 5 to 10 minutes are left. n 119, win rate 14%, mean −$1.10 after fees, 90% interval −$1.40 to −$0.86. Sample: clear. This describes paper trades. It does not change the rule.
+
+- fair loses when the ask is below 0.60 and 5 to 10 minutes are left. n 26, win rate 12%, mean −$1.07 after fees, 90% interval −$1.62 to −$0.57. Sample: thin. This describes paper trades. It does not change the rule.
 
 - Intra-window scalp loses when the ask is below 0.60 and more than 10 minutes are left. n 22, win rate 23%, mean −$1.00 after fees, 90% interval −$1.55 to +$0.01. Sample: uncertain. This describes paper trades. It does not change the rule.
 
@@ -46,57 +54,67 @@ No champion was replaced. The only day so far is still unfinished as a holdout. 
 
 - Intra-window scalp loses when the ask is from 0.85 to 0.95 and 5 to 10 minutes are left. n 253, win rate 67%, mean −$0.31 after fees, 90% interval −$0.39 to −$0.21. Sample: clear. This describes paper trades. It does not change the rule.
 
-- Mean revert loses when the ask is below 0.60 and 5 to 10 minutes are left. n 1900, win rate 29%, mean −$0.23 after fees, 90% interval −$0.38 to −$0.06. Sample: clear. This describes paper trades. It does not change the rule.
+- Mean revert loses when the ask is below 0.60 and 5 to 10 minutes are left. n 2207, win rate 29%, mean −$0.24 after fees, 90% interval −$0.38 to −$0.07. Sample: clear. This describes paper trades. It does not change the rule.
 
 - Intra-window scalp loses when the ask is from 0.60 to 0.85 and 2 to 5 minutes are left. n 179, win rate 64%, mean −$0.23 after fees, 90% interval −$0.41 to −$0.05. Sample: clear. This describes paper trades. It does not change the rule.
 
-- Late favorite loses when the ask is from 0.60 to 0.85 and 2 to 5 minutes are left. n 78, win rate 73%, mean −$0.20 after fees, 90% interval −$0.40 to +$0.02. Sample: uncertain. This describes paper trades. It does not change the rule.
+- Coin-flip control loses when the ask is below 0.60 and more than 10 minutes are left. n 2458, win rate 36%, mean −$0.14 after fees, 90% interval −$0.24 to −$0.03. Sample: clear. This describes paper trades. It does not change the rule.
 
-- Momentum vs target loses when the ask is below 0.60 and 5 to 10 minutes are left. n 370, win rate 47%, mean −$0.14 after fees, 90% interval −$0.28 to +$0.02. Sample: uncertain. This describes paper trades. It does not change the rule.
+- Coin-flip control loses when the ask is above 0.95 and more than 10 minutes are left. n 112, win rate 90%, mean −$0.14 after fees, 90% interval −$0.16 to +$0.06. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Coin-flip control loses when the ask is below 0.60 and more than 10 minutes are left. n 1956, win rate 37%, mean −$0.14 after fees, 90% interval −$0.22 to −$0.04. Sample: clear. This describes paper trades. It does not change the rule.
+- Late favorite loses when the ask is from 0.60 to 0.85 and 2 to 5 minutes are left. n 103, win rate 77%, mean −$0.13 after fees, 90% interval −$0.30 to +$0.02. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Coin-flip control loses when the ask is from 0.60 to 0.85 and more than 10 minutes are left. n 761, win rate 67%, mean −$0.12 after fees, 90% interval −$0.22 to −$0.02. Sample: clear. This describes paper trades. It does not change the rule.
+- pairs loses when the ask is below 0.60 and 5 to 10 minutes are left. n 20, win rate 35%, mean −$0.13 after fees, 90% interval −$0.81 to +$0.58. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Coin-flip control loses when the ask is from 0.85 to 0.95 and more than 10 minutes are left. n 218, win rate 85%, mean −$0.11 after fees, 90% interval −$0.18 to −$0.05. Sample: clear. This describes paper trades. It does not change the rule.
+- Coin-flip control loses when the ask is from 0.85 to 0.95 and more than 10 minutes are left. n 301, win rate 85%, mean −$0.12 after fees, 90% interval −$0.18 to −$0.06. Sample: clear. This describes paper trades. It does not change the rule.
+
+- Coin-flip control loses when the ask is from 0.60 to 0.85 and more than 10 minutes are left. n 963, win rate 68%, mean −$0.11 after fees, 90% interval −$0.19 to −$0.02. Sample: clear. This describes paper trades. It does not change the rule.
 
 - Intra-window scalp loses when the ask is below 0.60 and 5 to 10 minutes are left. n 360, win rate 50%, mean −$0.09 after fees, 90% interval −$0.36 to +$0.17. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Coin-flip control loses when the ask is above 0.95 and more than 10 minutes are left. n 92, win rate 93%, mean −$0.07 after fees, 90% interval −$0.10 to +$0.07. Sample: uncertain. This describes paper trades. It does not change the rule.
-
 - Late favorite loses when the ask is above 0.95 and 5 to 10 minutes are left. n 300, win rate 94%, mean −$0.07 after fees, 90% interval −$0.12 to −$0.00. Sample: clear. This describes paper trades. It does not change the rule.
-
-- Momentum vs target loses when the ask is from 0.85 to 0.95 and 5 to 10 minutes are left. n 519, win rate 87%, mean −$0.07 after fees, 90% interval −$0.11 to −$0.03. Sample: clear. This describes paper trades. It does not change the rule.
 
 - Intra-window scalp loses when the ask is from 0.60 to 0.85 and 5 to 10 minutes are left. n 523, win rate 69%, mean −$0.07 after fees, 90% interval −$0.16 to +$0.03. Sample: uncertain. This describes paper trades. It does not change the rule.
 
 - Late favorite loses when the ask is from 0.85 to 0.95 and 5 to 10 minutes are left. n 259, win rate 88%, mean −$0.07 after fees, 90% interval −$0.14 to −$0.01. Sample: clear. This describes paper trades. It does not change the rule.
 
-- Momentum vs target loses when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 275, win rate 88%, mean −$0.06 after fees, 90% interval −$0.19 to +$0.01. Sample: uncertain. This describes paper trades. It does not change the rule.
-
-- Momentum vs target loses when the ask is from 0.60 to 0.85 and 5 to 10 minutes are left. n 1099, win rate 72%, mean −$0.06 after fees, 90% interval −$0.11 to +$0.00. Sample: uncertain. This describes paper trades. It does not change the rule.
-
-- Late favorite loses when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 533, win rate 88%, mean −$0.05 after fees, 90% interval −$0.10 to +$0.01. Sample: uncertain. This describes paper trades. It does not change the rule.
+- Momentum vs target loses when the ask is below 0.60 and 5 to 10 minutes are left. n 539, win rate 50%, mean −$0.05 after fees, 90% interval −$0.21 to +$0.12. Sample: uncertain. This describes paper trades. It does not change the rule.
 
 - Intra-window scalp loses when the ask is above 0.95 and 2 to 5 minutes are left. n 218, win rate 96%, mean −$0.04 after fees, 90% interval −$0.11 to +$0.04. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Late favorite loses when the ask is above 0.95 and 2 to 5 minutes are left. n 867, win rate 97%, mean −$0.02 after fees, 90% interval −$0.05 to +$0.00. Sample: uncertain. This describes paper trades. It does not change the rule.
+- Momentum vs target loses when the ask is from 0.60 to 0.85 and 5 to 10 minutes are left. n 1548, win rate 73%, mean −$0.04 after fees, 90% interval −$0.07 to −$0.00. Sample: clear. This describes paper trades. It does not change the rule.
 
-- Momentum vs target loses when the ask is above 0.95 and 2 to 5 minutes are left. n 450, win rate 98%, mean −$0.02 after fees, 90% interval −$0.04 to +$0.00. Sample: uncertain. This describes paper trades. It does not change the rule.
+- Late favorite loses when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 687, win rate 89%, mean −$0.04 after fees, 90% interval −$0.08 to +$0.03. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- scalp95 makes money when the ask is above 0.95 and 5 to 10 minutes are left. n 189, win rate 99%, mean +$0.02 after fees, 90% interval +$0.01 to +$0.04. Sample: clear. This describes paper trades. It does not change the rule.
+- Momentum vs target loses when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 304, win rate 89%, mean −$0.04 after fees, 90% interval −$0.14 to +$0.02. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Momentum vs target makes money when the ask is from 0.60 to 0.85 and 2 to 5 minutes are left. n 271, win rate 76%, mean +$0.03 after fees, 90% interval −$0.08 to +$0.17. Sample: uncertain. This describes paper trades. It does not change the rule.
+- Momentum vs target loses when the ask is from 0.85 to 0.95 and 5 to 10 minutes are left. n 725, win rate 90%, mean −$0.02 after fees, 90% interval −$0.04 to +$0.00. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Momentum vs target makes money when the ask is above 0.95 and 5 to 10 minutes are left. n 269, win rate 100%, mean +$0.04 after fees, 90% interval +$0.03 to +$0.04. Sample: clear. This describes paper trades. It does not change the rule.
+- Momentum vs target loses when the ask is above 0.95 and 2 to 5 minutes are left. n 459, win rate 98%, mean −$0.02 after fees, 90% interval −$0.04 to +$0.00. Sample: uncertain. This describes paper trades. It does not change the rule.
+
+- Late favorite loses when the ask is above 0.95 and 2 to 5 minutes are left. n 1101, win rate 98%, mean −$0.01 after fees, 90% interval −$0.03 to +$0.01. Sample: uncertain. This describes paper trades. It does not change the rule.
+
+- scalp95 loses when the ask is above 0.95 and 5 to 10 minutes are left. n 360, win rate 98%, mean −$0.00 after fees, 90% interval −$0.02 to +$0.04. Sample: uncertain. This describes paper trades. It does not change the rule.
+
+- Momentum vs target makes money when the ask is from 0.60 to 0.85 and 2 to 5 minutes are left. n 295, win rate 76%, mean +$0.04 after fees, 90% interval −$0.05 to +$0.16. Sample: uncertain. This describes paper trades. It does not change the rule.
+
+- Momentum vs target makes money when the ask is above 0.95 and 5 to 10 minutes are left. n 407, win rate 100%, mean +$0.04 after fees, 90% interval +$0.04 to +$0.04. Sample: clear. This describes paper trades. It does not change the rule.
 
 - Intra-window scalp makes money when the ask is above 0.95 and 5 to 10 minutes are left. n 152, win rate 95%, mean +$0.05 after fees, 90% interval +$0.04 to +$0.05. Sample: clear. This describes paper trades. It does not change the rule.
 
 - Intra-window scalp makes money when the ask is from 0.85 to 0.95 and 2 to 5 minutes are left. n 148, win rate 94%, mean +$0.06 after fees, 90% interval −$0.09 to +$0.18. Sample: uncertain. This describes paper trades. It does not change the rule.
 
-- Mean revert makes money when the ask is below 0.60 and more than 10 minutes are left. n 1532, win rate 35%, mean +$0.28 after fees, 90% interval +$0.09 to +$0.47. Sample: clear. This describes paper trades. It does not change the rule.
+- Mean revert makes money when the ask is below 0.60 and more than 10 minutes are left. n 1778, win rate 34%, mean +$0.17 after fees, 90% interval +$0.02 to +$0.33. Sample: clear. This describes paper trades. It does not change the rule.
 
-- Momentum vs target makes money when the ask is below 0.60 and 2 to 5 minutes are left. n 88, win rate 61%, mean +$0.60 after fees, 90% interval +$0.34 to +$0.82. Sample: clear. This describes paper trades. It does not change the rule.
+- Momentum vs target makes money when the ask is below 0.60 and 2 to 5 minutes are left. n 93, win rate 61%, mean +$0.59 after fees, 90% interval +$0.36 to +$0.79. Sample: clear. This describes paper trades. It does not change the rule.
+
+## Model vs market
+
+- fair-spot's prices were less accurate than Kalshi's own (Brier 0.193 vs 0.163). It expected 28.4 wins, Kalshi's asks implied 23.6, and it won 11 of 66. Mean -$1.21 per $2 line after fees. Lower Brier is better.
+
+- fair-spot-v2's prices were less accurate than Kalshi's own (Brier 0.125 vs 0.072). It expected 1.7 wins, Kalshi's asks implied 1.3, and it won 0 of 5. Mean -$2.07 per $2 line after fees. Small sample. Lower Brier is better.
+
+- pairs-lag's prices were less accurate than Kalshi's own (Brier 0.255 vs 0.162). It expected 25.1 wins, Kalshi's asks implied 16.9, and it won 16 of 36. Mean -$0.28 per $2 line after fees. Lower Brier is better.
 
 ## Frozen studies
 
@@ -116,15 +134,7 @@ No champion was replaced. The only day so far is still unfinished as a holdout. 
 
 ## Champion check
 
-- Late favorite keeps late-tight. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.
-
-- Momentum vs target keeps mom-strict. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.
-
-- Mean revert keeps revert. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.
-
-- Intra-window scalp keeps scalp. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.
-
-- Resting maker has no champion. A challenger stays at the starter weight until the holdout can compare it.
+- Holdout 2026-11-21 was already judged. It was not used to retune.
 
 - late is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
 
@@ -148,10 +158,22 @@ No champion was replaced. The only day so far is still unfinished as a holdout. 
 
 - scalp-time is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
 
+- mom is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
+
+- mom-strict is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
+
+- revert-no-longshot is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
+
 - rest-maker is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
+
+- mom-settle is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
 
 - scalp-95 is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
 
-- mom is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
+- fair-spot is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
+
+- pairs-lag is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
+
+- fair-spot-v2 is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.
 
 Live execution stays off.
