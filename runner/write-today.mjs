@@ -3,6 +3,8 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { todayDoc } from '../engine/today.js';
+import { modelCalibration } from '../engine/calibration.js';
+import { variantAddedAt } from '../engine/learn.js';
 
 function readJson(path) {
   try { return JSON.parse(fs.readFileSync(path, 'utf8')); } catch { return null; }
@@ -21,8 +23,9 @@ export function writeTodayFile({ now, kalshiFetchedAt, memeFetchedAt, kalshiRows
   const beat = readJson('data/heartbeat.json');
   const memeBoard = readJson('data/meme-board.json');
   const memeOpen = readJson('data/meme-open.json');
+  const kRows = kalshiRows || readJsonl('data/journal.jsonl');
   const doc = todayDoc({
-    kalshiRows: kalshiRows || readJsonl('data/journal.jsonl'),
+    kalshiRows: kRows,
     memeRows: memeRows || readJsonl('data/meme-journal.jsonl'),
     kalshiFetchedAt: kalshiFetchedAt || board?.fetchedAt || beat?.fetchedAt || beat?.at || null,
     memeFetchedAt: memeFetchedAt || memeBoard?.fetchedAt || memeOpen?.updatedAt || null,
@@ -39,6 +42,13 @@ export function writeTodayFile({ now, kalshiFetchedAt, memeFetchedAt, kalshiRows
     shadow: doc.shadow,
     repair: doc.repair,
   };
+  // Model vs market on every snapshot, so the card is not a day old.
+  try {
+    out.calibration = modelCalibration(kRows, variantAddedAt());
+    out.calibrationAt = doc.generatedAt;
+  } catch (err) {
+    console.log('calibration skipped', err.message);
+  }
   fs.mkdirSync('data', { recursive: true });
   fs.writeFileSync('data/today.json', JSON.stringify(out, null, 2) + '\n');
   return out;
