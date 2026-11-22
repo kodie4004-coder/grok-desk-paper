@@ -2,18 +2,18 @@
   "paper": true,
   "liveExecution": false,
   "day": "2026-11-22",
-  "generatedAt": "2026-11-22T23:12:14.016Z",
-  "kalshiFetchedAt": "2026-11-22T23:11:18.951Z",
-  "memeFetchedAt": "2026-11-22T23:11:20.525Z",
+  "generatedAt": "2026-11-22T23:15:34.923Z",
+  "kalshiFetchedAt": "2026-11-22T23:15:32.988Z",
+  "memeFetchedAt": "2026-11-22T23:15:34.923Z",
   "allocated": {
     "n": 2,
     "pnl": -1.03,
     "fees": 0.09
   },
   "shadow": {
-    "n": 4741,
-    "pnl": -343.16,
-    "fees": 229.17
+    "n": 4806,
+    "pnl": -330.78,
+    "fees": 232.13
   },
   "repair": {
     "pass": false,
@@ -23,5 +23,56 @@
     "wins": 21,
     "sizeUsd": 2,
     "benched": true
-  }
+  },
+  "calibration": [
+    {
+      "id": "fair-spot",
+      "addedAt": "2026-11-22T08:45:00.000Z",
+      "n": 136,
+      "windows": 55,
+      "wins": 40,
+      "sumAsk": 54.27,
+      "sumPEst": 64.15,
+      "brierModel": 0.171,
+      "brierMarket": 0.153,
+      "beatsMarket": false,
+      "net": -122.46,
+      "mean": -0.9,
+      "small": false,
+      "text": "fair-spot's prices were less accurate than Kalshi's own (Brier 0.171 vs 0.153). It expected 64.2 wins, Kalshi's asks implied 54.3, and it won 40 of 136. Mean -$0.90 per $2 line after fees. Lower Brier is better."
+    },
+    {
+      "id": "fair-spot-v2",
+      "addedAt": "2026-11-22T14:30:00.000Z",
+      "n": 63,
+      "windows": 31,
+      "wins": 36,
+      "sumAsk": 28.17,
+      "sumPEst": 33.67,
+      "brierModel": 0.123,
+      "brierMarket": 0.14,
+      "beatsMarket": true,
+      "net": 3.67,
+      "mean": 0.06,
+      "small": false,
+      "text": "fair-spot-v2's prices were more accurate than Kalshi's own (Brier 0.123 vs 0.140). It expected 33.7 wins, Kalshi's asks implied 28.2, and it won 36 of 63. Mean $0.06 per $2 line after fees. Lower Brier is better."
+    },
+    {
+      "id": "pairs-lag",
+      "addedAt": "2026-11-22T08:45:00.000Z",
+      "n": 88,
+      "windows": 50,
+      "wins": 44,
+      "sumAsk": 43.05,
+      "sumPEst": 62.89,
+      "brierModel": 0.25,
+      "brierMarket": 0.192,
+      "beatsMarket": false,
+      "net": -13.21,
+      "mean": -0.15,
+      "small": false,
+      "text": "pairs-lag's prices were less accurate than Kalshi's own (Brier 0.250 vs 0.192). It expected 62.9 wins, Kalshi's asks implied 43.1, and it won 44 of 88. Mean -$0.15 per $2 line after fees. Lower Brier is better."
+    }
+  ],
+  "calibrationAt": "2026-11-22T23:15:34.923Z"
 }
