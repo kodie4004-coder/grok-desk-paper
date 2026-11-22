@@ -52,7 +52,7 @@ try {
   await page.locator('nav.tabs button[data-tab="brain"]').click();
   await page.waitForSelector('text=/after fees/i', { timeout: 8000 }).catch((e) => logs.push(e.message));
   const brain = await page.locator('#view').innerText();
-  if (!/bot brain/i.test(brain) || !/after fees/i.test(brain) || !/nonstop/i.test(brain) || !/new research upgrades/i.test(brain) || !/jev check/i.test(brain) || !/early entry/i.test(brain) || !/shadow/i.test(brain)) fails.push('brain\n' + brain.slice(0, 400) + '\n' + logs.join('\n'));
+  if (!/bot brain/i.test(brain) || !/model vs market/i.test(brain) || !/after fees/i.test(brain) || !/nonstop/i.test(brain) || !/new research upgrades/i.test(brain) || !/jev check/i.test(brain) || !/early entry/i.test(brain) || !/shadow/i.test(brain)) fails.push('brain\n' + brain.slice(0, 400) + '\n' + logs.join('\n'));
   await page.locator('nav.tabs button[data-tab="score"]').click();
   const score = await page.locator('#view').innerText();
   if (!/focus/i.test(score)) fails.push('score focus\n' + score.slice(0, 200));
