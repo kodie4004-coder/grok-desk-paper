@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-22T11:53:08.559Z",
+  "updatedAt": "2026-11-22T11:57:13.187Z",
   "entries": [
     {
       "id": "revert-no-longshot:KXBNB15M-26NOV220700-00",
@@ -2255,6 +2255,61 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.59, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-strict:KXDOGE15M-26NOV220700-00",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXDOGE15M-26NOV220700-00",
+      "series": "KXDOGE15M",
+      "title": "DOGE price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.946,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-22T11:57:13.187Z",
+      "closeTime": "2026-11-22T12:00:00Z",
+      "exit": null,
+      "price": 0.946,
+      "secondsLeft": 167,
+      "spread": 0.011,
+      "momentum": 0.196,
+      "volatility": 0.14623725015649508,
+      "strategy": "mom-strict",
+      "market": "KXDOGE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXDOGE15M-26NOV220700-00 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.946 with 167s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.946, fee included"
         }
       ],
       "skipped": false,
