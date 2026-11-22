@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FOCUS_BENCHED, FOCUS_BENCHED_IDS, NEAR_WINNERS, BENCH_RULE, meetsBench } from '../engine/focus-plan.js';
+import { FOCUS_BENCHED, FOCUS_BENCHED_IDS, NEAR_WINNERS, RESEARCH_SHADOWS, RESEARCH_REGISTERED_AT, BENCH_RULE, meetsBench } from '../engine/focus-plan.js';
 import { benchScan, focusDoc } from '../engine/focus.js';
 import { focusCardHtml } from '../engine/focus-view.js';
 import { VARIANTS, stepJournal, defaultBrain, reviewBrain } from '../engine/learn.js';
@@ -70,6 +70,12 @@ test('the focus doc lists only near-winners with gate progress, and the card col
   const weighted = focusDoc({ rows, brain: { weights: { 'late-loose': 0, 'scalp-95': 0 } }, now: 0 });
   assert.equal(weighted.near.find((r) => r.id === 'late-loose').weight, 0);
   assert.match(html, /never counts/);
+  assert.match(html, /New research shadows/);
+  const researchDoc = focusDoc({ rows: [], memeRows: [], now: Date.parse('2026-11-22T09:00:00Z') });
+  assert.deepEqual(researchDoc.research.map((r) => r.id), RESEARCH_SHADOWS.map((r) => r.id));
+  assert.equal(researchDoc.researchAt, RESEARCH_REGISTERED_AT);
+  assert.ok(researchDoc.research.every((r) => r.weight === 0));
+  for (const row of researchDoc.research) assert.match(focusCardHtml(researchDoc), new RegExp(row.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   for (const id of NEAR_WINNERS) assert.ok(html.includes(doc.near.find((r) => r.id === id).label.replace('¢', '¢')));
   assert.match(focusCardHtml(null, { state: 'error' }), /did not load/);
 });

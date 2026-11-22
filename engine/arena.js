@@ -265,3 +265,43 @@ export async function loadBook(fetchImpl = globalThis.fetch) {
     return null;
   }
 }
+
+// Trailing hour of 1-minute closes for the spot-implied fair-value book.
+// Coinbase is first, Binance is the fallback. A short series leaves the base
+// out and fair-spot skips that coin.
+export async function loadHourCandles(fetchImpl = globalThis.fetch, now = Date.now()) {
+  const bases = ['BTC', 'ETH', 'SOL'];
+  const out = {};
+  const start = new Date(now - 75 * 60 * 1000).toISOString();
+  const end = new Date(now).toISOString();
+  await Promise.all(bases.map(async (base) => {
+    let closes = [];
+    let source = '';
+    try {
+      const url = `https://api.exchange.coinbase.com/products/${base}-USD/candles?granularity=60&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      const res = await fetchImpl(url, { headers: { accept: 'application/json' } });
+      if (res.ok) {
+        const body = await res.json();
+        closes = (body || []).map((row) => ({ t: Number(row[0]) * 1000, px: Number(row[4]) }))
+          .filter((row) => row.px > 0 && Number.isFinite(row.t) && row.t + 60_000 <= now)
+          .sort((a, b) => a.t - b.t);
+        source = 'Coinbase 1m';
+      }
+    } catch { /* try the backup */ }
+    if (closes.length < 45) {
+      try {
+        const url = `https://api.binance.com/api/v3/klines?symbol=${base}USDT&interval=1m&limit=75`;
+        const res = await fetchImpl(url, { headers: { accept: 'application/json' } });
+        if (!res.ok) return;
+        const body = await res.json();
+        const next = (body || []).map((row) => ({ t: Number(row[0]), px: Number(row[4]) }))
+          .filter((row) => row.px > 0 && Number.isFinite(row.t) && row.t + 60_000 <= now)
+          .sort((a, b) => a.t - b.t);
+        if (next.length >= 45) { closes = next; source = 'Binance 1m'; }
+      } catch { return; }
+    }
+    if (closes.length < 45) return;
+    out[base] = { px: closes[closes.length - 1].px, closes, now, source };
+  }));
+  return out;
+}

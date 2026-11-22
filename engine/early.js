@@ -7,6 +7,7 @@ import { clusterBootstrap } from './eval.js';
 import { MEME_RULES, MEME_SIZE, MEME_SLIP, memePnl, memeTargetClearsFees, poolMint } from './meme.js';
 import { graduates } from './strategies.js';
 import { isFocusBenched } from './focus-plan.js';
+import { stampLonely } from './lonely.js';
 
 export const EARLY_ID = 'early-entry';
 export const EARLY_TRACK = 'early-track';
@@ -322,7 +323,7 @@ export async function readRug(ca, fetchImpl) {
   }
 }
 
-export function openEarly({ decisions, open = [], now }) {
+export function openEarly({ decisions, open = [], now, history = [] }) {
   // Focus bench (static or rolling): no new early-entry lines. Open ones still settle.
   if (isFocusBenched(EARLY_ID)) return [];
   const have = new Set((open || []).map((pos) => pos?.ca).filter(Boolean));
@@ -333,7 +334,7 @@ export function openEarly({ decisions, open = [], now }) {
     if (n >= EARLY_RULES.maxOpen) break;
     if (!(row.priceUsd > 0) || !Number.isFinite(row.slip)) continue;
     if (row.slip <= 0 || row.sizeUsd && row.sizeUsd !== MEME_SIZE) continue;
-    added.push({
+    added.push(stampLonely({
       id: `${EARLY_ID}:${row.ca}`,
       ca: row.ca,
       symbol: row.symbol,
@@ -352,7 +353,7 @@ export function openEarly({ decisions, open = [], now }) {
       ageMin: row.ageMin,
       reason: row.reason,
       ...(row.jev ? { jev: row.jev } : {}),
-    });
+    }, [...(history || []), ...(open || []), ...added], now));
     have.add(row.ca);
     n += 1;
   }

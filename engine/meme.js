@@ -5,6 +5,8 @@ import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { isEarlyBook, sleeveBenched } from './repair.js';
 import { isFocusBenched } from './focus-plan.js';
+import { stampLonely, emitLonely } from './lonely.js';
+import { TREND_ID, TREND_STOP } from './trend.js';
 import { jevStamp } from './jev.js';
 
 export const MEME_SIZE = 2;
@@ -486,7 +488,7 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
     if (still.filter((p) => p.variant !== 'early-entry' && p.variant !== 'early-track').length >= 8) break;
     if (!feeOk) continue;
     const jev = jevStamp(coin.jev);
-    still.push({
+    still.push(stampLonely({
       id: `meme:${coin.ca}`,
       ca: coin.ca,
       symbol: coin.symbol,
@@ -501,10 +503,11 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
       paper: true,
       open: true,
       ...(jev ? { jev } : {}),
-    });
+    }, [...book, ...still], now));
     known.add(coin.ca);
   }
-  return { settled, shadows, open: still.filter((p) => p.pnl == null) };
+  const lonely = emitLonely([...settled, ...shadows], knownIds);
+  return { settled, shadows: shadows.concat(lonely), open: still.filter((p) => p.pnl == null) };
 }
 
 // One DexScreener call can take 30 mints. A 4s poll of a full book is 15 calls a minute.
@@ -606,6 +609,26 @@ export function stopSlippage(rows) {
 export function watchExit(pos, px, now) {
   if (!(px > 0) || !(pos?.entry > 0)) return null;
   if (pos.variant === 'early-track') return null;
+  // Trend rotation happens on the snapshot. The watcher only enforces the 15% stop.
+  if (pos.variant === TREND_ID) {
+    if (px > pos.entry * TREND_STOP) return null;
+    const deal = fillPnl(pos, px);
+    if (!deal || deal.sizeUsd !== MEME_SIZE) return null;
+    return {
+      ...withoutTrack(pos),
+      ...deal,
+      exit: 'stop',
+      exitPx: px,
+      settledAt: new Date(now).toISOString(),
+      won: deal.pnl > 0,
+      paper: true,
+      open: false,
+      watch: true,
+      ruleMove: TREND_STOP - 1,
+      realizedMove: px / pos.entry - 1,
+      gap: (px / pos.entry - 1) - (TREND_STOP - 1),
+    };
+  }
   const stopPx = pos.entry * MEME_RULES.stop;
   const tpPx = pos.entry * MEME_RULES.tp;
   const age = now - Date.parse(pos.openedAt || '');
@@ -673,7 +696,8 @@ export function applyWatch({ open, prices, now, history = [], track = null }) {
       if (hit.id) known.add(hit.id);
     } else still.push(pos);
   }
-  return { settled, shadows, open: still };
+  const lonely = emitLonely([...settled, ...shadows], known);
+  return { settled, shadows: shadows.concat(lonely), open: still };
 }
 
 export function pricesFromDex(book, mints) {

@@ -1,7 +1,7 @@
 // Append paper journal rows from the Kalshi snapshot. Never rewrites old lines.
 import fs from 'node:fs';
 import { stepJournal, defaultBrain, allocCurve } from '../engine/learn.js';
-import { loadSpots, loadSpotWindow } from '../engine/arena.js';
+import { loadSpots, loadSpotWindow, loadHourCandles } from '../engine/arena.js';
 import { focusDoc } from '../engine/focus.js';
 import { writeTodayFile } from './write-today.mjs';
 import { loadRollingBench, updateRollingBench } from './rolling-bench.mjs';
@@ -21,6 +21,12 @@ try {
     spots[key] = { ...(spots[key] || {}), ...value, px: spots[key]?.px || value.prints?.[0]?.px };
   }
 } catch { /* settlement challenger skips when the minute average is missing */ }
+try {
+  const hour = await loadHourCandles();
+  for (const [key, value] of Object.entries(hour)) {
+    spots[key] = { ...(spots[key] || {}), ...value, px: spots[key]?.px || value.px };
+  }
+} catch { /* fair-spot skips when the hour of candles is missing */ }
 const now = Date.parse(board.fetchedAt || '') || Date.now();
 // Books on the rolling bench open no new paper lines this step.
 loadRollingBench();
