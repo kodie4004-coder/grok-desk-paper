@@ -89,3 +89,18 @@ export function modelCalibration(rows, addedAt = {}) {
   }
   return out;
 }
+
+// Pick the fresher Model vs market audit. lessons.json is rebuilt once a day;
+// today.json is rebuilt on every snapshot. Read-only: nothing here moves a
+// weight, a size, or the edge gate.
+export function freshCalibration(lessons, today) {
+  const nightly = Array.isArray(lessons?.calibration) ? lessons.calibration : null;
+  const live = Array.isArray(today?.calibration) ? today.calibration : null;
+  const nightlyAt = Date.parse(lessons?.generatedAt || '');
+  const liveAt = Date.parse(today?.calibrationAt || '');
+  if (live && (!nightly || !Number.isFinite(nightlyAt) || (Number.isFinite(liveAt) && liveAt >= nightlyAt))) {
+    return { rows: live, at: Number.isFinite(liveAt) ? today.calibrationAt : null, source: 'snapshot' };
+  }
+  if (nightly) return { rows: nightly, at: Number.isFinite(nightlyAt) ? lessons.generatedAt : null, source: 'nightly' };
+  return { rows: null, at: null, source: null };
+}

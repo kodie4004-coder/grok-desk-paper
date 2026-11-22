@@ -19,6 +19,7 @@ import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engin
 import { focusCardHtml } from './engine/focus-view.js';
 import { setRollingBench } from './engine/focus-plan.js';
 import { todayHeaderHtml } from './engine/today-view.js';
+import { freshCalibration } from './engine/calibration.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -968,8 +969,10 @@ function loadBrain() {
   Promise.all([
     fetch('data/lessons.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('lessons unavailable'); return r.json(); }),
     fetch('data/journal-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }),
-  ]).then(([lessons, open]) => {
+    fetch('data/today.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
+  ]).then(([lessons, open, today]) => {
     ui.lessons = lessons;
+    if (today) ui.today = today;
     ui.journalOpen = open;
     ui.brainState = 'ready';
     if (ui.tab === 'brain') render();
@@ -980,11 +983,14 @@ function loadBrain() {
   });
 }
 // Model vs market: Brier of each model-priced bot against Kalshi's own ask.
-// Numbers come from data/lessons.json (calibration); nothing here is hard-coded.
-function modelMarketCard(doc) {
-  const rows = Array.isArray(doc?.calibration) ? doc.calibration : [];
+// Numbers come from data/today.json (every snapshot) or data/lessons.json
+// (nightly), whichever is newer; nothing here is hard-coded.
+function modelMarketCard(doc, today) {
+  const pick = freshCalibration(doc, today);
+  const rows = pick.rows || [];
+  const stamp = pick.at ? `<p class="note mvm-at">Updated ${esc(pick.at.slice(0, 16).replace('T', ' '))} UTC · ${pick.source === 'snapshot' ? 'every snapshot' : 'nightly lessons'}</p>` : '';
   if (!rows.length) {
-    const why = Array.isArray(doc?.calibration) ? 'No model-priced bot has a settled paper line since it was added.' : 'The nightly lessons run has not written this audit yet. It appears after the next run.';
+    const why = pick.rows ? 'No model-priced bot has a settled paper line since it was added.' : 'The nightly lessons run has not written this audit yet. It appears after the next run.';
     return `<section class="card mvm" aria-label="Model vs market"><div class="row"><h2 style="margin:0">Model vs market</h2><span class="tag explore">PAPER</span></div><p class="note">${why}</p></section>`;
   }
   const top = Math.max(0.25, ...rows.map((r) => Math.max(Number(r.brierModel) || 0, Number(r.brierMarket) || 0)));
@@ -1007,6 +1013,7 @@ function modelMarketCard(doc) {
     <div class="row"><h2 style="margin:0">Model vs market</h2><span class="tag explore">PAPER · Brier, lower is better</span></div>
     <p class="note">How close each model's win chance was to what happened, next to the price Kalshi asked. Settled paper lines since each bot was added, after fees.</p>
     <ul class="mvm-list">${items}</ul>
+    ${stamp}
   </section>`;
 }
 function brainView() {
@@ -1040,7 +1047,7 @@ function brainView() {
   const learned = (doc.lessons || []).slice(0, 6).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const frozen = (doc.frozen || []).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const decisions = (doc.decisions || []).map((l) => `<li>${esc(l)}</li>`).join('');
-  return `${upgradesCard()}${modelMarketCard(doc)}<section class="card arcade" aria-label="Bot brain">
+  return `${upgradesCard()}${modelMarketCard(doc, ui.today)}<section class="card arcade" aria-label="Bot brain">
     <div class="row"><h2 style="margin:0">Bot brain</h2><span class="tag explore">PAPER · after fees</span></div>
     <p class="lvl" id="runFor">${esc(since)}</p>
     <p class="note">Level counts settled paper bets, not profit. A loss does not raise the $2 size. A bot that loses $6 of its own allocated paper goes to shadow. The others keep trading. ${openN} paper line${openN === 1 ? '' : 's'} are waiting on a result.</p>

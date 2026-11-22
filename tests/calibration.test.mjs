@@ -82,10 +82,10 @@ test('lessons, LESSONS.md and the morning report carry the audit from the data',
   assert.equal(variantAddedAt()['fair-spot'], FAIR_ADDED_AT);
 });
 
-test('the app renders a Model vs market card from lessons.json, with no hard-coded Brier', () => {
+test('the app renders a Model vs market card from today.json or lessons.json, with no hard-coded Brier', () => {
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  assert.match(app, /function modelMarketCard\(doc\)/);
-  assert.match(app, /doc\?\.calibration/);
+  assert.match(app, /function modelMarketCard\(doc, today\)/);
+  assert.match(app, /freshCalibration\(doc, today\)/);
   assert.match(app, /Model vs market/);
   assert.doesNotMatch(app, /0\.208|0\.177/);
 });
@@ -157,4 +157,41 @@ test('v2 goes through signal() as a $2 line with pEst', () => {
   const sig = signal(v2, market, now, { spots: v2Spots({ now, close }) });
   assert.equal(sig.side, 'yes');
   assert.ok(Math.abs(sig.features.pEst - 0.5) < 1e-9);
+});
+
+test('freshCalibration prefers the per-snapshot audit when it is newer than the nightly one', async () => {
+  const { freshCalibration } = await import('../engine/calibration.js');
+  const lessons = { generatedAt: '2026-11-22T15:16:36.896Z', calibration: [{ id: 'old', n: 5 }] };
+  const today = { calibrationAt: '2026-11-22T23:07:55.751Z', calibration: [{ id: 'new', n: 63 }] };
+  assert.equal(freshCalibration(lessons, today).rows[0].id, 'new');
+  assert.equal(freshCalibration(lessons, today).source, 'snapshot');
+  const stale = { calibrationAt: '2026-11-22T10:00:00.000Z', calibration: [{ id: 'new' }] };
+  assert.equal(freshCalibration(lessons, stale).rows[0].id, 'old');
+  assert.equal(freshCalibration(lessons, null).source, 'nightly');
+  assert.equal(freshCalibration(null, today).rows[0].id, 'new');
+  assert.equal(freshCalibration(null, null).rows, null);
+  assert.equal(freshCalibration({ calibration: [] }, null).rows.length, 0);
+});
+
+test('writeTodayFile writes the Model vs market audit on every snapshot', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { writeTodayFile } = await import('../runner/write-today.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'today-cal-'));
+  const prev = process.cwd();
+  try {
+    process.chdir(dir);
+    const rows = [row({ variant: 'fair-spot-v2', openedAt: '2026-11-22T20:00:00.000Z', settledAt: '2026-11-22T20:16:00.000Z' })];
+    const out = writeTodayFile({ now: Date.parse('2026-11-22T23:00:00Z'), kalshiRows: rows, memeRows: [] });
+    assert.ok(Array.isArray(out.calibration));
+    assert.equal(out.calibration.find((r) => r.id === 'fair-spot-v2').n, 1);
+    assert.equal(out.calibrationAt, out.generatedAt);
+    assert.equal(out.liveExecution, false);
+    const disk = JSON.parse(fs.readFileSync('data/today.json', 'utf8'));
+    assert.equal(disk.calibration.length, out.calibration.length);
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
