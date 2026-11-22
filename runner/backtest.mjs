@@ -8,9 +8,11 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { VARIANTS } from '../engine/learn.js';
-import { compactSnapshot, resultsFrom, normalizeTape, backtestVariant, OOS_FRACTION } from '../engine/backtest.js';
+import { compactSnapshot, resultsFrom, normalizeTape, backtestVariant, attachSpots, splitTrades, summarize, splitTime, OOS_FRACTION } from '../engine/backtest.js';
 import { benchScan, focusDoc } from '../engine/focus.js';
 import { BENCH_RULE } from '../engine/focus-plan.js';
+import { lonelyBook, LONELY_ID } from '../engine/lonely.js';
+import { TREND_ID } from '../engine/trend.js';
 import { readRollingBench, updateRollingBench } from './rolling-bench.mjs';
 
 const args = process.argv.slice(2);
@@ -71,10 +73,31 @@ if (flag('--focus')) {
   process.exit(0);
 }
 
-const tape = JSON.parse(fs.readFileSync(TAPE, 'utf8'));
+const rawTape = JSON.parse(fs.readFileSync(TAPE, 'utf8'));
+const candles = fs.existsSync('data/spot-candles.json') ? JSON.parse(fs.readFileSync('data/spot-candles.json', 'utf8')) : {};
+const tape = attachSpots(rawTape, candles.closes || candles);
 const ids = opt('--ids') ? opt('--ids').split(',') : VARIANTS.map((v) => v.id);
 const showOos = flag('--oos');
 const reports = ids.map((id) => VARIANTS.find((v) => v.id === id)).filter(Boolean).map((v) => backtestVariant(v, tape, { showOos, recorded }));
+
+const memeCluster = (row) => row.ca || row.symbol || '?';
+// Re-summarize with coin clusters by wrapping after? summarize already accepts cluster.
+function memeReportClustered(id, label, trades) {
+  const cut = splitTime(normalizeTape(tape));
+  const { inSample, outSample } = splitTrades(trades, cut);
+  const opts = { cluster: memeCluster };
+  return {
+    id,
+    label,
+    mode: 'recorded',
+    cut,
+    inSample: summarize(inSample, opts),
+    outSample: showOos ? summarize(outSample, opts) : { hidden: true, n: outSample.length },
+    note: 'Backtests never graduate a strategy. Only forward paper rows through graduates() can.',
+  };
+}
+reports.push(memeReportClustered(LONELY_ID, 'Lonely entry', lonelyBook(memeRows)));
+reports.push(memeReportClustered(TREND_ID, 'Hourly trending leader', memeRows.filter((row) => row.variant === TREND_ID && Number.isFinite(row.pnl) && row.skipped !== true)));
 
 const usd = (x) => (x == null ? '—' : `${x < 0 ? '−' : x > 0 ? '+' : ''}$${Math.abs(x).toFixed(3)}`);
 const pct = (x) => (x == null ? '—' : `${(100 * x).toFixed(1)}%`);

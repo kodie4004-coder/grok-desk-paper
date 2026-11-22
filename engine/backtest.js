@@ -21,7 +21,7 @@ export const BOOT_SEED = 7;
 // 60-second settlement bot need spot prints the board does not hold, and the
 // resting maker needs trade prints. Those are reported from recorded forward rows.
 export function replayable(variant) {
-  return !variant.kind || ['revert', 'scalp', 'flip', 'pocket'].includes(variant.kind);
+  return !variant.kind || ['revert', 'scalp', 'flip', 'pocket', 'fair', 'pairs'].includes(variant.kind);
 }
 
 const COLS = ['ticker', 'series', 'closeTime', 'yesBid', 'yesAsk', 'noBid', 'noAsk', 'floorStrike'];
@@ -53,6 +53,46 @@ export function expandMarket(arr) {
   COLS.forEach((k, i) => { out[k] = arr[i]; });
   return out;
 }
+
+// Join 1-minute candle closes onto each board. A candle's close is only
+// known at the end of its minute, so a row is used when open time + 60s is
+// at or before the board. Missing candles leave s empty and fair-spot skips.
+export function attachSpots(tape, candles) {
+  const snaps = (tape?.snapshots || []).map((snap) => {
+    const now = Date.parse(snap.t);
+    if (!Number.isFinite(now)) return snap;
+    const s = {};
+    for (const [base, rows] of Object.entries(candles || {})) {
+      const closes = (rows || []).map((row) => ({ t: Number(row.t), px: Number(row.px) }))
+        .filter((row) => row.px > 0 && Number.isFinite(row.t) && row.t + 60_000 <= now)
+        .sort((a, b) => a.t - b.t);
+      const last = closes[closes.length - 1];
+      if (!last) continue;
+      s[base] = {
+        px: last.px,
+        closes: closes.filter((row) => now - row.t <= 60 * 60 * 1000),
+        now,
+        source: 'candle tape',
+      };
+    }
+    return { ...snap, s };
+  });
+  return { ...tape, snapshots: snaps };
+}
+
+function boardFrom(snap) {
+  return (snap?.m || []).map(expandMarket);
+}
+
+function quotesFrom(snap) {
+  const quotes = {};
+  for (const market of boardFrom(snap)) {
+    const yes = Number(market.yesAsk);
+    if (Number.isFinite(yes)) quotes[market.ticker] = { yesAsk: yes, yesBid: Number(market.yesBid) };
+  }
+  return quotes;
+}
+
 
 // Sorted, de-duplicated snapshots.
 export function normalizeTape(tape) {
@@ -114,8 +154,11 @@ export function replayVariant(variant, tapeIn) {
   const open = new Map();
   const trades = [];
   let vetoed = 0;
+  let lastQuotes = {};
   for (const snap of tape.snapshots) {
     const now = Date.parse(snap.t);
+    const board = boardFrom(snap);
+    const spots = snap.s || {};
     for (const arr of snap.m || []) {
       const market = expandMarket(arr);
       const entry = open.get(market.ticker);
@@ -127,7 +170,7 @@ export function replayVariant(variant, tapeIn) {
         }
       }
       if (!open.has(market.ticker)) {
-        const sig = signal(variant, market, now, { prev: prev.get(market.ticker) || null });
+        const sig = signal(variant, market, now, { prev: prev.get(market.ticker) || null, spots, board, quotes: lastQuotes });
         if (sig) {
           if (sig.features.spread != null && sig.features.spread > RISK_MAX_SPREAD) {
             vetoed += 1;
@@ -144,6 +187,7 @@ export function replayVariant(variant, tapeIn) {
         prev.set(market.ticker, { yesAsk: yes, yesBid: Number(market.yesBid), samples: [...(p?.samples || []), yes].slice(-5) });
       }
     }
+    lastQuotes = quotesFrom(snap);
   }
   let unresolved = 0;
   for (const entry of open.values()) {

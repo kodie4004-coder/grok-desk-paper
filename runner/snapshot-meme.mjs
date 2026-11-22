@@ -14,6 +14,7 @@ import {
 } from '../engine/early.js';
 import { withShadowScores } from '../engine/upgrades.js';
 import { loadRollingBench } from './rolling-bench.mjs';
+import { parseTrending, stepTrend, TREND_URL } from '../engine/trend.js';
 
 // Early and meme books on the rolling bench open no new paper lines.
 loadRollingBench();
@@ -271,8 +272,17 @@ try {
       priced = pricesForOpen(coins, openEntries, priceMap);
     }
     const next = stepMeme({ coins: priced, open: openEntries, history, now, track: advanceEarlyExits });
-    const earlyOpen = openEarly({ decisions: earlyDecisions, open: next.open, now });
+    const earlyOpen = openEarly({ decisions: earlyDecisions, open: next.open, now, history });
     next.open.push(...earlyOpen);
+    let trending = [];
+    try {
+      const raw = await get(TREND_URL);
+      trending = parseTrending(raw);
+    } catch (e) { console.log('trending skipped', e.message); }
+    const prices = Object.fromEntries((priced || []).filter((c) => c?.ca && c.priceUsd > 0).map((c) => [c.ca, c.priceUsd]));
+    const trendStep = stepTrend({ trending, open: next.open, history: history.concat(next.settled, next.shadows || []), now, prices });
+    next.open = trendStep.open;
+    if (trendStep.settled.length) next.settled.push(...trendStep.settled);
     fs.mkdirSync('data', { recursive: true });
     const journalRows = [...next.settled, ...(next.shadows || [])];
     if (journalRows.length) fs.appendFileSync('data/meme-journal.jsonl', journalRows.map((row) => JSON.stringify(row)).join('\n') + '\n');

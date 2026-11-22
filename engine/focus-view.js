@@ -16,10 +16,8 @@ function btLine(bt) {
   return `<p class="focus-bt">Backtest (${esc(mode)}): ${esc(cell(bt.inSample, 'in-sample'))} · ${esc(cell(bt.outSample, 'out-of-sample'))}</p>`;
 }
 
-export function focusCardHtml(doc, { state = 'ready' } = {}) {
-  if (state === 'loading') return '<section class="card focus" aria-label="Focus" aria-busy="true"><h2>Focus</h2><p class="note">Loading the focus board.</p></section>';
-  if (!doc || state === 'error') return '<section class="card focus" aria-label="Focus"><h2>Focus</h2><p class="note">The focus board did not load. The paper desk keeps running.</p></section>';
-  const rows = (doc.near || []).map((row) => {
+function rowsHtml(list) {
+  return (list || []).map((row) => {
     const g = row.gate || { cleared: 0, need: 3, forwardN: 0 };
     const pct = Math.round((100 * Math.min(g.cleared, g.need)) / g.need);
     return `<li class="focus-row">
@@ -33,14 +31,24 @@ export function focusCardHtml(doc, { state = 'ready' } = {}) {
       ${btLine(row.backtest)}
     </li>`;
   }).join('');
-  const benched = (doc.benched || []).map((row) => `<li><span><b>${esc(row.label)}</b><br><span class="note">n ${row.nowN ?? row.n} · mean ${money(row.nowMean ?? row.mean)} after fees · 90% high ${money(row.nowHi ?? row.hi)}</span></span><span class="tag off">benched</span></li>`).join('');
+}
+
+export function focusCardHtml(doc, { state = 'ready' } = {}) {
+  if (state === 'loading') return '<section class="card focus" aria-label="Focus" aria-busy="true"><h2>Focus</h2><p class="note">Loading the focus board.</p></section>';
+  if (!doc || state === 'error') return '<section class="card focus" aria-label="Focus"><h2>Focus</h2><p class="note">The focus board did not load. The paper desk keeps running.</p></section>';
+  const rows = rowsHtml(doc.near);
+  const research = rowsHtml(doc.research);
+    const benched = (doc.benched || []).map((row) => `<li><span><b>${esc(row.label)}</b><br><span class="note">n ${row.nowN ?? row.n} · mean ${money(row.nowMean ?? row.mean)} after fees · 90% high ${money(row.nowHi ?? row.hi)}</span></span><span class="tag off">benched</span></li>`).join('');
   const rolledRows = doc.rolled || [];
   const rolled = rolledRows.map((row) => `<li class="focus-rolled"><span><b>${esc(row.label)}</b><br><span class="note">Rolled onto the bench ${esc(String(row.benchedAt || '').slice(0, 10))} · at that time n ${row.n} · mean ${money(row.mean)} after fees · 90% high ${money(row.hi)}${row.nowN != null ? ` · now n ${row.nowN} · mean ${money(row.nowMean)}` : ''}</span></span><span class="tag off">rolled</span></li>`).join('');
   const benchCount = (doc.benched || []).length + rolledRows.length;
   return `<section class="card focus" aria-label="Focus">
     <div class="row"><h2 style="margin:0">Focus</h2><span class="tag explore">PAPER · $2 · after fees</span></div>
-    <p class="note">Only the near-winners. None is ready for real money until it has 3 days of 20+ forward trades and every such day has a 90% low above zero after fees. scalp-95 stays at weight 0 until then. A backtest never counts toward that.</p>
+    <p class="note">Only the near-winners. None is ready for real money until it has 3 days of 20+ forward trades and every such day has a 90% low above zero after fees. scalp-95 and the new research shadows stay at weight 0 until then. A backtest never counts toward that.</p>
     <ul class="focus-list">${rows || '<li><span class="empty">No near-winners in this file.</span></li>'}</ul>
+    <h3 class="focus-sub">New research shadows</h3>
+    <p class="note">Written down before their first replay. Each stays a $2 paper shadow. A backtest never counts toward the gate.</p>
+    <ul class="focus-list">${research || '<li><span class="empty">No research shadows in this file.</span></li>'}</ul>
     <details class="focus-bench"><summary>Benched (${benchCount})</summary>
       <p class="note">At least ${doc.rule?.minN ?? 40} trades with the 90% high of the mean below zero after fees. No new paper lines. History is kept.</p>
       <ul class="feed">${benched}</ul>

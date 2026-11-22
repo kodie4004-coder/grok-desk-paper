@@ -3,6 +3,7 @@
 // Nothing here moves the edge gate, graduates(), the $2 size or live_execution.
 
 export const FOCUS_REGISTERED_AT = '2026-11-21T07:15:00.000Z';
+export const RESEARCH_REGISTERED_AT = '2026-11-22T08:45:00.000Z';
 
 // Near-winners stay on paper and on the Focus card. scalp-95 is new and pinned at
 // weight 0. The others keep their existing rules and weights. mom-strict and
@@ -80,3 +81,12 @@ export function rollBench(scan, prev = [], now = Date.now()) {
   }
   return { books, added };
 }
+
+// New research shadows, written down 2026-11-22 before their first replay.
+// They stay at weight 0 until graduates() clears on forward paper rows.
+export const RESEARCH_SHADOWS = Object.freeze([
+  { id: 'fair-spot', book: 'kalshi', label: 'Spot-implied fair value' },
+  { id: 'pairs-lag', book: 'kalshi', label: 'BTC/ETH/SOL quote lag' },
+  { id: 'lonely-entry', book: 'meme', label: 'Lonely entry' },
+  { id: 'trend-rotate', book: 'meme', label: 'Hourly trending leader' },
+]);

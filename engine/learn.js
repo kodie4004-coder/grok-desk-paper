@@ -9,6 +9,8 @@ import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { repairGate, REPAIR_MIN_N } from './repair.js';
 import { isFocusBenched } from './focus-plan.js';
+import { fairPick, FAIR_ADDED_AT, FAIR_MARGIN, FAIR_MIN_LEFT, FAIR_MAX_LEFT } from './fair.js';
+import { pairsPick, PAIRS_ADDED_AT, PAIRS_MARGIN, PAIRS_MIN_LEFT, PAIRS_MAX_LEFT } from './pairs.js';
 
 export const LEARN_SIZE = 2;
 export const HOLD_MIN = 20;
@@ -49,6 +51,8 @@ export const VARIANTS = [
   { id: 'mom-settle', family: 'mom', label: 'Momentum, 60-second average', role: 'challenger', kind: 'settle', minLeft: 120, maxLeft: 600 },
   // Weight is pinned at 0 until graduates() clears on its own forward rows.
   { id: 'scalp-95', family: 'scalp95', label: 'Scalp, 95¢ pocket', role: 'challenger', kind: 'pocket', askAbove: 0.95, minLeft: 300, maxLeft: 600, pinZero: true, addedAt: SCALP95_ADDED_AT },
+  { id: 'fair-spot', family: 'fair', label: 'Spot-implied fair value', role: 'challenger', kind: 'fair', minLeft: FAIR_MIN_LEFT, maxLeft: FAIR_MAX_LEFT, feeMargin: FAIR_MARGIN, pinZero: true, addedAt: FAIR_ADDED_AT },
+  { id: 'pairs-lag', family: 'pairs', label: 'BTC/ETH/SOL quote lag', role: 'challenger', kind: 'pairs', minLeft: PAIRS_MIN_LEFT, maxLeft: PAIRS_MAX_LEFT, feeMargin: PAIRS_MARGIN, pinZero: true, addedAt: PAIRS_ADDED_AT },
 ];
 
 const FAMILY_LABEL = { late: 'Late favorite', mom: 'Momentum vs target', revert: 'Mean revert', scalp: 'Intra-window scalp', flip: 'Coin-flip control', maker: 'Resting maker' };
@@ -157,6 +161,10 @@ export function signal(variant, market, now, ctx = {}) {
     const noOk = no > variant.askAbove && no < 1;
     if (yesOk && (!noOk || yes >= no)) picked = { side: 'yes', ask: yes };
     else if (noOk) picked = { side: 'no', ask: no };
+  } else if (variant.kind === 'fair') {
+    picked = fairPick(market, ctx.spots, left);
+  } else if (variant.kind === 'pairs') {
+    picked = pairsPick(market, ctx);
   }
   if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
   if (variant.feeAware) {
@@ -367,7 +375,7 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
     for (const variant of VARIANTS) {
       // Focus bench: no new paper lines. Old rows stay in the journal.
       if (isFocusBenched(variant.id)) continue;
-      const sig = signal(variant, market, now, { spots, prev });
+      const sig = signal(variant, market, now, { spots, prev, board: markets, quotes });
       if (sig) firing.push({ variant, sig });
     }
     const byFamily = new Map();

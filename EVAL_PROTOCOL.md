@@ -397,6 +397,22 @@ Backtester (`engine/backtest.js`, `runner/backtest.mjs`, `npm run backtest`):
 
 Focus bench (`engine/focus-plan.js`): a book with at least 40 settled forward rows whose 90% cluster-bootstrap upper bound of the after-fee mean is below zero opens no new paper line. Its history stays in the journal and on the page. Open lines still settle. Controls are not benched. `node runner/backtest.mjs --bench` prints the rule on the current journal. The frozen list is in `FOCUS_BENCHED` with the evidence at registration. Early exit books still close their legs so the parent position can finish, but write no new row.
 
+## v17 research shadows (frozen before the first replay of these books)
+
+This does not change `graduates()`, the v6 edge gate, the holdout rule, the loss cap, the $2 size, or the v16 bench rule. `live_execution` stays off. A backtest never graduates a strategy.
+
+Four shadow challengers were written down at `2026-11-22T08:45:00.000Z`, before their first replay. Each is pinned at weight 0 (`pinZero` on the Kalshi books; the coin books log only as `allocated: false` shadows). Forward paper rows after 2026-11-22 can count toward `graduates()`; backtest rows cannot.
+
+1. **fair-spot** (Kalshi, family `fair`, kind `fair`). Universe: `KXBTC15M`, `KXETH15M`, `KXSOL15M`. Fair YES probability is the driftless digital `N(ln(S/K) / (σ √T))`, with S the last fully closed 1-minute candle (the candle's open time plus 60 seconds is at or before the board; live, the current Coinbase or OKX tick may be used as S, still with closed candles for σ), K the contract `floorStrike`, σ the sample standard deviation of 1-minute log returns over the last 60 minutes (at least 45 returns; gaps longer than 90 seconds are dropped, not filled), and T the minutes left. No drift term and no σ²/2 convexity term. Do not trade with fewer than 90 seconds left (Kalshi settles on a 60-second average) or more than 720 seconds left. Buy YES or NO at the recorded ask only when the model probability minus the ask clears the rounded Kalshi taker fee per contract plus a 2¢ margin. The margin is a fat-tail buffer, not a search. Replay attaches `data/spot-candles.json` (Coinbase 1-minute closes, OKX fallback) and never uses a candle whose minute has not yet closed.
+
+2. **pairs-lag** (Kalshi, family `pairs`, kind `pairs`). Universe: the BTC, ETH and SOL 15-minute books that share a `closeTime`. All three must be on the board, and each must have a mid on the previous board. The leader is the largest absolute mid change since that previous board, and that change must be at least 6 cents. A laggard must trail the leader's change by at least 4 cents (same sign or flat). Buy the laggard in the leader's direction at the ask, only if the ask is inside (0.10, 0.90) and the leader's mid, treated as a fair value, minus the ask clears the rounded taker fee plus 2¢. The leader itself is not bought. Window: 120 to 720 seconds left.
+
+3. **lonely-entry** (coin book). A meme-safety or early-entry fill is lonely when no other of those entries opened in the five minutes before it. The filter does not change those books' size or whether they open. When a stamped parent settles, the desk writes a shadow journal row that copies the parent's fill, fees and P&amp;L. That is not a second $2 line. Historical scoring walks settled source rows in `openedAt` order and uses dropped rows as the crowding clock.
+
+4. **trend-rotate** (coin book). Each meme snapshot reads GeckoTerminal's Solana 1-hour trending pools. Hold the #1 pool only when its reported 1-hour USD volume is at least $1,000,000 and its quote is SOL, WSOL, USDC or USDT. Size $2, same 1% slip and 1.25% fee as the meme sleeve, `allocated: false`. Evaluate a rotation only after a 60-minute hold: exit to the new #1 if it qualifies, or to cash if #1 no longer qualifies. A rotate may open the new leader in the same step. A 15% stop is the only intra-hour exit (also on the watcher). After a stop the book stays in cash until 60 minutes have passed. Historical trending lists are not in the tape, so the backtester reports recorded forward rows only.
+
+A dedicated headline/news agent for these 15-minute crypto binaries was not registered: the information that moves them is the spot tape, which fair-spot already prices. Buying cheap longshots near expiry was not registered: public Kalshi and Polymarket studies show those contracts lose after fees.
+
 ## What would falsify a cheerful reading
 
 - Train looks good and holdout does not.

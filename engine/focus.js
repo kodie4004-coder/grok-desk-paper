@@ -4,7 +4,7 @@
 
 import { VARIANTS, eligibleRows, gateProgress } from './learn.js';
 import { summarize } from './backtest.js';
-import { NEAR_WINNERS, FOCUS_BENCHED, FOCUS_BENCHED_IDS, BENCH_RULE, meetsBench, FOCUS_REGISTERED_AT, rollBench, rollingBench, setRollingBench } from './focus-plan.js';
+import { NEAR_WINNERS, FOCUS_BENCHED, FOCUS_BENCHED_IDS, BENCH_RULE, meetsBench, FOCUS_REGISTERED_AT, RESEARCH_REGISTERED_AT, RESEARCH_SHADOWS, rollBench, rollingBench, setRollingBench } from './focus-plan.js';
 
 const settled = (rows) => (rows || []).filter((row) => row && Number.isFinite(row.pnl) && row.skipped !== true);
 const memeCluster = (row) => row.ca || row.symbol || '?';
@@ -36,7 +36,7 @@ export function benchScan(rows, memeRows = []) {
   return out.sort((a, b) => (a.mean ?? 0) - (b.mean ?? 0));
 }
 
-const MEME_LABELS = { 'early-entry': 'Early entry', 'meme-safety': 'Meme safety sleeve', 'early-track': 'Early track' };
+const MEME_LABELS = { 'early-entry': 'Early entry', 'meme-safety': 'Meme safety sleeve', 'early-track': 'Early track', 'lonely-entry': 'Lonely entry', 'trend-rotate': 'Hourly trending leader' };
 const earlyBook = (id) => id === 'early-entry' || id === 'early-track' || String(id).startsWith('early-exit');
 const controlIds = () => new Set(VARIANTS.filter((v) => v.role === 'control').map((v) => v.id));
 
@@ -113,7 +113,7 @@ export function focusDoc({ rows = [], memeRows = [], backtest = null, brain = nu
       lo: stats.lo,
       hi: stats.hi,
       winRate: stats.winRate,
-      gate: gateLine(variant, rows),
+      gate: variant ? gateLine(variant, rows) : { forwardN: mine.filter((line) => Number.isFinite(line.pnl) && line.skipped !== true).length, windows: 0, cleared: 0, need: 3, graduated: false },
       backtest: report ? { mode: report.mode, cut: report.cut, inSample: pick(report.inSample), outSample: pick(report.outSample) } : null,
     };
   });
@@ -126,15 +126,38 @@ export function focusDoc({ rows = [], memeRows = [], backtest = null, brain = nu
     const now2 = scan.get(row.id);
     return { ...row, nowN: now2?.n ?? null, nowMean: now2?.mean ?? null, nowHi: now2?.hi ?? null };
   });
+  const research = RESEARCH_SHADOWS.map((row) => {
+    const variant = VARIANTS.find((v) => v.id === row.id);
+    const mine = settled(row.book === 'meme' ? memeRows : rows).filter((line) => line.variant === row.id);
+    const stats = row.book === 'meme' ? summarize(mine, { cluster: memeCluster }) : summarize(mine);
+    const report = bt.get(row.id);
+    const pick = (s) => (s && !s.hidden ? { n: s.n, mean: s.mean, lo: s.lo, hi: s.hi, winRate: s.winRate, breakEven: s.breakEven } : null);
+    return {
+      id: row.id,
+      label: variant?.label || row.label,
+      book: row.book,
+      addedAt: variant?.addedAt || RESEARCH_REGISTERED_AT,
+      weight: Number.isFinite(brain?.weights?.[row.id]) ? brain.weights[row.id] : 0,
+      n: stats.n,
+      mean: stats.mean,
+      lo: stats.lo,
+      hi: stats.hi,
+      winRate: stats.winRate,
+      gate: variant ? gateLine(variant, rows) : { forwardN: mine.filter((line) => Number.isFinite(line.pnl) && line.skipped !== true).length, windows: 0, cleared: 0, need: 3, graduated: false },
+      backtest: report ? { mode: report.mode, cut: report.cut, inSample: pick(report.inSample), outSample: pick(report.outSample) } : null,
+    };
+  });
   return {
     generatedAt: new Date(now).toISOString(),
     registeredAt: FOCUS_REGISTERED_AT,
+    researchAt: RESEARCH_REGISTERED_AT,
     paper: true,
     liveExecution: false,
     sizeUsd: 2,
     rule: BENCH_RULE,
     backtestAt: backtest?.generatedAt || null,
     near,
+    research,
     benched,
     rolled: rolledList,
     note: 'Paper only, after fees. Weight moves only when graduates() clears on forward paper rows. A backtest never graduates a strategy.',
