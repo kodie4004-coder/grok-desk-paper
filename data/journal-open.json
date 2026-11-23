@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-23T10:52:59.312Z",
+  "updatedAt": "2026-11-23T10:57:01.830Z",
   "entries": [
     {
       "id": "revert-no-longshot:KXAUDUSD15M-26NOV230600-30",
@@ -3739,6 +3739,61 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.977, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-strict:KXNEAR15M-26NOV230600-00",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXNEAR15M-26NOV230600-00",
+      "series": "KXNEAR15M",
+      "title": "NEAR price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.61,
+      "contracts": 3,
+      "sizeUsd": 2,
+      "fee": 0.05,
+      "openedAt": "2026-11-23T10:57:01.830Z",
+      "closeTime": "2026-11-23T11:00:00Z",
+      "exit": null,
+      "price": 0.61,
+      "secondsLeft": 178,
+      "spread": 0.02,
+      "momentum": -0.41,
+      "volatility": 0.20550750189064468,
+      "strategy": "mom-strict",
+      "market": "KXNEAR15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXNEAR15M-26NOV230600-00 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.61 with 178s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.61, fee included"
         }
       ],
       "skipped": false,
