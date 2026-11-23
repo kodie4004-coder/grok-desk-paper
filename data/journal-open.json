@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-23T05:53:43.074Z",
+  "updatedAt": "2026-11-23T05:57:45.234Z",
   "entries": [
     {
       "id": "revert-no-longshot:KXAUDUSD15M-26NOV230100-30",
@@ -3633,6 +3633,62 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.82, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "fair-spot:KXSOL15M-26NOV230100-00",
+      "family": "fair",
+      "variant": "fair-spot",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXSOL15M-26NOV230100-00",
+      "series": "KXSOL15M",
+      "title": "SOL price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.08,
+      "contracts": 25,
+      "sizeUsd": 2,
+      "fee": 0.13,
+      "openedAt": "2026-11-23T05:57:45.234Z",
+      "closeTime": "2026-11-23T06:00:00Z",
+      "exit": null,
+      "price": 0.08,
+      "secondsLeft": 135,
+      "spread": 0.01,
+      "momentum": -0.05,
+      "volatility": 0.3239855963876584,
+      "strategy": "fair-spot",
+      "market": "KXSOL15M",
+      "pEst": 0.14855960969498438,
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXSOL15M-26NOV230100-00 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.08 with 135s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.08, fee included"
         }
       ],
       "skipped": false,
