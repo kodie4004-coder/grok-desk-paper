@@ -126,7 +126,9 @@ export function openAnchor(closes, closeTime) {
   return (pa + pb) / 2;
 }
 
-export function fairPickV2(market, spots) {
+// fair-spot-v2's yes probability for one market, before any edge check.
+// Returns null when any input rule above fails. fairPickV2 and late-fair share it.
+export function fairV2Prob(market, spots) {
   const base = FAIR_SERIES[market?.series];
   if (!base) return null;
   const spot = spots?.[base];
@@ -145,6 +147,13 @@ export function fairPickV2(market, spots) {
   const sigma = realizedSigmaPerMinute(spot.closes || [], now);
   const fair = fairYes(px, anchor, sigma, secondsLeft);
   if (fair == null) return null;
+  return { fair, sigma, anchor };
+}
+
+export function fairPickV2(market, spots) {
+  const model = fairV2Prob(market, spots);
+  if (!model) return null;
+  const { fair, sigma, anchor } = model;
   const yes = Number(market.yesAsk);
   const no = Number(market.noAsk);
   const yesN = Math.floor(2 / yes);
@@ -157,3 +166,17 @@ export function fairPickV2(market, spots) {
   }
   return null;
 }
+
+// late-fair. Written down 2026-11-23, before any replay or forward row.
+// Why: late-fee and scalp-fee priced their side with the quote mid. The mid is
+// never above the ask, so mid - ask - fee - 1¢ is always below zero and they
+// could not open a line (0 journal rows since 2026-11-20). fair-spot-v2 is the
+// one model on the desk whose probabilities beat Kalshi's asks on Brier.
+// Rule (fixed here; nothing is searched on the journal or a holdout):
+// 1. The late-favorite pick, unchanged: the side with ask >= 0.85, 180 to 300 s left.
+// 2. Only BTC, ETH and SOL, where fair-spot-v2's inputs exist (fairV2Prob).
+// 3. Enter only when that model's probability for the picked side clears the ask
+//    plus the rounded taker fee plus fair-spot-v2's 3¢ margin. $2 size.
+// 4. Weight pinned at 0 until graduates() clears on its own forward rows.
+//    addedAt is this rule's merge time, so no earlier row can promote it.
+export const LATE_FAIR_ADDED_AT = '2026-11-23T14:30:00.000Z';

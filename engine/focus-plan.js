@@ -88,6 +88,7 @@ export const RESEARCH_SHADOWS = Object.freeze([
   { id: 'fair-spot', book: 'kalshi', label: 'Spot-implied fair value' },
   { id: 'pairs-lag', book: 'kalshi', label: 'BTC/ETH/SOL quote lag' },
   { id: 'fair-spot-v2', book: 'kalshi', label: 'Spot fair value, same-venue anchor' },
+  { id: 'late-fair', book: 'kalshi', label: 'Late favorite, spot-checked' },
   { id: 'lonely-entry', book: 'meme', label: 'Lonely entry' },
   { id: 'trend-rotate', book: 'meme', label: 'Hourly trending leader' },
 ]);

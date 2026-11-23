@@ -126,16 +126,14 @@ test('the quote mid is the proxy, and a normal YES book does not enter', () => {
   const p = sideWinProb(noBook, 'no');
   const contracts = Math.floor(LEARN_SIZE / noBook.noAsk);
   assert.equal(feeEdgeClears(p, noBook.noAsk, contracts, FEE_EDGE_MARGIN), true);
-  const picked = signal(lateFee, noBook, now);
-  assert.equal(picked.side, 'no');
-  assert.equal(picked.pEst, p);
-  assert.equal(picked.features.pEst, p);
+  // The proxy clears only on a crossed book (yes bid + no ask under $1), which Kalshi
+  // does not publish; the journal has no late-fee or scalp-fee row. Both are retired.
+  assert.ok(noBook.yesBid + noBook.noAsk < 1);
+  assert.equal(lateFee.retired, true);
+  assert.equal(signal(lateFee, noBook, now), null);
   const opened = stepJournal({ markets: [noBook], open: [], quotes: {}, brain: defaultBrain(), existingIds: [], now });
-  const row = opened.open.find((item) => item.variant === 'late-fee');
-  assert.ok(row);
-  assert.equal(row.sizeUsd, 2);
-  assert.equal(row.side, 'no');
-  assert.equal(row.fee, kalshiTakerFee(row.ask, row.contracts));
+  assert.equal(opened.open.some((item) => item.variant === 'late-fee'), false);
+  assert.equal(typeof kalshiTakerFee, 'function');
   const scalp = VARIANTS.find((item) => item.id === 'scalp');
   const scalpFee = VARIANTS.find((item) => item.id === 'scalp-fee');
   const jump = { ...yesBook, yesAsk: 0.7, yesBid: 0.68, noAsk: 0.32, closeTime: '2026-11-21T12:08:00Z' };
@@ -153,8 +151,8 @@ test('the added day cannot promote or bench, and a later day still can', () => {
   ], Date.parse('2026-11-21T12:00:00Z'), { iters: 30 });
   assert.equal(seen.champions.late, 'late');
   assert.equal(seen.benched.includes('late-fee'), false);
-  assert.match(seen.decisions.join('\n'), /Late favorite, fee-aware was added on 2026-11-20/);
-  assert.match(seen.decisions.join('\n'), /cannot promote/);
+  // Retired, so the holdout no longer considers it at all.
+  assert.doesNotMatch(seen.decisions.join('\n'), /fee-aware/);
   assert.equal(seen.addedAt['late-fee'], FEE_AWARE_ADDED_AT);
   assert.equal(seen.addedAt['scalp-fee'], FEE_AWARE_ADDED_AT);
   const later = reviewBrain(defaultBrain(), [
@@ -162,7 +160,8 @@ test('the added day cannot promote or bench, and a later day still can', () => {
     ...sample('late', '2026-11-22', -0.02),
     ...sample('late-fee', '2026-11-22', 0.05),
   ], Date.parse('2026-11-23T12:00:00Z'), { iters: 30 });
-  assert.equal(later.champions.late, 'late-fee');
+  // Retired bots cannot be promoted, even by a synthetic winning holdout.
+  assert.equal(later.champions.late, 'late');
   assert.equal(later.champions.scalp, 'scalp');
   const benched = reviewBrain(defaultBrain(), [
     ...sample('scalp-fee', '2026-11-21', -0.1),
