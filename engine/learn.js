@@ -9,7 +9,7 @@ import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { repairGate, REPAIR_MIN_N } from './repair.js';
 import { isFocusBenched } from './focus-plan.js';
-import { fairPick, fairPickV2, FAIR_ADDED_AT, FAIR_MARGIN, FAIR_MIN_LEFT, FAIR_MAX_LEFT, FAIR_V2_ADDED_AT, FAIR_V2_MARGIN } from './fair.js';
+import { fairPick, fairPickV2, fairV2Prob, LATE_FAIR_ADDED_AT, FAIR_ADDED_AT, FAIR_MARGIN, FAIR_MIN_LEFT, FAIR_MAX_LEFT, FAIR_V2_ADDED_AT, FAIR_V2_MARGIN } from './fair.js';
 import { pairsPick, PAIRS_ADDED_AT, PAIRS_MARGIN, PAIRS_MIN_LEFT, PAIRS_MAX_LEFT } from './pairs.js';
 import { modelCalibration } from './calibration.js';
 
@@ -35,7 +35,8 @@ export const VARIANTS = [
   { id: 'late-loose', family: 'late', label: 'Late favorite, looser ask', role: 'challenger', minAsk: 0.80, minLeft: 180, maxLeft: 300 },
   { id: 'late-tight', family: 'late', label: 'Late favorite, tighter ask', role: 'challenger', minAsk: 0.90, minLeft: 180, maxLeft: 360 },
   { id: 'late-early', family: 'late', label: 'Late favorite, earlier', role: 'challenger', minAsk: 0.85, minLeft: 300, maxLeft: 480 },
-  { id: 'late-fee', family: 'late', label: 'Late favorite, fee-aware', role: 'challenger', minAsk: 0.85, minLeft: 180, maxLeft: 300, feeAware: true, addedAt: FEE_AWARE_ADDED_AT },
+  // Retired 2026-11-23: the quote-mid proxy is never above the ask, so the fee filter can never pass.
+  { id: 'late-fee', family: 'late', label: 'Late favorite, fee-aware', role: 'challenger', minAsk: 0.85, minLeft: 180, maxLeft: 300, feeAware: true, addedAt: FEE_AWARE_ADDED_AT, retired: true },
   { id: 'mom', family: 'mom', label: 'Momentum vs target', role: 'champion', kind: 'mom', minLeft: 120, maxLeft: 600, minMove: 0 },
   { id: 'mom-strict', family: 'mom', label: 'Momentum, 0.05% past the strike', role: 'challenger', kind: 'mom', minLeft: 120, maxLeft: 600, minMove: 0.0005 },
   { id: 'revert', family: 'revert', label: 'Mean revert', role: 'champion', kind: 'revert', minLeft: 360, maxLeft: 720, cheap: [0.15, 0.40], rich: [0.60, 0.85] },
@@ -46,7 +47,7 @@ export const VARIANTS = [
   { id: 'scalp-tp', family: 'scalp', label: 'Scalp, 3c take-profit', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'tp' },
   { id: 'scalp-stop', family: 'scalp', label: 'Scalp, 4c stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'stop' },
   { id: 'scalp-time', family: 'scalp', label: 'Scalp, 2-minute time-stop', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, exit: 'time' },
-  { id: 'scalp-fee', family: 'scalp', label: 'Scalp, fee-aware', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, feeAware: true, addedAt: FEE_AWARE_ADDED_AT },
+  { id: 'scalp-fee', family: 'scalp', label: 'Scalp, fee-aware', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, feeAware: true, addedAt: FEE_AWARE_ADDED_AT, retired: true },
   { id: 'flip', family: 'flip', label: 'Coin-flip control', role: 'control', kind: 'flip', minLeft: 600, maxLeft: 840 },
   { id: 'rest-maker', family: 'maker', label: 'Resting maker', role: 'challenger', kind: 'maker', minLeft: 120, maxLeft: 600 },
   { id: 'mom-settle', family: 'mom', label: 'Momentum, 60-second average', role: 'challenger', kind: 'settle', minLeft: 120, maxLeft: 600 },
@@ -55,6 +56,8 @@ export const VARIANTS = [
   { id: 'fair-spot', family: 'fair', label: 'Spot-implied fair value', role: 'challenger', kind: 'fair', minLeft: FAIR_MIN_LEFT, maxLeft: FAIR_MAX_LEFT, feeMargin: FAIR_MARGIN, pinZero: true, addedAt: FAIR_ADDED_AT },
   // Basis-corrected fair value, same venue on both sides. Rules are in engine/fair.js.
   { id: 'fair-spot-v2', family: 'fair', label: 'Spot fair value, same-venue anchor', role: 'challenger', kind: 'fair2', minLeft: FAIR_MIN_LEFT, maxLeft: FAIR_MAX_LEFT, feeMargin: FAIR_V2_MARGIN, pinZero: true, addedAt: FAIR_V2_ADDED_AT },
+  // Late favorite checked against fair-spot-v2's model. Rules are in engine/fair.js.
+  { id: 'late-fair', family: 'fair', label: 'Late favorite, spot-checked', role: 'challenger', kind: 'latefair', minAsk: 0.85, minLeft: 180, maxLeft: 300, feeMargin: FAIR_V2_MARGIN, pinZero: true, addedAt: LATE_FAIR_ADDED_AT },
   { id: 'pairs-lag', family: 'pairs', label: 'BTC/ETH/SOL quote lag', role: 'challenger', kind: 'pairs', minLeft: PAIRS_MIN_LEFT, maxLeft: PAIRS_MAX_LEFT, feeMargin: PAIRS_MARGIN, pinZero: true, addedAt: PAIRS_ADDED_AT },
 ];
 
@@ -124,7 +127,21 @@ function favorite(market, minAsk) {
   return null;
 }
 
+// The late-favorite side, kept only when fair-spot-v2's probability for it clears
+// the ask, the rounded taker fee and the 3¢ margin.
+export function lateFairPick(market, spots, minAsk) {
+  const fav = favorite(market, minAsk);
+  if (!fav) return null;
+  const model = fairV2Prob(market, spots);
+  if (!model) return null;
+  const pEst = fav.side === 'yes' ? model.fair : 1 - model.fair;
+  const contracts = Math.floor(LEARN_SIZE / fav.ask);
+  if (!(contracts >= 1) || !feeEdgeClears(pEst, fav.ask, contracts, FAIR_V2_MARGIN)) return null;
+  return { ...fav, pEst, fair: model.fair, sigma: model.sigma, anchor: model.anchor };
+}
+
 export function signal(variant, market, now, ctx = {}) {
+  if (variant.retired) return null;
   const left = (Date.parse(market.closeTime) - now) / 1000;
   if (!Number.isFinite(left) || left < variant.minLeft || left > variant.maxLeft) return null;
   const yes = Number(market.yesAsk);
@@ -170,6 +187,8 @@ export function signal(variant, market, now, ctx = {}) {
     picked = fairPickV2(market, ctx.spots);
   } else if (variant.kind === 'pairs') {
     picked = pairsPick(market, ctx);
+  } else if (variant.kind === 'latefair') {
+    picked = lateFairPick(market, ctx.spots, variant.minAsk);
   }
   if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
   if (variant.feeAware) {
@@ -362,7 +381,7 @@ export function stepJournal({ markets, open = [], quotes = {}, brain, existingId
   const quiet = new Set([...(state.benched || []), ...risk.shadow, ...demoted.map((d) => d.id), ...controls()]);
   const weights = evidenceWeights(history, state, now, 40);
   for (const variant of VARIANTS) {
-    if (isFocusBenched(variant.id) || (variant.pinZero && !pinCleared(variant, history))) quiet.add(variant.id);
+    if (variant.retired || isFocusBenched(variant.id) || (variant.pinZero && !pinCleared(variant, history))) quiet.add(variant.id);
   }
   for (const id of quiet) weights[id] = 0;
   const nextQuotes = {};
@@ -648,7 +667,7 @@ export function reviewBrain(brain, rows, now, opts = {}) {
     const losing = stats.n >= HOLD_MIN && !(stats.mean > 0) && !(stats.lo > 0);
     if (losing) benched.add(variant.id);
     const mean = stats.mean == null ? 0 : Math.max(-0.1, Math.min(0.1, stats.mean));
-    weights[variant.id] = benched.has(variant.id) || isFocusBenched(variant.id) || !pinCleared(variant, rows) ? 0 : Math.exp(mean / 0.02);
+    weights[variant.id] = variant.retired || benched.has(variant.id) || isFocusBenched(variant.id) || !pinCleared(variant, rows) ? 0 : Math.exp(mean / 0.02);
   }
   const champions = { ...base.champions };
   const already = !!(holdout && base.judged.includes(holdout));
@@ -665,7 +684,7 @@ export function reviewBrain(brain, rows, now, opts = {}) {
       const champHold = windowStats(holdRows.filter((r) => r.variant === champId), opts.iters || 200);
       let best = null;
       const blocked = [];
-      for (const variant of VARIANTS.filter((v) => v.family === family && v.id !== champId && v.role !== 'control')) {
+      for (const variant of VARIANTS.filter((v) => v.family === family && v.id !== champId && v.role !== 'control' && !v.retired)) {
         if (!holdoutEligible(variant, holdout)) {
           blocked.push(variant);
           continue;
