@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-23T11:38:29.434Z",
+  "updatedAt": "2026-11-23T11:42:42.725Z",
   "entries": [
     {
       "id": "flip:KXAUDUSD15M-26NOV230645-30",
@@ -3411,6 +3411,118 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.926, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "fair-spot:KXETH15M-26NOV230645-45",
+      "family": "fair",
+      "variant": "fair-spot",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV230645-45",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.12,
+      "contracts": 16,
+      "sizeUsd": 2,
+      "fee": 0.12,
+      "openedAt": "2026-11-23T11:42:42.725Z",
+      "closeTime": "2026-11-23T11:45:00Z",
+      "exit": null,
+      "price": 0.12,
+      "secondsLeft": 137,
+      "spread": 0.01,
+      "momentum": -0.061,
+      "volatility": 0.10858330135584077,
+      "strategy": "fair-spot",
+      "market": "KXETH15M",
+      "pEst": 0.24635729159718434,
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV230645-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.12 with 137s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.12, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "pairs-lag:KXETH15M-26NOV230645-45",
+      "family": "pairs",
+      "variant": "pairs-lag",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV230645-45",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.89,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-23T11:42:42.725Z",
+      "closeTime": "2026-11-23T11:45:00Z",
+      "exit": null,
+      "price": 0.89,
+      "secondsLeft": 137,
+      "spread": 0.01,
+      "momentum": -0.061,
+      "volatility": 0.10858330135584077,
+      "strategy": "pairs-lag",
+      "market": "KXETH15M",
+      "pEst": 0.9884999999999999,
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV230645-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.89 with 137s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.89, fee included"
         }
       ],
       "skipped": false,
