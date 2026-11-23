@@ -1,31 +1,31 @@
 {
   "paper": true,
-  "day": "2026-11-22",
-  "generatedAt": "2026-11-22T00:17:51.679Z",
-  "trades": 54,
-  "net": 24.245999999999995,
+  "day": "2026-11-23",
+  "generatedAt": "2026-11-23T00:27:05.923Z",
+  "trades": 99,
+  "net": 32.79600000000002,
   "best": {
-    "id": "revert",
-    "n": 8,
-    "pnl": 13.09,
-    "mean": 1.63625
+    "id": "flip",
+    "n": 27,
+    "pnl": 38.9,
+    "mean": 1.4407407407407407
   },
   "worst": {
-    "id": "flip",
+    "id": "revert-no-longshot",
     "n": 14,
-    "pnl": -9.834,
-    "mean": -0.7024285714285714
+    "pnl": -5.7799999999999985,
+    "mean": -0.41285714285714276
   },
   "lessons": [
-    "All settled lines: n 14376, win rate 61%, net −$1248.49 after fees, mean −$0.09, 90% interval −$0.14 to −$0.04.",
+    "All settled lines: n 19346, win rate 62%, net −$1583.75 after fees, mean −$0.08, 90% interval −$0.12 to −$0.03.",
     "Allocated $2 picks: n 376, net −$39.33, mean −$0.10, 90% interval −$0.32 to +$0.10. uncertain. Shadows are logged and are not a second bet.",
-    "Mean revert: n 3432, win rate 32%, mean −$0.01, 90% interval −$0.18 to +$0.19. uncertain."
+    "Mean revert: n 4165, win rate 32%, mean −$0.06, 90% interval −$0.21 to +$0.12. uncertain."
   ],
   "changed": [
-    "Late favorite keeps late-tight. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Momentum vs target keeps mom-strict. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Mean revert keeps revert. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Intra-window scalp keeps scalp. The 2026-11-21 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Late favorite keeps late-tight. The 2026-11-22 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Momentum, 60-second average replaces mom-strict on the 2026-11-22 holdout. n 852, mean +$0.12 after fees, against the champion's +$0.08.",
+    "Mean revert keeps revert. The 2026-11-22 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Intra-window scalp keeps scalp. The 2026-11-22 holdout did not clear n 20 for both bots with a higher after-fee mean.",
     "Resting maker has no champion. A challenger stays at the starter weight until the holdout can compare it.",
     "late is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day."
   ],
@@ -41,8 +41,19 @@
     "scalp-tp",
     "scalp-stop",
     "scalp-time",
+    "mom",
+    "mom-strict",
+    "revert-no-longshot",
     "rest-maker",
+    "mom-settle",
     "scalp-95",
-    "mom"
+    "fair-spot",
+    "pairs-lag",
+    "fair-spot-v2"
+  ],
+  "modelVsMarket": [
+    "fair-spot's prices were less accurate than Kalshi's own (Brier 0.167 vs 0.149). It expected 66.3 wins, Kalshi's asks implied 55.8, and it won 41 of 143. Mean -$0.93 per $2 line after fees. Lower Brier is better.",
+    "fair-spot-v2's prices were more accurate than Kalshi's own (Brier 0.122 vs 0.137). It expected 36.0 wins, Kalshi's asks implied 29.7, and it won 38 of 70. Mean -$0.04 per $2 line after fees. Lower Brier is better.",
+    "pairs-lag's prices were less accurate than Kalshi's own (Brier 0.254 vs 0.194). It expected 64.5 wins, Kalshi's asks implied 44.2, and it won 45 of 90. Mean -$0.15 per $2 line after fees. Lower Brier is better."
   ]
 }

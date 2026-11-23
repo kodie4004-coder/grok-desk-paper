@@ -4,7 +4,7 @@
   "note": "Paper only. The newest finished UTC day is the holdout and is judged once. The edge gate is not changed here. A loss does not raise size.",
   "champions": {
     "late": "late-tight",
-    "mom": "mom-strict",
+    "mom": "mom-settle",
     "revert": "revert",
     "scalp": "scalp",
     "flip": "flip"
@@ -56,7 +56,8 @@
   "judged": [
     "2026-11-19",
     "2026-11-20",
-    "2026-11-21"
+    "2026-11-21",
+    "2026-11-22"
   ],
   "addedAt": {
     "late-fee": "2026-11-20T23:20:00.000Z",
@@ -71,7 +72,7 @@
     "late-loose": 0,
     "late-tight": 0,
     "late-early": 0,
-    "late-fee": 0.25,
+    "late-fee": 1,
     "mom": 0,
     "mom-strict": 0,
     "revert": 0,
@@ -82,8 +83,8 @@
     "scalp-tp": 0,
     "scalp-stop": 0,
     "scalp-time": 0,
-    "scalp-fee": 0.25,
-    "flip": 0,
+    "scalp-fee": 1,
+    "flip": 1,
     "rest-maker": 0,
     "mom-settle": 0,
     "scalp-95": 0,
@@ -92,7 +93,11 @@
     "pairs-lag": 0
   },
   "decisions": [
-    "Holdout 2026-11-21 was already judged. It was not used to retune.",
+    "Late favorite keeps late-tight. The 2026-11-22 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Momentum, 60-second average replaces mom-strict on the 2026-11-22 holdout. n 852, mean +$0.12 after fees, against the champion's +$0.08.",
+    "Mean revert keeps revert. The 2026-11-22 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Intra-window scalp keeps scalp. The 2026-11-22 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Resting maker has no champion. A challenger stays at the starter weight until the holdout can compare it.",
     "late is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "late-loose is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "late-tight is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
@@ -114,8 +119,8 @@
     "pairs-lag is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day.",
     "fair-spot-v2 is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day."
   ],
-  "holdout": "2026-11-21",
-  "reviewedAt": "2026-11-22T15:16:36.896Z",
+  "holdout": "2026-11-22",
+  "reviewedAt": "2026-11-23T00:27:05.923Z",
   "lessons": [],
   "shadowReturned": {
     "revert-wide": "2026-11-19",
