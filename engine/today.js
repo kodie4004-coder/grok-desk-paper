@@ -1,5 +1,6 @@
 // Today's Home header numbers. Reads settled paper rows only. Does not change
 // weights, the edge gate, fees, or live_execution.
+import { isQuoteError, quoteErrorCount } from './quote-guard.js';
 import { isEarlyBook, repairGate, sleeveBenched, REPAIR_MIN_N, REPAIR_SIZE_USD } from './repair.js';
 
 export const STALE_MS = 20 * 60 * 1000;
@@ -42,6 +43,7 @@ export function feedAge(fetchedAt, now) {
 
 function settledOn(row, day) {
   if (!row || row.pnl == null || !Number.isFinite(row.pnl)) return false;
+  if (isQuoteError(row)) return false;
   return String(row.settledAt || row.window || row.closedAt || '').slice(0, 10) === day;
 }
 
@@ -77,7 +79,8 @@ export function repairProgress(memeRows) {
   const shadows = rows.filter((row) => row && row.pnl != null && row.allocated === false && !isEarlyBook(row.variant));
   const gate = repairGate(shadows);
   const bench = sleeveBenched(rows);
-  return { ...gate, benched: bench.benched, sizeUsd: REPAIR_SIZE_USD, need: REPAIR_MIN_N };
+  const quarantined = quoteErrorCount(rows.filter((row) => row && row.pnl != null && !isEarlyBook(row.variant)));
+  return { ...gate, benched: bench.benched, sizeUsd: REPAIR_SIZE_USD, need: REPAIR_MIN_N, quarantined };
 }
 
 export function todayDoc({ kalshiRows = [], memeRows = [], kalshiFetchedAt = null, memeFetchedAt = null, now } = {}) {

@@ -32,9 +32,11 @@ function repairCopy(repair) {
   const need = repair.need || 20;
   const mean = repair.mean == null ? 'no shadow trades yet' : `${money(repair.mean)} per trade after fees`;
   const size = repair.sizeUsd ?? 2;
-  if (repair.pass) return `${n} of ${need} shadow trades. Mean ${mean}. Ready to resume allocated paper entries at $${size}. Live execution stays off.`;
-  if (n >= need) return `${n} of ${need} shadow trades. Mean ${mean}. Needs a positive mean to resume. Size stays $${size}.`;
-  return `${n} of ${need} shadow trades. Mean ${mean}. Needs ${need} shadow trades with a positive mean to resume. Size stays $${size}.`;
+  const q = Number(repair.quarantined) || 0;
+  const aside = q ? ` ${q} bad-quote ${q === 1 ? 'row' : 'rows'} set aside.` : '';
+  if (repair.pass) return `${n} of ${need} shadow trades. Mean ${mean}. Ready to resume allocated paper entries at $${size}. Live execution stays off.${aside}`;
+  if (n >= need) return `${n} of ${need} shadow trades. Mean ${mean}. Needs a positive mean to resume. Size stays $${size}.${aside}`;
+  return `${n} of ${need} shadow trades. Mean ${mean}. Needs ${need} shadow trades with a positive mean to resume. Size stays $${size}.${aside}`;
 }
 
 export function todayHeaderHtml(doc, { state = 'ready', now = Date.now() } = {}) {
