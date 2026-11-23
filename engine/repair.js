@@ -2,6 +2,8 @@
 // at the same small size. Shadow P&L is not written into the live balance.
 // Nothing here raises size, resets the bank, or loosens the edge gate.
 
+import { withoutQuoteErrors } from './quote-guard.js';
+
 export const REPAIR_MIN_N = 20;
 export const REPAIR_SIZE_USD = 2;
 export const CHASE_COOLDOWN_MS = 60 * 60 * 1000;
@@ -26,7 +28,7 @@ function earlyBook(variant) {
 }
 
 export function sleeveBenched(rows) {
-  const list = rows || [];
+  const list = withoutQuoteErrors(rows);
   const live = list.filter((row) => row && row.pnl != null && row.allocated !== false);
   const shadows = list.filter((row) => row && row.pnl != null && row.allocated === false && !earlyBook(row.variant));
   const n = live.length;
@@ -54,7 +56,7 @@ export function chaseBlocked(rows, ca, nowMs, coolMs = CHASE_COOLDOWN_MS) {
 
 // Shadow rows only. Pass does not change the loss cap or the size.
 export function repairGate(rows) {
-  const list = (rows || []).filter((row) => row && row.pnl != null);
+  const list = withoutQuoteErrors(rows).filter((row) => row && row.pnl != null);
   const n = list.length;
   const mean = n ? list.reduce((sum, row) => sum + row.pnl, 0) / n : null;
   const wins = list.filter((row) => row.pnl > 0).length;

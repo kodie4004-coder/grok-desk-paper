@@ -8,6 +8,7 @@ import { isFocusBenched } from './focus-plan.js';
 import { stampLonely, emitLonely } from './lonely.js';
 import { TREND_ID, TREND_STOP } from './trend.js';
 import { jevStamp } from './jev.js';
+import { saneQuote, withoutQuoteErrors } from './quote-guard.js';
 
 export const MEME_SIZE = 2;
 export const MEME_FEE = 0.0125;
@@ -433,8 +434,12 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
   const knownIds = new Set((history || []).map((row) => row?.id).filter(Boolean));
   const byCa = new Map((coins || []).map((c) => [c.ca, c]));
   for (const pos of open) {
+    // Trend rotation has its own exits (engine/trend.js stepTrend). The safety
+    // sleeve's take-profit and 30 minute time stop are not its rules.
+    if (pos?.variant === TREND_ID) { still.push(pos); continue; }
     const live = byCa.get(pos.ca);
-    const px = num(live?.priceUsd);
+    const raw = num(live?.priceUsd);
+    const px = saneQuote(pos?.entry, raw) ? raw : null;
     if (pos?.variant === 'early-track') {
       if (!(px > 0) || typeof track !== 'function') { still.push(pos); continue; }
       const tracked = track(pos, px, now, { parentExiting: false, known: knownIds });
@@ -477,7 +482,7 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
     } else still.push(pos);
   }
   const known = new Set(still.map((p) => p.ca).concat(settled.map((p) => p.ca)));
-  const book = [...(history || []), ...settled];
+  const book = withoutQuoteErrors([...(history || []), ...settled]);
   const bench = sleeveBenched(book);
   const feeOk = memeTargetClearsFees();
   // Focus bench (static or rolling): the safety sleeve opens no new lines.
@@ -594,7 +599,7 @@ function stopPack(list) {
 
 // Snapshot stops are the before sample. Rows marked watch are the fast checker.
 export function stopSlippage(rows) {
-  const stops = (rows || []).filter((row) => row.exit === 'stop' && row.entry > 0 && row.exitPx > 0);
+  const stops = withoutQuoteErrors(rows).filter((row) => row.exit === 'stop' && row.entry > 0 && row.exitPx > 0);
   return {
     paper: true,
     rule: MEME_RULES.stop - 1,
@@ -608,6 +613,7 @@ export function stopSlippage(rows) {
 // often has no price for it, and the position would otherwise stay open.
 export function watchExit(pos, px, now) {
   if (!(px > 0) || !(pos?.entry > 0)) return null;
+  if (!saneQuote(pos.entry, px)) return null;
   if (pos.variant === 'early-track') return null;
   // Trend rotation happens on the snapshot. The watcher only enforces the 15% stop.
   if (pos.variant === TREND_ID) {
@@ -700,23 +706,36 @@ export function applyWatch({ open, prices, now, history = [], track = null }) {
   return { settled, shadows: shadows.concat(lonely), open: still };
 }
 
+// The deepest pool's price, unless it disagrees with the median of the five
+// deepest pools for the same base mint by more than half. Then the median is
+// used. One odd pool cannot move an open paper position on its own.
 export function pricesFromDex(book, mints) {
   const pairs = Array.isArray(book) ? book : (book?.pairs || []);
   const out = {};
   for (const mint of mints || []) {
     const pair = bestPair(pairs, mint);
-    const px = num(pair?.priceUsd);
+    let px = num(pair?.priceUsd);
+    const top = (pairs || [])
+      .filter((p) => p?.chainId === 'solana' && tokenMint(p) === mint && num(p?.priceUsd) > 0)
+      .sort((a, b) => (num(b?.liquidity?.usd) || 0) - (num(a?.liquidity?.usd) || 0))
+      .slice(0, 5)
+      .map((p) => num(p.priceUsd))
+      .sort((a, b) => a - b);
+    if (px > 0 && top.length >= 3) {
+      const mid = top[Math.floor(top.length / 2)];
+      if (Math.abs(px / mid - 1) > 0.5) px = mid;
+    }
     if (px > 0) out[mint] = px;
   }
   return out;
 }
 
 function safetyBook(rows) {
-  return (rows || []).filter((row) => row && row.pnl != null && row.allocated !== false && !isEarlyBook(row.variant));
+  return withoutQuoteErrors(rows).filter((row) => row && row.pnl != null && row.allocated !== false && !isEarlyBook(row.variant));
 }
 
 function shadowBook(rows) {
-  return (rows || []).filter((row) => row && row.pnl != null && (row.allocated === false || isEarlyBook(row.variant)));
+  return withoutQuoteErrors(rows).filter((row) => row && row.pnl != null && (row.allocated === false || isEarlyBook(row.variant)));
 }
 
 // Allocated safety-sleeve rows only. Early shadows and $0 logs are not a

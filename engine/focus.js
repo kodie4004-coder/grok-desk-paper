@@ -4,9 +4,10 @@
 
 import { VARIANTS, eligibleRows, gateProgress } from './learn.js';
 import { summarize } from './backtest.js';
+import { isQuoteError } from './quote-guard.js';
 import { NEAR_WINNERS, FOCUS_BENCHED, FOCUS_BENCHED_IDS, BENCH_RULE, meetsBench, FOCUS_REGISTERED_AT, RESEARCH_REGISTERED_AT, RESEARCH_SHADOWS, rollBench, rollingBench, setRollingBench } from './focus-plan.js';
 
-const settled = (rows) => (rows || []).filter((row) => row && Number.isFinite(row.pnl) && row.skipped !== true);
+const settled = (rows) => (rows || []).filter((row) => row && Number.isFinite(row.pnl) && row.skipped !== true && !isQuoteError(row));
 const memeCluster = (row) => row.ca || row.symbol || '?';
 
 // Applies the bench rule to every book with forward rows. Controls are listed but

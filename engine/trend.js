@@ -6,6 +6,7 @@
 // are not in the tape, so the backtester reports recorded rows only.
 
 import { isFocusBenched } from './focus-plan.js';
+import { saneQuote } from './quote-guard.js';
 
 // Same $2 size, 1% slip and 1.25% fee as engine/meme.js. Copied so this file
 // does not import meme.js (meme watch needs TREND_ID from here).
@@ -139,7 +140,8 @@ export function stepTrend({ trending = [], open = [], history = [], now, prices 
     if (pos?.variant !== TREND_ID) { others.push(pos); continue; }
     if (pos.pnl != null) continue;
     const live = trending.find((row) => row.ca === pos.ca);
-    const px = num(prices?.[pos.ca]) || num(live?.priceUsd) || (leader?.ca === pos.ca ? num(leader.priceUsd) : null);
+    const seen = num(prices?.[pos.ca]) || num(live?.priceUsd) || (leader?.ca === pos.ca ? num(leader.priceUsd) : null);
+    const px = saneQuote(pos.entry, seen) ? seen : null;
     const hit = trendExit(pos, px, now, leader);
     if (hit && !knownIds.has(hit.id)) {
       settled.push(hit);
