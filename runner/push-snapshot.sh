@@ -55,6 +55,7 @@ else
     data/rolling-bench.json \
     data/today.json \
     data/meme-board.json \
+    data/coin-watch.json \
     data/meme-open.json \
     data/meme-journal.jsonl \
     data/meme-stops.json \

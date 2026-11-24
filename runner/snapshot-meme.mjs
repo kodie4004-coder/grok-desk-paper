@@ -20,6 +20,7 @@ import { parseTrending, stepTrend, TREND_URL } from '../engine/trend.js';
 loadRollingBench();
 import { watchKickDecision } from './kick-watch.mjs';
 import { writeTodayFile } from './write-today.mjs';
+import { updateCoinWatch } from './coin-watch.mjs';
 
 function dispatchMemeWatch() {
   let count = 0;
@@ -34,6 +35,7 @@ function dispatchMemeWatch() {
   try {
     const env = { ...process.env };
     delete env.TYPESAFE_API_KEY;
+    delete env.NTFY_TOPIC;
     execFileSync('bash', ['runner/kick-watch.sh'], { stdio: 'inherit', env });
   } catch (e) {
     console.log('watch dispatch failed', e.status ?? e.message);
@@ -292,6 +294,10 @@ try {
     saveSleeveScore(slipRows);
     writeEarly(earlyDecisions, earlySources, new Date(now).toISOString());
     fs.writeFileSync('data/meme-stops.json', JSON.stringify({ ...stopSlippage(slipRows), updatedAt: new Date(now).toISOString() }, null, 2) + '\n');
+    try {
+      // Coins to watch: ideas for a hand trade, never an order. Safe coins only.
+      await updateCoinWatch({ coins, meta, trending, now, fetchImpl: fetch, env: { NTFY_TOPIC: process.env.NTFY_TOPIC } });
+    } catch (err) { console.log('coin watch skipped', err.message); }
     fs.writeFileSync('data/meme-board.json', JSON.stringify({ fetchedAt: new Date(now).toISOString(), source: 'dexscreener+solana-rpc', pumpFun: 'blocked', coins }, null, 2));
     const tally = {};
     for (const coin of coins) {
