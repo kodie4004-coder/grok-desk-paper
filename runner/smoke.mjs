@@ -1,4 +1,5 @@
-// Mobile smoke: home cockpit, arena, pick, scoreboard, settings. Paper labels only.
+// Mobile smoke: desk home (hero, status, bots, gate, live log), the detail fold
+// with the cockpit, arena, pick, bots, scoreboard, settings. Paper labels only.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -30,6 +31,13 @@ try {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
   const intro = page.locator('#introSkip');
   if (await intro.count()) await intro.click();
+  await page.waitForSelector('section.hero2 .hero2-num', { timeout: 6000 }).catch((e) => logs.push(e.message));
+  await page.waitForSelector('.agent-grid .agent', { timeout: 6000 }).catch((e) => logs.push(e.message));
+  const desk = await page.locator('#view').innerText();
+  if (!/paper p&l/i.test(desk) || !/after fees/i.test(desk) || !/paper only/i.test(desk) || !/top bots/i.test(desk) || !/ready for real money/i.test(desk)) fails.push('desk home\n' + desk.slice(0, 400));
+  if (/execute|go live|start live/i.test(desk)) fails.push('desk home must not offer a live or execute control');
+  if (await page.locator('details[data-fold="home-detail"][open]').count()) fails.push('desk detail should start collapsed');
+  await page.locator('details[data-fold="home-detail"] > summary').click();
   await page.waitForSelector('text=Cockpit', { timeout: 4000 }).catch((e) => logs.push(e.message));
   await page.waitForSelector('section.today', { timeout: 6000 }).catch((e) => logs.push(e.message));
   const todayText = await page.locator('section.today').first().innerText().catch(() => '');
@@ -50,14 +58,19 @@ try {
   const coins = await page.locator('#view').innerText();
   if (!/not advice/i.test(coins)) fails.push('coins\n' + coins.slice(0, 240));
   await page.locator('nav.tabs button[data-tab="brain"]').click();
+  await page.waitForSelector('.agent-grid .agent', { timeout: 8000 }).catch((e) => logs.push(e.message));
+  await page.locator('details[data-fold="brain-detail"] > summary').click();
   await page.waitForSelector('text=/after fees/i', { timeout: 8000 }).catch((e) => logs.push(e.message));
   const brain = await page.locator('#view').innerText();
   if (!/bot brain/i.test(brain) || !/model vs market/i.test(brain) || !/after fees/i.test(brain) || !/nonstop/i.test(brain) || !/new research upgrades/i.test(brain) || !/jev check/i.test(brain) || !/early entry/i.test(brain) || !/shadow/i.test(brain)) fails.push('brain\n' + brain.slice(0, 400) + '\n' + logs.join('\n'));
-  await page.locator('nav.tabs button[data-tab="score"]').click();
+  await page.locator('nav.tabs button[data-tab="more"]').click();
+  await page.locator('button[data-tabjump="score"]').click();
+  await page.locator('details[data-fold="score-detail"] > summary').click();
   const score = await page.locator('#view').innerText();
   if (!/focus/i.test(score)) fails.push('score focus\n' + score.slice(0, 200));
   if (!/ready for real money/i.test(score) || !/hype check/i.test(score) || !/new research upgrades/i.test(score) || !/jev check/i.test(score) || !/early entry/i.test(score) || !/shadow/i.test(score)) fails.push('score\n' + score.slice(0, 400));
-  await page.locator('nav.tabs button[data-tab="settings"]').click();
+  await page.locator('nav.tabs button[data-tab="more"]').click();
+  await page.locator('button[data-tabjump="settings"]').click();
   if (await page.locator('input[type="checkbox"][disabled]').count() < 1) fails.push('live execution toggle');
   await page.setViewportSize({ width: 430, height: 932 });
   await page.locator('nav.tabs button[data-tab="home"]').click();

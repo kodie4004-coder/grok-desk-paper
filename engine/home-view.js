@@ -1,0 +1,209 @@
+// Visual-first Home ("Desk") markup. Loads in the browser and in tests.
+// PAPER ONLY. Display only: nothing here moves a weight, a bench, a gate, the
+// holdout, the $2 size or live_execution. Every number comes from the data
+// files the runner already writes (today.json, alloc-curve.json, brain.json,
+// focus.json, journal-open.json, phone-alerts.json). There is no execute or
+// live-trading control on this screen, on purpose.
+import { feedAge } from './today.js';
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const finite = (n) => typeof n === 'number' && Number.isFinite(n);
+const r1 = (n) => Math.round(n * 10) / 10;
+
+export function usd(x, { cents = true } = {}) {
+  if (!finite(x)) return '—';
+  const sign = x > 0 ? '+' : x < 0 ? '−' : '';
+  const abs = Math.abs(x);
+  const body = cents ? abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.round(abs).toLocaleString('en-US');
+  return `${sign}$${body}`;
+}
+export const tone = (x) => (finite(x) && x > 0 ? 'up' : finite(x) && x < 0 ? 'dn' : 'flat');
+
+// Neon accent per strategy family. Fixed list; unknown families get grey.
+export const FAMILY = {
+  mom: { color: '#3dff9a', icon: '↗', name: 'Momentum' },
+  late: { color: '#38e1ff', icon: '◷', name: 'Late favorite' },
+  fair: { color: '#b98cff', icon: '◈', name: 'Fair value' },
+  pairs: { color: '#ffc94d', icon: '⇄', name: 'Pairs' },
+  revert: { color: '#ff6bd5', icon: '↺', name: 'Mean revert' },
+  flip: { color: '#7aa8ff', icon: '◐', name: 'Coin flip' },
+  scalp: { color: '#ff9a4d', icon: '⚡', name: 'Scalp' },
+  rest: { color: '#ff6b7d', icon: '▤', name: 'Maker' },
+  meme: { color: '#ffe066', icon: '◎', name: 'Coins' },
+};
+export function familyOf(stat) {
+  const id = String(stat?.id || stat?.variant || '');
+  if (stat?.book === 'meme') return 'meme';
+  const fam = stat?.family || id.split('-')[0];
+  return FAMILY[fam] ? fam : id.startsWith('rest') ? 'rest' : fam;
+}
+const accent = (fam) => FAMILY[fam] || { color: '#8b97a6', icon: '•', name: fam || 'Bot' };
+
+// Area sparkline. Points are a cumulative after-fee series; a 0 start is added
+// so the line begins at break-even.
+export function sparkSvg(points, { w = 120, h = 40, cls = '', label = '' } = {}) {
+  const ys = [0, ...(points || []).filter(finite)];
+  if (ys.length < 3) return '';
+  const min = Math.min(...ys), max = Math.max(...ys);
+  const span = max - min || 1;
+  const x = (i) => r1(1 + (i / (ys.length - 1)) * (w - 2));
+  const y = (v) => r1(h - 2 - ((v - min) / span) * (h - 4));
+  const line = ys.map((v, i) => `${i ? 'L' : 'M'}${x(i)} ${y(v)}`).join(' ');
+  const area = `${line} L${x(ys.length - 1)} ${h} L${x(0)} ${h} Z`;
+  const zero = y(0);
+  const t = tone(ys[ys.length - 1]);
+  const role = label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"';
+  return `<svg class="spark is-${t} ${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" ${role} focusable="false"><line class="spark-zero" x1="0" x2="${w}" y1="${zero}" y2="${zero}"/><path class="spark-area" d="${area}"/><path class="spark-line" d="${line}" vector-effect="non-scaling-stroke"/><circle class="spark-dot" cx="${x(ys.length - 1)}" cy="${y(ys[ys.length - 1])}" r="2.4"/></svg>`;
+}
+
+// Traffic light: is the paper desk running on fresh data?
+export function deskStatus(today, now = Date.now()) {
+  if (!today) return { tone: 'r', word: 'No data', detail: 'Numbers did not load' };
+  const k = feedAge(today.kalshiFetchedAt, now);
+  const m = feedAge(today.memeFetchedAt, now);
+  const worst = [k, m].some((a) => a.tone === 'old') ? 'old' : [k, m].some((a) => a.tone === 'stale') ? 'stale' : 'fresh';
+  const short = (a) => a.label.replace('updated ', '').replace(' min ago', 'm ago').replace(' hr ago', 'h ago');
+  if (worst === 'fresh') return { tone: 'g', word: 'Running', detail: short(k) };
+  if (worst === 'stale') return { tone: 'y', word: 'Slow', detail: short(k.tone !== 'fresh' ? k : m) };
+  return { tone: 'r', word: 'Stalled', detail: short(k.tone === 'old' ? k : m) };
+}
+
+// Real-money readiness, straight from focus.json gate rows. graduates() needs
+// at least 3 forward test windows and every one of them positive with a lower
+// bound above zero, so progress is "good windows / windows so far" (at least
+// 3). Never computed or loosened here.
+export function gateProgressOf(row) {
+  const g = row?.gate || {};
+  const total = Math.max(g.need || 3, g.windows || 0);
+  const good = Math.min(total, g.cleared || 0);
+  return { good, total, ratio: total ? good / total : 0, graduated: !!g.graduated };
+}
+export function gateSummary(focus) {
+  const rows = [...(focus?.near || []), ...(focus?.research || [])].filter((r) => r && r.gate);
+  const passed = rows.filter((r) => r.gate.graduated).length;
+  const closest = rows.slice().sort((a, b) => gateProgressOf(b).ratio - gateProgressOf(a).ratio || (b.mean ?? -9) - (a.mean ?? -9))[0] || null;
+  return { total: rows.length, passed, closest };
+}
+
+export function botChipsHtml(decay) {
+  const list = (decay || []).filter((s) => s && s.recentN).slice().sort((a, b) => (b.recentNet ?? 0) - (a.recentNet ?? 0));
+  if (!list.length) return '';
+  const chips = list.map((s) => {
+    const fam = familyOf(s);
+    return `<li class="bchip is-${tone(s.recentNet)}" style="--ac:${accent(fam).color}"><i aria-hidden="true"></i><span>${esc(s.id)}</span><b>${usd(s.recentNet)}</b></li>`;
+  }).join('');
+  return `<section class="bchips" aria-label="Each bot, last 100 paper trades after fees"><ul>${chips}</ul></section>`;
+}
+
+export function heroHtml({ curve, today, brain, openN, now = Date.now() } = {}) {
+  const net = finite(curve?.net) ? curve.net : null;
+  const n = curve?.n ?? 0;
+  const since = Date.parse(brain?.experimentSince || '');
+  const days = Number.isFinite(since) ? Math.max(1, Math.floor((now - since) / 86400000)) : null;
+  const allocToday = today?.allocated?.n || 0;
+  const action = allocToday ? `${allocToday} bets today` : 'practice mode';
+  const bits = [`${n.toLocaleString('en-US')} bets`, days ? `${days} days` : null, finite(openN) ? `${openN} open` : null, action].filter(Boolean);
+  const shadow = today?.shadow;
+  const spark = sparkSvg(curve?.points || [], { w: 132, h: 52, cls: 'hero-spark', label: `Paper P and L curve, now ${usd(net)}` });
+  return `<section class="hero2 is-${tone(net)}" aria-label="Paper profit after fees">
+    <p class="hero2-k">Paper P&amp;L <span>after fees</span></p>
+    <div class="hero2-row"><b class="hero2-num">${net == null ? '—' : usd(net)}</b>${spark}</div>
+    <p class="hero2-sub">${esc(bits.join(' · '))}</p>
+    ${shadow ? `<p class="hero2-practice">Practice today <b class="is-${tone(shadow.pnl)}">${usd(shadow.pnl)}</b> <span>on ${Number(shadow.n || 0).toLocaleString('en-US')}</span></p>` : ''}
+  </section>`;
+}
+
+export function statusRowHtml({ today, focus, now = Date.now() } = {}) {
+  const st = deskStatus(today, now);
+  const g = gateSummary(focus);
+  return `<section class="pills" aria-label="Desk status">
+    <span class="pill light-${st.tone}"><i aria-hidden="true"></i>${esc(st.word)}<small>${esc(st.detail)}</small></span>
+    <span class="pill paper"><i aria-hidden="true"></i>Paper only<small>no wallet</small></span>
+    <button type="button" class="pill gatep" data-tabjump="score"><i aria-hidden="true"></i>Real money<small>${g.passed}/${g.total} ready</small></button>
+  </section>`;
+}
+
+function agentCard(s, brain) {
+  const fam = familyOf(s);
+  const a = accent(fam);
+  const benched = (brain?.benched || []).includes(s.id);
+  const champ = Object.values(brain?.champions || {}).includes(s.id);
+  const flag = s.flag === 'decaying' ? '<span class="flag dn" title="Last 100 bets worse than before">▼ fading</span>' : s.flag === 'improving' ? '<span class="flag up" title="Last 100 bets better than before">▲ rising</span>' : '';
+  const role = benched ? 'benched' : champ ? 'champ' : 'practice';
+  return `<li class="agent ${benched ? 'is-benched' : ''}" style="--ac:${a.color}" data-bot="${esc(s.id)}">
+    <div class="agent-top"><span class="agent-ic" aria-hidden="true">${a.icon}</span>${flag}<span class="agent-role">${role}</span></div>
+    <b class="agent-name">${esc(s.id)}</b>
+    <span class="agent-num is-${tone(s.net)}">${usd(s.net)}</span>
+    <span class="agent-meta">${usd(s.mean)}/bet · ${Number(s.n || 0).toLocaleString('en-US')}</span>
+    ${sparkSvg(s.spark, { w: 120, h: 28, cls: 'agent-spark' })}
+  </li>`;
+}
+
+export function agentGridHtml(decay, brain, { top = 6 } = {}) {
+  const list = (decay || []).filter((s) => s && s.n).slice().sort((a, b) => (a.small - b.small) || (b.net ?? 0) - (a.net ?? 0));
+  if (!list.length) return '<section class="agents2"><h2 class="sec">Bots</h2><p class="note">Bot results have not loaded yet.</p></section>';
+  const head = list.slice(0, top).map((s) => agentCard(s, brain)).join('');
+  const rest = list.slice(top).map((s) => agentCard(s, brain)).join('');
+  return `<section class="agents2" aria-label="Bots ranked by paper profit after fees">
+    <div class="sec-row"><h2 class="sec">Top bots</h2><span class="sec-note">all-time, after fees</span></div>
+    <ul class="agent-grid">${head}</ul>
+    ${rest ? `<details class="more" data-fold="home-bots"><summary>All ${list.length} bots</summary><ul class="agent-grid">${rest}</ul></details>` : ''}
+  </section>`;
+}
+
+export function gateMeterHtml(focus) {
+  const g = gateSummary(focus);
+  if (!g.total) return '';
+  const c = g.closest;
+  const p = gateProgressOf(c);
+  const segs = Array.from({ length: p.total }, (_, i) => `<i class="${i < p.good ? 'on' : ''}"></i>`).join('');
+  return `<section class="gate2" aria-label="Ready for real money">
+    <div class="gate2-row"><span class="gate2-q">Ready for real money?</span><b class="gate2-a ${g.passed ? 'yes' : 'no'}">${g.passed ? `${g.passed} ready` : 'Not yet'}</b></div>
+    ${c ? `<div class="gate2-seg" role="img" aria-label="${esc(c.id)}: ${p.good} of ${p.total} test windows profitable">${segs}</div>
+    <p class="gate2-sub">Closest: <b>${esc(c.id)}</b>, ${p.good} of ${p.total} test windows profitable. Every window has to be.</p>` : ''}
+  </section>`;
+}
+
+export function gateListHtml(focus, { limit = 8 } = {}) {
+  const rows = [...(focus?.near || []), ...(focus?.research || [])].filter((r) => r && r.gate && r.n);
+  if (!rows.length) return '';
+  const list = rows.sort((a, b) => gateProgressOf(b).ratio - gateProgressOf(a).ratio || (b.mean ?? -9) - (a.mean ?? -9)).slice(0, limit).map((r) => {
+    const p = gateProgressOf(r);
+    const segs = Array.from({ length: p.total }, (_, i) => `<i class="${i < p.good ? 'on' : ''}"></i>`).join('');
+    return `<li><span class="gl-name">${esc(r.id)}</span><span class="gl-seg" aria-label="${p.good} of ${p.total} windows">${segs}</span><b class="is-${tone(r.mean)}">${usd(r.mean)}</b></li>`;
+  }).join('');
+  return `<section class="gl"><div class="sec-row"><h2 class="sec">Test windows</h2><span class="sec-note">avg per $2 bet</span></div><ul>${list}</ul></section>`;
+}
+
+// Live event log: newest open paper bets plus coin alerts, colored by family.
+export function logEvents({ openDoc, alerts, limit = 8 } = {}) {
+  const bets = (openDoc?.entries || []).filter((e) => e && e.openedAt).map((e) => {
+    const fam = familyOf({ id: e.variant, family: e.family });
+    const what = String(e.title || e.ticker || '').replace(/ price up in next 15 mins\?$/i, '');
+    const px = finite(e.ask) ? ` ${Math.round(e.ask * 100)}¢` : '';
+    return { at: Date.parse(e.openedAt), color: accent(fam).color, who: e.variant || e.family, text: `${String(e.side || '').toUpperCase()} ${what}${px}` };
+  });
+  const coins = (alerts?.sent || []).filter((a) => a && a.at).map((a) => ({ at: Date.parse(a.at), color: FAMILY.meme.color, who: 'coin alert', text: a.symbol || 'coin' }));
+  return [...bets, ...coins].filter((e) => Number.isFinite(e.at)).sort((a, b) => b.at - a.at).slice(0, limit);
+}
+
+export function liveLogHtml({ openDoc, alerts, now = Date.now(), limit = 8 } = {}) {
+  const ev = logEvents({ openDoc, alerts, limit });
+  if (!ev.length) return '';
+  const ago = (t) => { const m = Math.max(0, Math.round((now - t) / 60000)); return m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`; };
+  const rows = ev.map((e) => `<li style="--ac:${e.color}"><i aria-hidden="true"></i><span class="log-who">${esc(e.who)}</span><span class="log-what">${esc(e.text)}</span><time>${ago(e.at)}</time></li>`).join('');
+  return `<section class="log2" aria-label="Live paper activity"><div class="sec-row"><h2 class="sec">Live</h2><span class="sec-note">paper bets &amp; alerts</span></div><ul>${rows}</ul></section>`;
+}
+
+export function deskHomeHtml(data = {}) {
+  const now = data.now ?? Date.now();
+  if (data.state === 'loading' && !data.today) return '<section class="hero2" aria-busy="true"><p class="hero2-k">Paper P&amp;L</p><b class="hero2-num skel">$——</b></section>';
+  return [
+    botChipsHtml(data.today?.decay),
+    heroHtml({ curve: data.curve, today: data.today, brain: data.brain, openN: data.openDoc?.entries?.length, now }),
+    statusRowHtml({ today: data.today, focus: data.focus, now }),
+    agentGridHtml(data.today?.decay, data.brain),
+    gateMeterHtml(data.focus),
+    liveLogHtml({ openDoc: data.openDoc, alerts: data.alerts, now }),
+  ].join('');
+}
