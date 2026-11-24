@@ -23,6 +23,7 @@ import { freshCalibration } from './engine/calibration.js';
 import { freshDecay, recentFormChipHtml } from './engine/decay.js';
 import { deskHomeHtml, agentGridHtml, botChipsHtml, gateMeterHtml, gateListHtml } from './engine/home-view.js';
 import { withoutQuoteErrors } from './engine/quote-guard.js';
+import { coinWatchHtml } from './engine/coin-watch-view.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -730,7 +731,7 @@ function home(st) {
   ${reminderBanner()}
   ${allocCard()}
   ${morningCard()}
-  <section class="card" aria-label="Live signals"><h2>Live signals</h2><p class="note">${ui.coinsState === 'ready' ? `${(ui.coins || []).filter((c) => c.pass).length} paper buy${(ui.coins || []).filter((c) => c.pass).length === 1 ? '' : 's'} in the latest Solana list.` : 'Open Coins for the live Solana list. Only a paper buy shows a contract address to copy.'}</p><button type="button" class="btn wide" data-tabjump="coins">Open coins</button></section>
+  <section class="card" aria-label="Live signals"><h2>Live signals</h2><p class="note">${ui.coinsState === 'ready' ? `${(ui.coinWatch?.picks || []).length} coin${(ui.coinWatch?.picks || []).length === 1 ? '' : 's'} to watch right now. Ideas, not advice.` : 'Open Coins for coins to watch. Ideas, not advice.'}</p><button type="button" class="btn wide" data-tabjump="coins">Open coins</button></section>
   ${activeCard(st)}
   ${st.halted ? `<div class="halt"><b>Repair mode.</b> ${esc(st.haltReason)}</div>` : ''}
   <div class="card hero ${net < 0 ? 'down' : ''}">
@@ -1132,13 +1133,15 @@ async function loadCoins() {
   ui.coinsState = 'loading';
   if (ui.tab === 'coins') render();
   try {
-    const [board, openDoc, journalText, watchDoc, earlyDoc] = await Promise.all([
+    const [board, openDoc, journalText, watchDoc, earlyDoc, coinWatch] = await Promise.all([
       fetch('data/meme-board.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('Coin board ' + r.status); return r.json(); }),
       fetch('data/meme-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }).catch(() => ({ entries: [] })),
       fetch('data/meme-journal.jsonl?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.text() : '').catch(() => ''),
       fetch('data/meme-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
       fetch('data/early-board.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { coins: [] }).catch(() => ({ coins: [] })),
+      fetch('data/coin-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
     ]);
+    ui.coinWatch = coinWatch;
     noteMemeWatch(openDoc, watchDoc);
     ui.memeJournal = String(journalText || '').trim() ? String(journalText).trim().split('\n').filter(Boolean).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean) : [];
     ui.coins = mergeEarly(Array.isArray(board?.coins) ? board.coins : [], earlyDoc);
@@ -1201,7 +1204,7 @@ function coinsView() {
   const books = memeBooks(ui.memeJournal || []);
   const gate = books.gate;
   const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
-  return `<section aria-label="Coin signals">${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(books.net, true)} after the 1.25% fee and 1% slippage each side. Shadow and early logs are separate: n ${books.shadowN}, net ${money(books.shadowNet, true)} after fees, and they are not in that total. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p>${watchStatus()}<p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}${sheet}</section>`;
+  return `<section aria-label="Coin signals">${coinWatchHtml(ui.coinWatch)}${foldWrap('coins-all', 'All scanned coins', 'paper buys, safety checks, your watchlist', `${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(books.net, true)} after the 1.25% fee and 1% slippage each side. Shadow and early logs are separate: n ${books.shadowN}, net ${money(books.shadowNet, true)} after fees, and they are not in that total. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p>${watchStatus()}<p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}`)}${sheet}</section>`;
 }
 function coinLinks(ca, dexUrl) {
   const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;
