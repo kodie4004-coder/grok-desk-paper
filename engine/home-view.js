@@ -123,15 +123,38 @@ export function statusRowHtml({ today, focus, now = Date.now() } = {}) {
   </section>`;
 }
 
-function agentCard(s, brain) {
+// Card status from real gate and bench lists in focus.json — not the sticky
+// brain.benched flag, which can keep a later-profitable bot marked "benched".
+// Display only. Loss benches are focus.benched and focus.rolled.
+export const PRACTICE_HINT = 'Practice bots trade with $0 until they win every test window.';
+
+export function gateRowOf(focus, id) {
+  return [...(focus?.near || []), ...(focus?.research || [])].find((r) => r && r.id === id) || null;
+}
+export function isLossBenched(id, focus) {
+  const hit = (list) => (list || []).some((r) => (typeof r === 'string' ? r : r?.id) === id);
+  return hit(focus?.benched) || hit(focus?.rolled);
+}
+export function botStatus(stat, { focus } = {}) {
+  const id = stat?.id;
+  if (isLossBenched(id, focus)) return { label: 'Benched · losing', kind: 'benched', hint: PRACTICE_HINT };
+  const row = gateRowOf(focus, id);
+  const p = row?.gate ? gateProgressOf(row) : null;
+  const windowsDone = row?.gate?.windows || 0;
+  const isNew = !!stat?.small || (windowsDone === 0 && (stat?.n || 0) < 40);
+  if (p?.graduated) return { label: 'Ready', kind: 'ready', hint: PRACTICE_HINT };
+  if (isNew) return { label: 'Practice · new', kind: 'practice', hint: PRACTICE_HINT };
+  if (p) return { label: `Practice · ${p.good}/${p.total} windows`, kind: 'practice', hint: PRACTICE_HINT };
+  return { label: 'Practice', kind: 'practice', hint: PRACTICE_HINT };
+}
+
+function agentCard(s, { focus } = {}) {
   const fam = familyOf(s);
   const a = accent(fam);
-  const benched = (brain?.benched || []).includes(s.id);
-  const champ = Object.values(brain?.champions || {}).includes(s.id);
+  const st = botStatus(s, { focus });
   const flag = s.flag === 'decaying' ? '<span class="flag dn" title="Last 100 bets worse than before">▼ fading</span>' : s.flag === 'improving' ? '<span class="flag up" title="Last 100 bets better than before">▲ rising</span>' : '';
-  const role = benched ? 'benched' : champ ? 'champ' : 'practice';
-  return `<li class="agent ${benched ? 'is-benched' : ''}" style="--ac:${a.color}" data-bot="${esc(s.id)}">
-    <div class="agent-top"><span class="agent-ic" aria-hidden="true">${a.icon}</span>${flag}<span class="agent-role">${role}</span></div>
+  return `<li class="agent${st.kind === 'benched' ? ' is-benched' : ''}" style="--ac:${a.color}" data-bot="${esc(s.id)}">
+    <div class="agent-top"><span class="agent-ic" aria-hidden="true">${a.icon}</span>${flag}<span class="agent-role is-${st.kind}" title="${esc(st.hint)}">${esc(st.label)}</span></div>
     <b class="agent-name">${esc(s.id)}</b>
     <span class="agent-num is-${tone(s.net)}">${usd(s.net)}</span>
     <span class="agent-meta">${usd(s.mean)}/bet · ${Number(s.n || 0).toLocaleString('en-US')}</span>
@@ -139,13 +162,15 @@ function agentCard(s, brain) {
   </li>`;
 }
 
-export function agentGridHtml(decay, brain, { top = 6 } = {}) {
+export function agentGridHtml(decay, brain, { top = 6, focus } = {}) {
   const list = (decay || []).filter((s) => s && s.n).slice().sort((a, b) => (a.small - b.small) || (b.net ?? 0) - (a.net ?? 0));
   if (!list.length) return '<section class="agents2"><h2 class="sec">Bots</h2><p class="note">Bot results have not loaded yet.</p></section>';
-  const head = list.slice(0, top).map((s) => agentCard(s, brain)).join('');
-  const rest = list.slice(top).map((s) => agentCard(s, brain)).join('');
+  const ctx = { brain, focus };
+  const head = list.slice(0, top).map((s) => agentCard(s, ctx)).join('');
+  const rest = list.slice(top).map((s) => agentCard(s, ctx)).join('');
   return `<section class="agents2" aria-label="Bots ranked by paper profit after fees">
     <div class="sec-row"><h2 class="sec">Top bots</h2><span class="sec-note">all-time, after fees</span></div>
+    <p class="agents2-hint">${esc(PRACTICE_HINT)}</p>
     <ul class="agent-grid">${head}</ul>
     ${rest ? `<details class="more" data-fold="home-bots"><summary>All ${list.length} bots</summary><ul class="agent-grid">${rest}</ul></details>` : ''}
   </section>`;
@@ -202,7 +227,7 @@ export function deskHomeHtml(data = {}) {
     botChipsHtml(data.today?.decay),
     heroHtml({ curve: data.curve, today: data.today, brain: data.brain, openN: data.openDoc?.entries?.length, now }),
     statusRowHtml({ today: data.today, focus: data.focus, now }),
-    agentGridHtml(data.today?.decay, data.brain),
+    agentGridHtml(data.today?.decay, data.brain, { focus: data.focus }),
     gateMeterHtml(data.focus),
     liveLogHtml({ openDoc: data.openDoc, alerts: data.alerts, now }),
   ].join('');
