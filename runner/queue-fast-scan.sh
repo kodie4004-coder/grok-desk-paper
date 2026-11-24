@@ -6,8 +6,17 @@ set -euo pipefail
 
 repo="${GITHUB_REPOSITORY:?}"
 self="${GITHUB_RUN_ID:?}"
-raw="$(gh run list --workflow fast-scan.yml --repo "$repo" --limit 30 --json databaseId,status,url)"
-choice="$(printf '%s' "$raw" | node runner/queue-next.mjs "$self")"
+# shellcheck source=runner/gh-retry.sh
+source "$(dirname "$0")/gh-retry.sh"
+# A list that still fails after retries falls through to a dispatch. The
+# workflow's concurrency group (cancel-in-progress: false) makes a duplicate
+# wait, so a spare run costs a few seconds and a missed one costs the chain.
+if raw="$(gh_retry gh run list --workflow fast-scan.yml --repo "$repo" --limit 30 --json databaseId,status,url)"; then
+  choice="$(printf '%s' "$raw" | node runner/queue-next.mjs "$self")"
+else
+  echo "run list failed after retries; dispatching anyway"
+  choice="dispatch"
+fi
 echo "decision=$choice"
 if [ "$choice" = "skip" ]; then
   echo "a fast scan is already queued or running"
