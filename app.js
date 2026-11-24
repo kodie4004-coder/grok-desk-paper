@@ -20,6 +20,7 @@ import { focusCardHtml } from './engine/focus-view.js';
 import { setRollingBench } from './engine/focus-plan.js';
 import { todayHeaderHtml } from './engine/today-view.js';
 import { freshCalibration } from './engine/calibration.js';
+import { freshDecay, recentFormChipHtml } from './engine/decay.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -958,10 +959,11 @@ function morningCard() {
   if (!report) return `<section class="card" aria-label="Morning report"><h2>Morning report</h2>${watchStatus()}<p class="note">${esc(beatLine)}</p><p class="note">The report is written with the daily lesson job. Paper only.</p></section>`;
   const best = report.best ? `${report.best.id} ${money(report.best.mean, true)}` : '—';
   const worst = report.worst ? `${report.worst.id} ${money(report.worst.mean, true)}` : '—';
-  const lessons = (report.lessons || []).slice(0, 2).map((l) => `<li>${esc(l)}</li>`).join('');
+  const lessons = (report.lessons || []).filter((l) => !(report.recentForm || []).includes(l)).slice(0, 2).map((l) => `<li>${esc(l)}</li>`).join('');
   const changed = (report.changed || []).slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join('');
   const mvm = (report.modelVsMarket || []).slice(0, 2).map((l) => `<li>${esc(l)}</li>`).join('');
-  return `<section class="card" aria-label="Morning report"><h2>Morning report</h2>${watchStatus()}<p class="note">${esc(beatLine)}</p><p class="note">${esc(report.day || '')} · n ${report.trades ?? 0} · net ${money(report.net, true)} after fees</p><p class="note">Best ${esc(best)} · Worst ${esc(worst)}</p><ul class="feed">${lessons}</ul>${mvm ? `<p class="note"><b>Model vs market</b></p><ul class="feed">${mvm}</ul>` : ''}${changed ? `<ul class="feed">${changed}</ul>` : ''}</section>`;
+  const form = (report.recentForm || []).slice(0, 3).map((l) => `<li>${esc(l)}</li>`).join('');
+  return `<section class="card" aria-label="Morning report"><h2>Morning report</h2>${watchStatus()}<p class="note">${esc(beatLine)}</p><p class="note">${esc(report.day || '')} · n ${report.trades ?? 0} · net ${money(report.net, true)} after fees</p><p class="note">Best ${esc(best)} · Worst ${esc(worst)}</p><ul class="feed">${lessons}</ul>${form ? `<p class="note"><b>Recent form</b></p><ul class="feed">${form}</ul>` : ''}${mvm ? `<p class="note"><b>Model vs market</b></p><ul class="feed">${mvm}</ul>` : ''}${changed ? `<ul class="feed">${changed}</ul>` : ''}</section>`;
 }
 function loadBrain() {
   if (ui.brainState === 'ready' || ui.brainState === 'loading') return;
@@ -993,6 +995,7 @@ function modelMarketCard(doc, today) {
     const why = pick.rows ? 'No model-priced bot has a settled paper line since it was added.' : 'The nightly lessons run has not written this audit yet. It appears after the next run.';
     return `<section class="card mvm" aria-label="Model vs market"><div class="row"><h2 style="margin:0">Model vs market</h2><span class="tag explore">PAPER</span></div><p class="note">${why}</p></section>`;
   }
+  const form = new Map(freshDecay(doc, today).map((s) => [s.id, s]));
   const top = Math.max(0.25, ...rows.map((r) => Math.max(Number(r.brierModel) || 0, Number(r.brierMarket) || 0)));
   const pct = (v) => Math.max(2, Math.min(100, Math.round((100 * (Number(v) || 0)) / top)));
   const items = rows.map((r) => {
@@ -1007,6 +1010,7 @@ function modelMarketCard(doc, today) {
       </div>
       <dl class="mvm-stats"><div><dt>Won</dt><dd>${r.wins}/${r.n}</dd></div><div><dt>Model expected</dt><dd>${Number(r.sumPEst).toFixed(1)}</dd></div><div><dt>Kalshi implied</dt><dd>${Number(r.sumAsk).toFixed(1)}</dd></div><div><dt>Mean / $2</dt><dd class="${r.mean < 0 ? 'neg' : 'pos'}">${money(r.mean, true)}</dd></div></dl>
       <p class="note">${esc(r.text || '')}</p>
+      ${form.has(r.id) ? `<div class="rf">${recentFormChipHtml(form.get(r.id))}<p class="note rf-text">${esc(form.get(r.id).text)}</p></div>` : ''}
     </li>`;
   }).join('');
   return `<section class="card mvm" aria-label="Model vs market">
@@ -1042,7 +1046,9 @@ function brainView() {
     const mean = bot.repairMean == null ? 'no settled practice yet' : `${money(bot.repairMean, true)} per trade`;
     return `<p class="note"><label for="repair-${esc(bot.id)}">Repair practice ${n} of ${bot.repairNeed}. Mean after fees: ${mean}.</label></p><progress id="repair-${esc(bot.id)}" max="${bot.repairNeed}" value="${Math.min(n, bot.repairNeed)}">${n} of ${bot.repairNeed}</progress>`;
   };
-  const cards = bots.map((bot) => `<li class="slot"><div class="row"><b>${esc(bot.label)}</b><span class="tag ${quiet(bot) ? 'off' : bot.role === 'champion' ? 'normal' : 'explore'}">${quiet(bot) ? 'benched-shadow' : esc(bot.role)}</span></div><p class="note">Level ${bot.level} · ${share(bot)} · n ${bot.n} · mean ${bot.mean == null ? '—' : money(bot.mean, true)} after fees · 90% ${bot.lo == null ? '—' : money(bot.lo, true)} to ${bot.hi == null ? '—' : money(bot.hi, true)} · ${esc(bot.sample || '')}</p><p class="note">${bot.graduated ? 'Gate cleared on this journal. Live execution stays off.' : `Gate progress ${bot.gateWindows || 0}/3 windows of 20+. Not ready for real money.`}</p>${repairLine(bot)}</li>`).join('');
+  const form = new Map(freshDecay(doc, ui.today).map((s) => [s.id, s]));
+  const formChip = (bot) => (form.get(bot.id)?.flag ? `<div class="rf">${recentFormChipHtml(form.get(bot.id))}</div>` : '');
+  const cards = bots.map((bot) => `<li class="slot"><div class="row"><b>${esc(bot.label)}</b><span class="tag ${quiet(bot) ? 'off' : bot.role === 'champion' ? 'normal' : 'explore'}">${quiet(bot) ? 'benched-shadow' : esc(bot.role)}</span></div>${formChip(bot)}<p class="note">Level ${bot.level} · ${share(bot)} · n ${bot.n} · mean ${bot.mean == null ? '—' : money(bot.mean, true)} after fees · 90% ${bot.lo == null ? '—' : money(bot.lo, true)} to ${bot.hi == null ? '—' : money(bot.hi, true)} · ${esc(bot.sample || '')}</p><p class="note">${bot.graduated ? 'Gate cleared on this journal. Live execution stays off.' : `Gate progress ${bot.gateWindows || 0}/3 windows of 20+. Not ready for real money.`}</p>${repairLine(bot)}</li>`).join('');
   const summary = (doc.summary || []).map((l) => `<li>${esc(l)}</li>`).join('');
   const learned = (doc.lessons || []).slice(0, 6).map((l) => `<li>${esc(l.text)}</li>`).join('');
   const frozen = (doc.frozen || []).map((l) => `<li>${esc(l.text)}</li>`).join('');

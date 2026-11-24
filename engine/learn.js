@@ -12,6 +12,7 @@ import { isFocusBenched } from './focus-plan.js';
 import { fairPick, fairPickV2, fairV2Prob, LATE_FAIR_ADDED_AT, FAIR_ADDED_AT, FAIR_MARGIN, FAIR_MIN_LEFT, FAIR_MAX_LEFT, FAIR_V2_ADDED_AT, FAIR_V2_MARGIN } from './fair.js';
 import { pairsPick, PAIRS_ADDED_AT, PAIRS_MARGIN, PAIRS_MIN_LEFT, PAIRS_MAX_LEFT } from './pairs.js';
 import { modelCalibration } from './calibration.js';
+import { recentForm, decayLines, DECAY_RECENT_N } from './decay.js';
 
 export const LEARN_SIZE = 2;
 export const HOLD_MIN = 20;
@@ -871,7 +872,8 @@ export function filterLessons(rows) {
   }];
 }
 
-export function morningReport(rows, brain, summary, now) {
+// decay: optional recentForm() list. Flagged lines lead the lessons text.
+export function morningReport(rows, brain, summary, now, decay = null) {
   const day = [...new Set((rows || []).map((row) => row.window).filter(Boolean))].sort().pop() || dayKey(now);
   const dayRows = (rows || []).filter((row) => row.window === day && row.pnl != null);
   const net = dayRows.reduce((sum, row) => sum + row.pnl, 0);
@@ -891,7 +893,8 @@ export function morningReport(rows, brain, summary, now) {
     net,
     best: ranked[0] || null,
     worst: ranked.length ? ranked[ranked.length - 1] : null,
-    lessons: (summary || []).slice(0, 3),
+    lessons: [...decayLines(decay, { flaggedOnly: true }), ...(summary || []).slice(0, 3)],
+    recentForm: decayLines(decay, { flaggedOnly: true }),
     changed: (brain?.decisions || []).slice(0, 6),
     shadow: brain?.shadow || [],
     modelVsMarket: modelCalibration(rows, variantAddedAt()).map((row) => row.text),
@@ -903,7 +906,8 @@ export function variantAddedAt() {
   return Object.fromEntries(VARIANTS.filter((v) => v.addedAt).map((v) => [v.id, v.addedAt]));
 }
 
-export function lessonsDocument(rows, prior, brain, now) {
+// memeRows is optional; it only feeds the recent-form (edge decay) list.
+export function lessonsDocument(rows, prior, brain, now, memeRows = []) {
   const lessons = featureLessons(rows);
   const filters = filterLessons(rows);
   const frozen = frozenLessons(prior);
@@ -918,6 +922,7 @@ export function lessonsDocument(rows, prior, brain, now) {
     frozen,
     bots,
     calibration: modelCalibration(rows, variantAddedAt()),
+    decay: recentForm({ kalshiRows: rows, memeRows }),
     decisions: brain?.decisions || [],
     holdout: brain?.holdout || null,
     experimentSince: brain?.experimentSince || null,
@@ -937,6 +942,12 @@ export function lessonsMarkdown(doc) {
   lines.push('## Model vs market', '');
   if (!(doc.calibration || []).length) lines.push('No model-priced bot has a settled paper line since it was added.', '');
   for (const row of doc.calibration || []) lines.push(`- ${row.text}`, '');
+  lines.push('## Recent form', '');
+  lines.push(`Each bot's last ${DECAY_RECENT_N} settled paper trades after fees, next to the trades before them. Diagnostic only: nothing here moves a weight, a bench or a gate.`, '');
+  const flagged = (doc.decay || []).filter((row) => row.flag);
+  if (!(doc.decay || []).length) lines.push('No settled paper trades yet.', '');
+  else if (!flagged.length) lines.push(`No bot's last ${DECAY_RECENT_N} trades flipped sign against the trades before them.`, '');
+  for (const row of flagged) lines.push(`- ${row.text}`, '');
   lines.push('## Frozen studies', '');
   for (const lesson of doc.frozen) lines.push(`- ${lesson.text}`, '');
   lines.push('## Champion check', '');
