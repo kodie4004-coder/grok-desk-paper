@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { usd, sparkSvg, deskStatus, gateSummary, gateProgressOf, botChipsHtml, heroHtml, agentGridHtml, gateMeterHtml, logEvents, liveLogHtml, deskHomeHtml, familyOf } from '../engine/home-view.js';
+import { usd, sparkSvg, deskStatus, gateSummary, gateProgressOf, botChipsHtml, heroHtml, agentGridHtml, gateMeterHtml, logEvents, liveLogHtml, deskHomeHtml, familyOf, botStatus } from '../engine/home-view.js';
 
 const now = Date.parse('2026-11-24T17:00:00Z');
 const stat = (over) => ({ id: 'mom-settle', book: 'kalshi', family: 'mom', n: 100, net: 5, mean: 0.05, recentN: 100, recentNet: 2, recentMean: 0.02, spark: [0.1, 0.4, 0.2, 0.9], small: false, flag: null, ...over });
@@ -67,14 +67,44 @@ test('bot chips sort by last-100 net and keep each bot', () => {
 
 test('agent grid ranks by all-time net, keeps small samples last, and folds the rest', () => {
   const list = [stat({ id: 'tiny', net: 9, small: true }), stat({ id: 'best', net: 7 }), stat({ id: 'worst', net: -5, flag: 'decaying' }), stat({ id: 'rise', net: 1, flag: 'improving' })];
-  const html = agentGridHtml(list, { benched: ['worst'], champions: { mom: 'best' } }, { top: 2 });
+  const html = agentGridHtml(list, { benched: ['worst'], champions: { mom: 'best' } }, { top: 2, focus: { rolled: [{ id: 'worst' }] } });
   assert.ok(html.indexOf('best') < html.indexOf('rise'));
   assert.ok(html.indexOf('worst') < html.indexOf('tiny'));
   assert.match(html, /All 4 bots/);
-  assert.match(html, /champ/);
-  assert.match(html, /benched/);
+  assert.match(html, /Benched · losing/);
   assert.match(html, /fading/);
   assert.match(html, /rising/);
+});
+
+test('bot cards use plain-words gate status, not a bare BENCHED pill', () => {
+  assert.deepEqual(botStatus(stat({ id: 'mom-strict', n: 2601 }), { focus }).label, 'Practice · 3/6 windows');
+  assert.deepEqual(botStatus(stat({ id: 'mom-settle', n: 2807 }), { focus }).label, 'Practice · 2/5 windows');
+  assert.equal(botStatus(stat({ id: 'pairs-lag', n: 326 }), { focus }).label, 'Practice · 1/3 windows');
+  assert.equal(botStatus(stat({ id: 'late-fair', n: 4, small: true }), { focus }).label, 'Practice · new');
+  assert.equal(botStatus({ id: 'scalp-95', n: 679, small: false }, { focus: { ...focus, rolled: [{ id: 'scalp-95' }] } }).label, 'Benched · losing');
+  assert.equal(botStatus({ id: 'scalp', n: 210, small: false }, { focus: { benched: [{ id: 'scalp' }] } }).kind, 'benched');
+  // Sticky brain.benched does not label a later-profitable bot as losing.
+  assert.equal(botStatus(stat({ id: 'mom-settle', n: 2807 }), { focus, brain: { benched: ['mom-settle'] } }).label, 'Practice · 2/5 windows');
+  assert.equal(botStatus(stat({ id: 'flip', n: 8000 }), { focus }).label, 'Practice');
+
+  const list = [
+    stat({ id: 'mom-strict', net: 36.26, n: 2601 }),
+    stat({ id: 'mom-settle', net: 128.78, n: 2807 }),
+    stat({ id: 'late-fair', net: 0.62, n: 4, small: true }),
+    stat({ id: 'scalp-95', net: -34.86, n: 679 }),
+  ];
+  const html = agentGridHtml(list, { benched: ['mom-strict', 'mom-settle', 'scalp-95'] }, { focus: { ...focus, rolled: [{ id: 'scalp-95' }] } });
+  assert.match(html, /Practice · 3\/6 windows/);
+  assert.match(html, /Practice · 2\/5 windows/);
+  assert.match(html, /Practice · new/);
+  assert.match(html, /Benched · losing/);
+  assert.match(html, /Practice bots trade with \$0 until they win every test window/);
+  assert.doesNotMatch(html, />benched</);
+  assert.doesNotMatch(html, />practice</);
+  assert.doesNotMatch(html, />champ</);
+  assert.match(html, /class="agent" style="[^"]*" data-bot="mom-settle"/);
+  assert.match(html, /class="agent is-benched" style="[^"]*" data-bot="scalp-95"/);
+  assert.doesNotMatch(html, /execute|go live|live trading|wallet connect/i);
 });
 
 test('families map to fixed accents; coins use the meme accent', () => {

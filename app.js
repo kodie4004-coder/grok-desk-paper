@@ -787,9 +787,10 @@ function foldWrap(id, title, sub, inner) {
 }
 function botsTop() {
   loadDesk();
+  if (!ui.focusState) loadFocus();
   if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
   const decay = freshDecay(ui.lessons, ui.today);
-  return `${botChipsHtml(decay)}${agentGridHtml(decay, ui.brainDoc, { top: 8 }).replace('Top bots', 'Bots')}`;
+  return `${botChipsHtml(decay)}${agentGridHtml(decay, ui.brainDoc, { top: 8, focus: ui.focus }).replace('Top bots', 'Bots')}`;
 }
 function scoreTop() {
   if (!ui.focusState) loadFocus();
@@ -921,8 +922,8 @@ function loadFocus() {
   ui.focusState = 'loading';
   fetch('data/focus.json?v=' + Date.now(), { cache: 'no-store' })
     .then((r) => { if (!r.ok) throw new Error('focus ' + r.status); return r.json(); })
-    .then((doc) => { ui.focus = doc; ui.focusState = 'ready'; setRollingBench(doc.rolled || []); if (ui.tab === 'home' || ui.tab === 'score' || ui.arena === 'score') render(); })
-    .catch(() => { ui.focusState = 'error'; if (ui.tab === 'home' || ui.tab === 'score') render(); });
+    .then((doc) => { ui.focus = doc; ui.focusState = 'ready'; setRollingBench(doc.rolled || []); if (ui.tab === 'home' || ui.tab === 'brain' || ui.tab === 'score' || ui.arena === 'score') render(); })
+    .catch(() => { ui.focusState = 'error'; if (ui.tab === 'home' || ui.tab === 'brain' || ui.tab === 'score') render(); });
 }
 function focusCard() {
   if (!ui.focusState) loadFocus();
