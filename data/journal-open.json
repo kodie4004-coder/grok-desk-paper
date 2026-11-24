@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-24T06:38:37.607Z",
+  "updatedAt": "2026-11-24T06:43:06.715Z",
   "entries": [
     {
       "id": "flip:KXAUDUSD15M-26NOV240145-30",
@@ -2697,6 +2697,62 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.79, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "fair-spot-v2:KXBTC15M-26NOV240145-45",
+      "family": "fair",
+      "variant": "fair-spot-v2",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV240145-45",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.7,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-24T06:43:06.715Z",
+      "closeTime": "2026-11-24T06:45:00Z",
+      "exit": null,
+      "price": 0.7,
+      "secondsLeft": 113,
+      "spread": 0.01,
+      "momentum": 0.54,
+      "volatility": 0.2893095228297886,
+      "strategy": "fair-spot-v2",
+      "market": "KXBTC15M",
+      "pEst": 0.7477094470578682,
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV240145-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.7 with 113s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.7, fee included"
         }
       ],
       "skipped": false,
