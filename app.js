@@ -21,6 +21,8 @@ import { setRollingBench } from './engine/focus-plan.js';
 import { todayHeaderHtml } from './engine/today-view.js';
 import { freshCalibration } from './engine/calibration.js';
 import { freshDecay, recentFormChipHtml } from './engine/decay.js';
+import { deskHomeHtml, agentGridHtml, botChipsHtml, gateMeterHtml, gateListHtml } from './engine/home-view.js';
+import { withoutQuoteErrors } from './engine/quote-guard.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -693,6 +695,24 @@ function todayCard() {
   const state = ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading';
   return todayHeaderHtml(doc, { state, now: Date.now() });
 }
+function loadDesk() {
+  if (ui.deskState === 'ready' || ui.deskState === 'loading') return;
+  ui.deskState = 'loading';
+  const get = (f, fb) => fetch(`data/${f}?v=` + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : fb)).catch(() => fb);
+  Promise.all([get('brain.json', null), get('journal-open.json', { entries: [] }), get('phone-alerts.json', null)]).then(([brain, open, alerts]) => {
+    ui.brainDoc = brain;
+    ui.journalOpen = open;
+    ui.alerts = alerts;
+    ui.deskState = 'ready';
+    if (ui.tab === 'home' || ui.tab === 'brain') render();
+  });
+}
+function deskTop() {
+  loadDesk();
+  if (!ui.focusState) loadFocus();
+  if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
+  return deskHomeHtml({ state: ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading', today: ui.today, curve: ui.allocCurve, brain: ui.brainDoc, focus: ui.focus, openDoc: ui.journalOpen, alerts: ui.alerts, now: Date.now() });
+}
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
   const eq = equityNow(st), net = eq - st.startBank;
@@ -701,6 +721,8 @@ function home(st) {
   const unreal = st.open.reduce((a, p) => a + (p.qty * (p.lastPrice ?? p.entryMid) * (1 - st.settings.feePct / 200) - p.sizeUsd), 0);
   const isReplay = st.mode === 'replay';
   return `
+  ${deskTop()}
+  <details class="card fold deep" data-fold="home-detail"><summary>Full desk detail<span>today, repair, cockpit, session</span></summary><div class="fold-body">
   ${todayCard()}
   ${repairCard(st)}
   ${cockpit(st)}
@@ -757,7 +779,31 @@ function home(st) {
   </div>
   <div class="card"><h2>Closed trades (${st.closed.length})</h2>
     ${st.closed.length ? st.closed.slice().reverse().slice(0, 25).map((t) => `<div class="pos"><div><b>${esc(t.symbol)}</b> <span class="chip">${t.source}</span><br><span class="note">${esc(t.exitReason)} · ${tm(t.closedAt)}</span></div><div style="text-align:right"><b class="${t.pnl >= 0 ? 'g' : 'r'}">${money(t.pnl, true)}</b><br><span class="note">${t.retPct}%</span></div></div>`).join('') : (st.open.length ? '<div class="note">None yet.</div>' : emptyArt('empty-trades.webp', 'A quiet chart frame with a single mint dot, waiting for a paper trade.', 'No trades yet. Start a paper session and closed trades land here.'))}
-  </div>`;
+  </div>
+  </div></details>`;
+}
+function foldWrap(id, title, sub, inner) {
+  return `<details class="card fold deep" data-fold="${id}"><summary>${esc(title)}<span>${esc(sub)}</span></summary><div class="fold-body">${inner}</div></details>`;
+}
+function botsTop() {
+  loadDesk();
+  if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
+  const decay = freshDecay(ui.lessons, ui.today);
+  return `${botChipsHtml(decay)}${agentGridHtml(decay, ui.brainDoc, { top: 8 }).replace('Top bots', 'Bots')}`;
+}
+function scoreTop() {
+  if (!ui.focusState) loadFocus();
+  return `${gateMeterHtml(ui.focus)}${gateListHtml(ui.focus)}`;
+}
+const MORE_TABS = ['score', 'predict', 'train', 'settings', 'agents', 'activity'];
+function moreView() {
+  const tiles = [
+    ['score', '★', 'Scoreboard', 'Real-money gate, fees'],
+    ['predict', '◎', 'Predict', 'Live 15-min markets'],
+    ['train', '◷', 'Train', 'Practice your own calls'],
+    ['settings', '⚙', 'Settings', 'Rules, export, theme'],
+  ];
+  return `<section class="more-grid" aria-label="More">${tiles.map(([id, ic, name, sub]) => `<button type="button" class="tile" data-tabjump="${id}"><span class="tile-ic" aria-hidden="true">${ic}</span><b>${name}</b><small>${sub}</small></button>`).join('')}</section>`;
 }
 function emptyArt(file, alt, line) {
   return `<figure class="empty-art"><img src="empty/${file}" alt="${esc(alt)}" width="640" height="640" loading="lazy" decoding="async"><figcaption>${esc(line)}</figcaption></figure>`;
@@ -900,7 +946,7 @@ function loadMorning() {
     ui.memeUpdatedAt = openDoc?.updatedAt || null;
     noteMemeWatch(openDoc, watchDoc);
     ui.morningState = 'ready';
-    if (ui.tab === 'home') render();
+    if (ui.tab === 'home' || ui.tab === 'brain') render();
   }).catch(() => { ui.morningState = 'error'; ui.today = null; if (ui.tab === 'home') render(); });
 }
 function allocCard() {
@@ -1074,7 +1120,7 @@ async function loadDeskRepair() {
   try {
     const text = await fetch('data/meme-journal.jsonl?v=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.text() : ''));
     const rows = String(text || '').trim() ? String(text).trim().split('\n').filter(Boolean).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean) : [];
-    ui.deskRepair = diagnoseMeme(rows);
+    ui.deskRepair = diagnoseMeme(withoutQuoteErrors(rows)); // bad-quote rows stay out of every display total
   } catch {
     ui.deskRepair = null;
   }
@@ -1412,7 +1458,9 @@ function render() {
   if (!state) return;
   const v = $('#view');
   const tabChanged = ui.paintedTab !== ui.tab;
-  v.innerHTML = ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? scoreView(state) : ui.tab === 'brain' ? brainView() : ui.tab === 'predict' ? predictView(state) : ui.tab === 'train' ? trainerView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  if (!ui.folds) ui.folds = new Set();
+  v.querySelectorAll('details[data-fold]').forEach((d) => { if (d.open) ui.folds.add(d.dataset.fold); else ui.folds.delete(d.dataset.fold); });
+  v.innerHTML = ui.tab === 'more' ? moreView() : ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? `${scoreTop()}${foldWrap('score-detail', 'Full scoreboard', 'fees, gate table, research, phone arena', scoreView(state))}` : ui.tab === 'brain' ? `${botsTop()}${foldWrap('brain-detail', 'Lessons and research', 'what each bot learned, model vs market, upgrades', brainView())}` : ui.tab === 'predict' ? predictView(state) : ui.tab === 'train' ? trainerView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   if (tabChanged) {
     ui.paintedTab = ui.tab;
     if (ui.didPaint) {
@@ -1422,12 +1470,20 @@ function render() {
     }
   }
   ui.didPaint = true;
+  v.querySelectorAll('details[data-fold]').forEach((d) => {
+    if (ui.folds.has(d.dataset.fold)) d.open = true;
+    d.addEventListener('toggle', () => {
+      if (d.open) ui.folds.add(d.dataset.fold); else ui.folds.delete(d.dataset.fold);
+      if (d.open && ui.tab === 'home') { const c = $('#chart'); if (c && d.contains(c)) drawChart(c, state); const a = $('#allocChart'); if (a && d.contains(a)) drawAlloc(a); }
+    });
+  });
   const badge = $('#modeBadge');
   if (badge && state.mode !== 'replay') badge.className = 'badge paper' + (state.running ? ' live' : '');
   paintTicker(state);
   if (ui.tab === 'home') { drawChart($('#chart'), state); drawAlloc($('#allocChart')); updateTimer(); }
+  const navTab = MORE_TABS.includes(ui.tab) ? 'more' : ui.tab;
   document.querySelectorAll('.tabs button').forEach((b) => {
-    const on = b.dataset.tab === ui.tab;
+    const on = b.dataset.tab === navTab;
     b.classList.toggle('on', on);
     b.setAttribute('aria-current', on ? 'page' : 'false');
   });
@@ -1480,7 +1536,7 @@ function bind() {
     } catch (e) { toast({ text: e.message }); }
   };
   const go = $('#goArena'); if (go) go.onclick = () => { ui.tab = 'arena'; document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === 'arena')); render(); };
-  document.querySelectorAll('[data-tabjump]').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tabjump; render(); }));
+  document.querySelectorAll('[data-tabjump]').forEach((b) => (b.onclick = () => { haptic(); ui.tab = b.dataset.tabjump; render(); window.scrollTo(0, 0); if (ui.tab === 'predict' || ui.tab === 'train') refreshKalshi(); }));
   document.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => { ui.arena = b.dataset.arena; render(); }));
   const sound = $('#soundBtn'); if (sound) sound.onclick = () => { ui.sound = !ui.sound; localStorage.setItem('gd.sound', ui.sound ? '1' : '0'); render(); };
   const themeBtn = $('#themeBtn'); if (themeBtn) themeBtn.onclick = () => {
@@ -1731,7 +1787,7 @@ function dismissSplash() {
   if (!ui.shotLock) refreshKalshi();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   if (q.get('replay') === '1') startReplay();
-  if (q.get('tab')) document.querySelector(`[data-tab="${q.get('tab')}"]`)?.click();
+  if (q.get('tab')) { const btn = document.querySelector(`.tabs [data-tab="${q.get('tab')}"]`); if (btn) btn.click(); else { ui.tab = q.get('tab'); render(); } }
   if (q.get('shot')) applyShot(q.get('shot'));
   else showIntro();
 })();
