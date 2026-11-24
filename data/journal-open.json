@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-24T23:53:14.218Z",
+  "updatedAt": "2026-11-24T23:57:55.675Z",
   "entries": [
     {
       "id": "flip:KXAUDUSD15M-26NOV241900-30",
@@ -2698,6 +2698,117 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.81, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "pairs-lag:KXBTC15M-26NOV241900-00",
+      "family": "pairs",
+      "variant": "pairs-lag",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV241900-00",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.49,
+      "contracts": 4,
+      "sizeUsd": 2,
+      "fee": 0.07,
+      "openedAt": "2026-11-24T23:57:55.675Z",
+      "closeTime": "2026-11-25T00:00:00Z",
+      "exit": null,
+      "price": 0.49,
+      "secondsLeft": 124,
+      "spread": 0.01,
+      "momentum": 0.01,
+      "volatility": 0.055075705472861,
+      "strategy": "pairs-lag",
+      "market": "KXBTC15M",
+      "pEst": 0.73,
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV241900-00 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.49 with 124s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.49, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-strict:KXDOGE15M-26NOV241900-00",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXDOGE15M-26NOV241900-00",
+      "series": "KXDOGE15M",
+      "title": "DOGE price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.988,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-24T23:57:55.675Z",
+      "closeTime": "2026-11-25T00:00:00Z",
+      "exit": null,
+      "price": 0.988,
+      "secondsLeft": 124,
+      "spread": 0.001,
+      "momentum": 0.388,
+      "volatility": 0.31689325226854126,
+      "strategy": "mom-strict",
+      "market": "KXDOGE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXDOGE15M-26NOV241900-00 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.988 with 124s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.988, fee included"
         }
       ],
       "skipped": false,
