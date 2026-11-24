@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { todayDoc } from '../engine/today.js';
 import { modelCalibration } from '../engine/calibration.js';
 import { variantAddedAt } from '../engine/learn.js';
+import { recentForm } from '../engine/decay.js';
 
 function readJson(path) {
   try { return JSON.parse(fs.readFileSync(path, 'utf8')); } catch { return null; }
@@ -24,9 +25,10 @@ export function writeTodayFile({ now, kalshiFetchedAt, memeFetchedAt, kalshiRows
   const memeBoard = readJson('data/meme-board.json');
   const memeOpen = readJson('data/meme-open.json');
   const kRows = kalshiRows || readJsonl('data/journal.jsonl');
+  const mRows = memeRows || readJsonl('data/meme-journal.jsonl');
   const doc = todayDoc({
     kalshiRows: kRows,
-    memeRows: memeRows || readJsonl('data/meme-journal.jsonl'),
+    memeRows: mRows,
     kalshiFetchedAt: kalshiFetchedAt || board?.fetchedAt || beat?.fetchedAt || beat?.at || null,
     memeFetchedAt: memeFetchedAt || memeBoard?.fetchedAt || memeOpen?.updatedAt || null,
     now: t,
@@ -48,6 +50,13 @@ export function writeTodayFile({ now, kalshiFetchedAt, memeFetchedAt, kalshiRows
     out.calibrationAt = doc.generatedAt;
   } catch (err) {
     console.log('calibration skipped', err.message);
+  }
+  // Recent form (edge decay) on every snapshot. Diagnostic only.
+  try {
+    out.decay = recentForm({ kalshiRows: kRows, memeRows: mRows });
+    out.decayAt = doc.generatedAt;
+  } catch (err) {
+    console.log('recent form skipped', err.message);
   }
   fs.mkdirSync('data', { recursive: true });
   fs.writeFileSync('data/today.json', JSON.stringify(out, null, 2) + '\n');
