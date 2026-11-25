@@ -21,9 +21,9 @@ import { setRollingBench } from './engine/focus-plan.js';
 import { todayHeaderHtml } from './engine/today-view.js';
 import { freshCalibration } from './engine/calibration.js';
 import { freshDecay, recentFormChipHtml } from './engine/decay.js';
-import { deskHomeHtml, agentGridHtml, botChipsHtml, gateMeterHtml, gateListHtml } from './engine/home-view.js';
+import { deskHomeHtml, agentGridHtml, botChipsHtml, gateMeterHtml, gateListHtml, botSheetHtml, gateSummary, FAMILY } from './engine/home-view.js';
 import { withoutQuoteErrors } from './engine/quote-guard.js';
-import { coinWatchHtml } from './engine/coin-watch-view.js';
+import { coinWatchHtml, pickSheetHtml } from './engine/coin-watch-view.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -54,7 +54,7 @@ function runCounts() {
     const key = el.dataset.countKey;
     const target = Number(el.dataset.count);
     if (!key || !Number.isFinite(target)) return;
-    const prev = ui.counts.get(key);
+    const prev = ui.counts.has(key) ? ui.counts.get(key) : (el.dataset.countFrom != null ? Number(el.dataset.countFrom) : null);
     ui.counts.set(key, target);
     if (prev == null || reduce || Math.abs(target - prev) < 0.0000001) return;
     const from = prev;
@@ -586,12 +586,29 @@ function arenaView(st) {
   const feed = (st.arenaLog || []).slice(-10).reverse();
   const won = feed.find((d) => d.won);
   const soon = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
-  const spots = Object.entries(st.spots || {}).slice(0, 6).map(([k, v]) => `<span class="chip">${esc(k)} ${v.px?.toFixed ? v.px.toFixed(2) : esc(v.px)}</span>`).join('');
-  const rows = feed.map((d, i) => `<li class="${i === 0 ? 'in' : ''}"><span><b>${esc(d.title || d.rule)}</b> <span class="tag ${d.won ? 'normal' : 'explore'}">${esc(d.action)}</span><br><span class="note">${esc(d.rule)} · ${esc(d.reason || '')}</span></span></li>`).join('');
-  return `<div class="card arcade"><div class="row"><h2 style="margin:0">Arena feed</h2>${sound}</div>${won ? '<p class="lvl">PAPER WIN</p>' : ''}<p class="tag explore">PAPER exploration · not the edge gate</p><p class="note">${st.arenaPausedDay ? 'Paused for the day. Size stays $2.' : 'Bots bet $2. Estimates are Coinbase or OKX spots, not Kalshi prints.'}</p><p class="note">${spots || 'Spot estimates load with the arena.'}</p>
+  const spots = Object.entries(st.spots || {}).slice(0, 8).map(([k, v]) => `<li><small>${esc(k)}</small><b>${v.px?.toFixed ? v.px.toFixed(2) : esc(v.px)}</b></li>`).join('');
+  const openN = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length;
+  const famColor = (rule) => (FAMILY[String(rule || '').split('-')[0]] || { color: '#8b97a6' }).color;
+  const rows = feed.map((d, i) => `<li class="af-row${i === 0 ? ' in' : ''}${d.won ? ' is-won' : ''}" style="--ac:${famColor(d.rule)};--i:${i}"><div class="af-top"><span class="af-act">${esc(d.action)}</span><span class="af-rule">${esc(d.rule)}</span></div><b class="af-title">${esc(d.title || d.rule)}</b>${d.reason ? `<small class="af-why">${esc(d.reason)}</small>` : ''}</li>`).join('');
+  const soonS = soon ? Math.max(0, Math.round((Date.parse(soon.closeTime) - now) / 1000)) : 0;
+  const ringPct = soon ? Math.max(0, Math.min(100, (soonS / 900) * 100)) : 0;
+  return `<section class="arena2" aria-label="Arena">
+    <div class="sec-row"><h2 class="sec">Arena feed</h2>${sound}</div>
+    <div class="arena-hero">
+      <div class="ah-ring" style="--p:${ringPct}%" role="img" aria-label="${soon ? `Next close in ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}"><b>${soon ? countdown(soon.closeTime, now) : '—'}</b><small>${soon ? 'next close' : 'waiting'}</small></div>
+      <div class="ah-side">
+        ${won ? '<span class="ah-win">Paper win</span>' : ''}
+        <div class="ah-stat"><b>${(st.arenaLog || []).length}</b><small>paper lines</small></div>
+        <div class="ah-stat"><b>${openN}</b><small>windows open</small></div>
+        <span class="ah-tag">${st.arenaPausedDay ? 'Paused today · $2 size' : '$2 paper bets · not the edge gate'}</span>
+      </div>
+    </div>
     ${st.arenaError ? `<p class="note r">${esc(st.arenaError)}</p>` : ''}
-    <p class="lvl">${soon ? `Next close ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}</p>
-    <p class="note">${(st.arenaLog || []).length} paper lines · ${(st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length} windows still open.</p><div class="seg">${tabs}</div><ul class="feed">${rows || '<li><span class="empty">The feed fills as windows open. Countdown is on each market in Pick.</span></li>'}</ul></div>`;
+    ${spots ? `<ul class="ah-spots" aria-label="Spot estimates from Coinbase or OKX, not Kalshi prints">${spots}</ul>` : '<p class="note">Spot estimates load with the arena.</p>'}
+    <p class="ah-cap">Spot estimates from Coinbase or OKX, not Kalshi prints.</p>
+    <div class="seg">${tabs}</div>
+    <ul class="af-list">${rows || '<li class="af-empty">The feed fills as windows open. Countdown is on each market in Pick.</li>'}</ul>
+  </section>`;
 }
 function loadUpgrades() {
   if (ui.upgradeState === 'ready' || ui.upgradeState === 'loading' || ui.upgradeState === 'error') return;
@@ -799,13 +816,19 @@ function scoreTop() {
 }
 const MORE_TABS = ['score', 'predict', 'train', 'settings', 'agents', 'activity'];
 function moreView() {
+  if (!ui.focusState) loadFocus();
+  const g = gateSummary(ui.focus);
+  const now = Date.now();
+  const openN = (state?.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length;
   const tiles = [
-    ['score', '★', 'Scoreboard', 'Real-money gate, fees'],
-    ['predict', '◎', 'Predict', 'Live 15-min markets'],
-    ['train', '◷', 'Train', 'Practice your own calls'],
-    ['settings', '⚙', 'Settings', 'Rules, export, theme'],
+    ['score', '★', 'Scoreboard', 'Real-money gate', g.total ? `${g.passed}/${g.total} ready` : '', '#3dff9a'],
+    ['predict', '◎', 'Predict', 'Live 15-min markets', state?.kalshiBoard ? `${openN} open` : '', '#38e1ff'],
+    ['train', '◷', 'Train', 'Practice your own calls', '', '#b98cff'],
+    ['agents', '✦', 'Agents', 'Every bot, one list', '', '#ffc94d'],
+    ['activity', '▤', 'Log', 'Paper trades on this phone', '', '#ff6bd5'],
+    ['settings', '⚙', 'Settings', 'Rules, export, theme', '', '#7aa8ff'],
   ];
-  return `<section class="more-grid" aria-label="More">${tiles.map(([id, ic, name, sub]) => `<button type="button" class="tile" data-tabjump="${id}"><span class="tile-ic" aria-hidden="true">${ic}</span><b>${name}</b><small>${sub}</small></button>`).join('')}</section>`;
+  return `<section class="more-grid" aria-label="More">${tiles.map(([id, ic, name, sub, val, ac], i) => `<button type="button" class="tile" data-tabjump="${id}" style="--ac:${ac};--i:${i}"><span class="tile-ic" aria-hidden="true">${ic}</span><b>${name}</b><small>${sub}</small>${val ? `<em class="tile-val">${esc(val)}</em>` : ''}</button>`).join('')}</section><p class="more-foot">Paper only · no wallet · live execution off</p>`;
 }
 function emptyArt(file, alt, line) {
   return `<figure class="empty-art"><img src="empty/${file}" alt="${esc(alt)}" width="640" height="640" loading="lazy" decoding="async"><figcaption>${esc(line)}</figcaption></figure>`;
@@ -1494,7 +1517,83 @@ function render() {
   bind();
 }
 
+// Bottom sheet: one native <dialog> outside #view, so a re-render of the tab
+// never tears it down. Esc, the back gesture (closedby) and a backdrop tap
+// close it; dragging the grab handle down past 90px closes it too.
+function bindCopy(root) {
+  root.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = async (e) => {
+    e.stopPropagation();
+    const ca = b.dataset.copy;
+    const label = b.dataset.label || (b.dataset.label = b.textContent);
+    let copied = false;
+    try { await navigator.clipboard.writeText(ca); copied = true; } catch { copied = false; }
+    haptic(12);
+    if (!copied) {
+      const chip = b.parentElement?.querySelector('[data-expand-ca]');
+      if (chip) chip.setAttribute('aria-expanded', 'true');
+      toast({ text: 'Copy did not stick. The full address is on the card.' });
+      return;
+    }
+    b.classList.add('is-copied');
+    b.textContent = 'Copied';
+    toast({ kind: 'copy' });
+    setTimeout(() => { if (b.isConnected) { b.textContent = label; b.classList.remove('is-copied'); } }, 1200);
+  }));
+  root.querySelectorAll('[data-expand-ca]').forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const open = b.getAttribute('aria-expanded') === 'true';
+    b.setAttribute('aria-expanded', open ? 'false' : 'true');
+  }));
+}
+function sheetDecay() {
+  const fresh = freshDecay(ui.lessons, ui.today);
+  return fresh && fresh.length ? fresh : (ui.today?.decay || []);
+}
+function openSheet(html, key) {
+  const d = $('#sheet');
+  if (!d || !html) return;
+  $('#sheetBody').innerHTML = html;
+  ui.sheetKey = key;
+  d.classList.remove('closing');
+  d.style.removeProperty('--drag');
+  if (!d.open) { if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', ''); }
+  $('#sheetBody').scrollTop = 0;
+  haptic(8);
+  bindCopy($('#sheetBody'));
+  $('#sheetBody').querySelectorAll('img.logo').forEach((img) => { img.onerror = () => img.replaceWith(Object.assign(document.createElement('span'), { className: 'logo fallback', textContent: img.dataset.initials || '?' })); });
+}
+function closeSheet() {
+  const d = $('#sheet');
+  if (!d || !d.open || d.classList.contains('closing')) return;
+  d.classList.add('closing');
+  setTimeout(() => { d.classList.remove('closing'); d.style.removeProperty('--drag'); if (d.open) d.close(); ui.sheetKey = null; }, motionOn() ? 220 : 0);
+}
+function openBotSheet(id) {
+  const s = sheetDecay().find((x) => x && x.id === id);
+  if (s) openSheet(botSheetHtml(s, { focus: ui.focus }), 'bot:' + id);
+}
+function openPickSheet(ca) {
+  const picks = (ui.coinWatch?.picks || []).filter((p) => p?.ca);
+  const i = picks.findIndex((p) => p.ca === ca);
+  if (i >= 0) openSheet(pickSheetHtml(picks[i], i + 1), 'pick:' + ca);
+}
+function mountSheet() {
+  const d = $('#sheet');
+  if (!d || d.dataset.bound) return;
+  d.dataset.bound = '1';
+  d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-sheet-close]')) closeSheet(); });
+  d.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(); });
+  const grab = d.querySelector('.bsheet-grab');
+  let y0 = null, dy = 0;
+  grab.addEventListener('pointerdown', (e) => { y0 = e.clientY; dy = 0; grab.setPointerCapture(e.pointerId); d.classList.add('dragging'); });
+  grab.addEventListener('pointermove', (e) => { if (y0 == null) return; dy = Math.max(0, e.clientY - y0); d.style.setProperty('--drag', dy + 'px'); });
+  const end = () => { if (y0 == null) return; y0 = null; d.classList.remove('dragging'); if (dy > 90) closeSheet(); else d.style.removeProperty('--drag'); };
+  grab.addEventListener('pointerup', end);
+  grab.addEventListener('pointercancel', end);
+}
+
 function bind() {
+  mountSheet();
   document.querySelectorAll('[data-tf]').forEach((b) => (b.onclick = () => { ui.tf = b.dataset.tf; render(); }));
   document.querySelectorAll('[data-mkt]').forEach((b) => (b.onclick = () => { ui.market = b.dataset.mkt; render(); }));
   document.querySelectorAll('[data-lf]').forEach((b) => (b.onclick = () => { ui.logFilter = b.dataset.lf; render(); }));
@@ -1563,28 +1662,13 @@ function bind() {
     localStorage.setItem('gd.coinAlerts', ui.coinAlerts ? '1' : '0');
     render();
   };
-  document.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = async (e) => {
-    e.stopPropagation();
-    const ca = b.dataset.copy;
-    let copied = false;
-    try { await navigator.clipboard.writeText(ca); copied = true; } catch { copied = false; }
-    haptic(12);
-    if (!copied) {
-      const chip = b.parentElement?.querySelector('[data-expand-ca]');
-      if (chip) chip.setAttribute('aria-expanded', 'true');
-      toast({ text: 'Copy did not stick. The full address is on the card.' });
-      return;
-    }
-    b.classList.add('is-copied');
-    b.textContent = 'Copied';
-    toast({ kind: 'copy' });
-    setTimeout(() => { if (b.isConnected) { b.textContent = 'Copy'; b.classList.remove('is-copied'); } }, 1200);
-  }));
-  document.querySelectorAll('[data-expand-ca]').forEach((b) => (b.onclick = (e) => {
-    e.stopPropagation();
-    const open = b.getAttribute('aria-expanded') === 'true';
-    b.setAttribute('aria-expanded', open ? 'false' : 'true');
-  }));
+  bindCopy(document);
+  document.querySelectorAll('[data-bot]').forEach((el) => {
+    const open = () => openBotSheet(el.dataset.bot);
+    el.onclick = open;
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+  });
+  document.querySelectorAll('[data-open-pick]').forEach((b) => (b.onclick = () => openPickSheet(b.dataset.openPick)));
   document.querySelectorAll('[data-open-coin]').forEach((b) => (b.onclick = () => { ui.coinOpen = b.dataset.openCoin; render(); }));
   document.querySelectorAll('[data-close-sheet]').forEach((b) => (b.onclick = () => { ui.coinOpen = null; render(); }));
   runCounts();
