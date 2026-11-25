@@ -7,10 +7,14 @@ import { arenaIdeas, SPOT } from './arena.js';
 import { clusterBootstrap } from './eval.js';
 import { graduates } from './strategies.js';
 import { levelOf } from './game.js';
+import { preTradeCheck } from './ticket.js';
 
 export const TRAINER_STAKE = 2;
 export const TRAINER_XP_CALL = 8;
 export const TRAINER_XP_SETTLE = 4;
+// Extra XP for a correct call. Rewards being right, never size: the stake
+// stays $2 whatever the streak.
+export const TRAINER_XP_HIT = 6;
 export const READY_WINDOWS = 3;
 export const READY_CALLS = 20;
 
@@ -41,13 +45,11 @@ export function brierScore(probYes, result) {
   return Math.round(raw * 1e8) / 1e8;
 }
 
+// Sized by the same pre-trade check the ticket uses, always at $2.
 export function trainerDeal(ask) {
-  const price = Number(ask);
-  if (!(price > 0 && price < 1)) return null;
-  const contracts = Math.floor(TRAINER_STAKE / price);
-  if (contracts < 1) return null;
-  const fee = kalshiTakerFee(price, contracts);
-  return { contracts, fee, cost: contracts * price, sizeUsd: TRAINER_STAKE, ask: price };
+  const t = preTradeCheck({ ask, stake: TRAINER_STAKE });
+  if (!t.contracts) return null;
+  return { contracts: t.contracts, fee: t.fee, cost: t.cost, sizeUsd: TRAINER_STAKE, ask: t.ask };
 }
 
 function escHtml(s) {
@@ -247,7 +249,7 @@ export function settleTrainer(book, board, now, spots) {
     return false;
   });
   if (book.closed.length > 500) book.closed.splice(0, book.closed.length - 500);
-  if (settled.length) book.xp += TRAINER_XP_SETTLE * settled.length;
+  if (settled.length) book.xp += TRAINER_XP_SETTLE * settled.length + TRAINER_XP_HIT * settled.filter((r) => r.won).length;
   book.stakeUsd = TRAINER_STAKE;
   const level = levelOf(book.xp);
   return { settled, level, levelUp: level > before };
@@ -379,4 +381,37 @@ export function trainerTips() {
       body: `Every call risks about $${TRAINER_STAKE} of paper: the contracts that budget buys at the ask. A loss does not raise the next call. There is no make-it-back control.`,
     },
   ];
+}
+
+// Daily call-it streak. Days in a row with at least one call (today counts
+// once you call), the current and best run of correct calls, and badges.
+// Nothing here touches size: every call is $2.
+export const STREAK_BADGES = Object.freeze([
+  { id: 'hit3', kind: 'hits', at: 3, label: '3 right in a row' },
+  { id: 'hit5', kind: 'hits', at: 5, label: '5 right in a row' },
+  { id: 'hit10', kind: 'hits', at: 10, label: '10 right in a row' },
+  { id: 'day3', kind: 'days', at: 3, label: '3-day streak' },
+  { id: 'day7', kind: 'days', at: 7, label: '7-day streak' },
+  { id: 'day30', kind: 'days', at: 30, label: '30-day streak' },
+]);
+export function callStreak(book, now = Date.now(), offsetMin = 0) {
+  const all = [...(book?.open || []), ...(book?.closed || [])].filter((c) => Number.isFinite(c?.calledAt));
+  const key = (t) => new Date(t + offsetMin * 60e3).toISOString().slice(0, 10);
+  const days = new Set(all.map((c) => key(c.calledAt)));
+  const today = key(now);
+  let d = days.has(today) ? 0 : 1; // yesterday still keeps the streak alive
+  let run = 0;
+  for (;;) {
+    const k = key(now - d * 86400e3);
+    if (!days.has(k)) break;
+    run += 1; d += 1;
+  }
+  const settled = [...(book?.closed || [])].filter((r) => r.won != null).sort((a, b) => (a.settledAt || 0) - (b.settledAt || 0));
+  let best = 0, cur = 0;
+  for (const r of settled) { cur = r.won ? cur + 1 : 0; best = Math.max(best, cur); }
+  const todays = all.filter((c) => key(c.calledAt) === today);
+  const todaySettled = settled.filter((r) => key(r.calledAt) === today);
+  const hits = hitStreak(book?.closed);
+  const badges = STREAK_BADGES.filter((b) => (b.kind === 'hits' ? best : run) >= b.at).map((b) => b.id);
+  return { days: run, calledToday: days.has(today), hits, bestHits: best, todayCalls: todays.length, todayRight: todaySettled.filter((r) => r.won).length, todaySettled: todaySettled.length, badges, total: settled.length, right: settled.filter((r) => r.won).length };
 }

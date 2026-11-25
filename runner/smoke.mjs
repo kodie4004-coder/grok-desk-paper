@@ -37,6 +37,8 @@ try {
   if (!/paper p&l/i.test(desk) || !/after fees/i.test(desk) || !/paper only/i.test(desk) || !/top bots/i.test(desk) || !/ready for real money/i.test(desk)) fails.push('desk home\n' + desk.slice(0, 400));
   if (/execute|go live|start live/i.test(desk)) fails.push('desk home must not offer a live or execute control');
   if (await page.locator('details[data-fold="home-detail"][open]').count()) fails.push('desk detail should start collapsed');
+  if (!(await page.locator('section.callit').count())) fails.push('call-it card missing on the desk');
+  if (!(await page.locator('#bellBtn').count())) fails.push('alerts bell missing');
   await page.locator('details[data-fold="home-detail"] > summary').click();
   await page.waitForSelector('text=Cockpit', { timeout: 4000 }).catch((e) => logs.push(e.message));
   await page.waitForSelector('section.today', { timeout: 6000 }).catch((e) => logs.push(e.message));
@@ -74,6 +76,13 @@ try {
   const score = await page.locator('#view').innerText();
   if (!/focus/i.test(score)) fails.push('score focus\n' + score.slice(0, 200));
   if (!/ready for real money/i.test(score) || !/hype check/i.test(score) || !/new research upgrades/i.test(score) || !/jev check/i.test(score) || !/early entry/i.test(score) || !/shadow/i.test(score)) fails.push('score\n' + score.slice(0, 400));
+  await page.locator('nav.tabs button[data-tab="more"]').click();
+  await page.locator('button[data-tabjump="settings"]').click();
+  if (!/paper · live off/i.test(await page.locator('.live-ready').innerText().catch(() => ''))) fails.push('live readiness card missing');
+  await page.locator('nav.tabs button[data-tab="more"]').click();
+  await page.locator('button[data-tabjump="calendar"]').click();
+  await page.waitForSelector('.pcal .cal-grid', { timeout: 8000 }).catch((e) => logs.push(e.message));
+  if (!/after fees/i.test(await page.locator('.pcal').innerText().catch(() => ''))) fails.push('calendar missing');
   await page.locator('nav.tabs button[data-tab="more"]').click();
   await page.locator('button[data-tabjump="settings"]').click();
   if (await page.locator('input[type="checkbox"][disabled]').count() < 1) fails.push('live execution toggle');

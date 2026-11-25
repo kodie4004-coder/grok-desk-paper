@@ -5,6 +5,8 @@
 export const RANGES = Object.freeze({ '1h': 3600e3, '1d': 86400e3, '1w': 7 * 86400e3, all: Infinity });
 export const RANGE_KEYS = Object.freeze(['1h', '1d', '1w', 'all']);
 
+const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
 export function inRange(points, range = 'all', now = Date.now()) {
   const span = RANGES[range] ?? Infinity;
   const from = now - span;
@@ -57,12 +59,14 @@ export function fmtValue(v, kind) {
 
 // The SVG for a detailed chart. data-points carries the exact series for the
 // crosshair (time, value) so the tooltip reads the real number.
-export function chartSvg({ points = [], kind = 'pnl', gapMs = Infinity, w = 640, h = 220, step = kind === 'pnl', label = '' } = {}) {
+export function chartSvg({ points = [], kind = 'pnl', gapMs = Infinity, w = 640, h = 220, step = kind === 'pnl', label = '', marks = [], hline = null, domain = null } = {}) {
   const pts = points.filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v));
   if (pts.length < 2) return `<div class="dchart-empty">${pts.length ? 'Only one point in this range.' : 'No points in this range.'}</div>`;
   const L = 58, R = 12, T = 12, B = 26;
-  const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
-  let lo = Math.min(...pts.map((p) => p.v)), hi = Math.max(...pts.map((p) => p.v));
+  const t0 = domain ? Math.min(domain[0], pts[0].t) : pts[0].t, t1 = domain ? Math.max(domain[1], pts[pts.length - 1].t) : pts[pts.length - 1].t;
+  const mk = (marks || []).filter((m) => Number.isFinite(m?.t) && m.t >= t0 && m.t <= t1);
+  const extra = [...mk.map((m) => m.v), hline?.v].filter((v) => Number.isFinite(v));
+  let lo = Math.min(...pts.map((p) => p.v), ...extra), hi = Math.max(...pts.map((p) => p.v), ...extra);
   // Keep $0 on the axis only when it is near the data, so a far-away zero
   // does not flatten the detail.
   if (kind === 'pnl' && Math.min(Math.abs(lo), Math.abs(hi)) <= Math.max(1, hi - lo)) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
@@ -85,8 +89,23 @@ export function chartSvg({ points = [], kind = 'pnl', gapMs = Infinity, w = 640,
   const xAxis = xs.map((t, i) => `<text class="dc-x" x="${f(x(t))}" y="${h - 8}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${timeLabel(t, tspan)}</text>`).join('');
   const zero = kind === 'pnl' && lo <= 0 && hi >= 0 ? `<line class="dc-zero" x1="${L}" x2="${w - R}" y1="${f(y(0))}" y2="${f(y(0))}"></line>` : '';
   const gaps = segs.slice(1).map((s, i) => { const a = segs[i][segs[i].length - 1].t, b = s[0].t; return `<rect class="dc-gap" x="${f(x(a))}" y="${T}" width="${f(Math.max(1, x(b) - x(a)))}" height="${h - T - B}"><title>No data from ${new Date(a).toLocaleString()} to ${new Date(b).toLocaleString()}</title></rect>`; }).join('');
+  const nearV = (t) => { let b = pts[0]; for (const p of pts) { if (p.t <= t) b = p; else break; } return b.v; };
+  const hl = hline && Number.isFinite(hline.v) ? `<g class="dc-hline"><line x1="${L}" x2="${w - R}" y1="${f(y(hline.v))}" y2="${f(y(hline.v))}"></line><text x="${w - R - 4}" y="${f(y(hline.v) - 4)}" text-anchor="end">${esc(hline.label || '')}</text></g>` : '';
+  const placed = [];
+  const marksSvg = mk.map((m) => {
+    const mx = x(m.t), my = y(Number.isFinite(m.v) ? m.v : nearV(m.t));
+    // Stack labels that would overlap a nearby one: alternate below/above, one row further each time.
+    const near = placed.filter((p) => Math.abs(p - mx) < 110).length;
+    placed.push(mx);
+    const below = near % 2 === 1;
+    const row = Math.floor(near / 2);
+    const ty = Math.max(T + 10, Math.min(h - B - 4, below ? my + 18 + row * 13 : my - 10 - row * 13));
+    const anchor = mx > w - 120 ? 'end' : mx < L + 60 ? 'start' : 'middle';
+    const shape = m.kind === 'entry' ? `<path class="dc-mk" d="M${f(mx)},${f(my - 6)}L${f(mx + 6)},${f(my + 5)}L${f(mx - 6)},${f(my + 5)}Z"></path>` : `<rect class="dc-mk" x="${f(mx - 5)}" y="${f(my - 5)}" width="10" height="10" rx="2"></rect>`;
+    return `<g class="dc-mark is-${m.kind}${m.tone ? ' is-' + m.tone : ''}"><line class="dc-mk-x" x1="${f(mx)}" x2="${f(mx)}" y1="${T}" y2="${h - B}"></line>${shape}<text x="${f(mx)}" y="${f(ty)}" text-anchor="${anchor}">${esc(m.label || m.kind)}</text></g>`;
+  }).join('');
   const data = JSON.stringify(pts.map((p) => [p.t, p.v]));
-  return `<svg class="dchart is-${tone}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${label ? label + '. ' : ''}${pts.length} points from ${new Date(t0).toLocaleString()} to ${new Date(t1).toLocaleString()}. Last ${fmtValue(last, kind)}." data-kind="${kind}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-lo="${lo}" data-hi="${hi}" data-t0="${t0}" data-t1="${t1}" data-points='${data}'>${yAxis}${xAxis}${zero}${gaps}${paths.map((d) => `<path class="dc-line" d="${d}"></path>`).join('')}<g class="dc-cross" hidden><line class="dc-vx" y1="${T}" y2="${h - B}"></line><circle class="dc-dot" r="4"></circle></g></svg>`;
+  return `<svg class="dchart is-${tone}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${label ? label + '. ' : ''}${pts.length} points from ${new Date(t0).toLocaleString()} to ${new Date(t1).toLocaleString()}. Last ${fmtValue(last, kind)}." data-kind="${kind}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-lo="${lo}" data-hi="${hi}" data-t0="${t0}" data-t1="${t1}" data-points='${data}'>${yAxis}${xAxis}${zero}${gaps}${hl}${paths.map((d) => `<path class="dc-line" d="${d}"></path>`).join('')}${marksSvg}<g class="dc-cross" hidden><line class="dc-vx" y1="${T}" y2="${h - B}"></line><circle class="dc-dot" r="4"></circle></g></svg>`;
 }
 
 // Nearest point to an x position in chart units, for the crosshair.

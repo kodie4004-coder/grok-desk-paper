@@ -11,12 +11,13 @@
 import { kalshiTakerFee } from './kalshi.js';
 import { memePnl, MEME_SLIP } from './meme.js';
 import { isQuoteError } from './quote-guard.js';
+import { RISK_LIMITS, RECORDED_STAKE, clampStake, cleanLossCap, cleanMaxOpen, riskCheck } from './risk.js';
 
-export const RECORDED_STAKE = 2;
-export const BUYIN_MIN = 0.5;
-export const BUYIN_MAX = 50;
-export const MAX_OPEN_CAP = 500;
-export const LOSS_CAP_MAX = 10000;
+export { RECORDED_STAKE };
+export const BUYIN_MIN = RISK_LIMITS.minStake;
+export const BUYIN_MAX = RISK_LIMITS.maxStake;
+export const MAX_OPEN_CAP = RISK_LIMITS.maxOpenCap;
+export const LOSS_CAP_MAX = RISK_LIMITS.lossCapMax;
 
 export const BET_DEFAULTS = Object.freeze({
   schema: 1,
@@ -28,15 +29,14 @@ export const BET_DEFAULTS = Object.freeze({
   paused: [],
   dailyLossCap: null,
   maxOpen: null,
+  killSwitch: false,
 });
 
 const round2 = (x) => Math.round(x * 100) / 100;
 const num = (x) => (x === null || x === undefined || x === '' ? NaN : Number(x));
 
 export function clampBuyIn(x, fallback = BET_DEFAULTS.defaultBuyIn) {
-  const v = num(x);
-  if (!Number.isFinite(v)) return fallback;
-  return round2(Math.min(BUYIN_MAX, Math.max(BUYIN_MIN, v)));
+  return clampStake(x, fallback);
 }
 
 function cleanMap(raw) {
@@ -54,8 +54,6 @@ function cleanMap(raw) {
 // paper and liveExecution are forced; they are not settings.
 export function normalizeBetSettings(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
-  const cap = num(r.dailyLossCap);
-  const maxOpen = num(r.maxOpen);
   return {
     schema: 1,
     paper: true,
@@ -64,8 +62,9 @@ export function normalizeBetSettings(raw) {
     buyIn: cleanMap(r.buyIn),
     coinBuyIn: cleanMap(r.coinBuyIn),
     paused: [...new Set((Array.isArray(r.paused) ? r.paused : []).filter((x) => typeof x === 'string' && /^[A-Za-z0-9:_.-]{1,64}$/.test(x)))].sort(),
-    dailyLossCap: Number.isFinite(cap) && cap > 0 ? round2(Math.min(LOSS_CAP_MAX, cap)) : null,
-    maxOpen: Number.isFinite(maxOpen) && maxOpen >= 1 ? Math.min(MAX_OPEN_CAP, Math.floor(maxOpen)) : null,
+    dailyLossCap: cleanLossCap(r.dailyLossCap),
+    maxOpen: cleanMaxOpen(r.maxOpen),
+    killSwitch: r.killSwitch === true,
   };
 }
 
@@ -92,7 +91,7 @@ export function isPaused(settings, bot) {
 export function settingsFileText(settings, at = new Date().toISOString()) {
   const s = normalizeBetSettings(settings);
   const sortObj = (o) => Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
-  return JSON.stringify({ ...s, buyIn: sortObj(s.buyIn), coinBuyIn: sortObj(s.coinBuyIn), exportedAt: at, note: 'Paper only. The runner keeps recording $2 lines; buy-ins re-scale the view. paused, maxOpen and dailyLossCap only stop new paper lines.' }, null, 2) + '\n';
+  return JSON.stringify({ ...s, buyIn: sortObj(s.buyIn), coinBuyIn: sortObj(s.coinBuyIn), exportedAt: at, note: 'Paper only. The runner keeps recording $2 lines; buy-ins re-scale the view. killSwitch, paused, maxOpen and dailyLossCap only stop new paper lines. Trading mode is always paper.' }, null, 2) + '\n';
 }
 
 export function settingsDiff(a, b) {
@@ -105,6 +104,7 @@ export function settingsDiff(a, b) {
   if (JSON.stringify(x.paused) !== JSON.stringify(y.paused)) out.push('paused');
   if (x.dailyLossCap !== y.dailyLossCap) out.push('dailyLossCap');
   if (x.maxOpen !== y.maxOpen) out.push('maxOpen');
+  if (x.killSwitch !== y.killSwitch) out.push('killSwitch');
   return out;
 }
 
@@ -336,23 +336,19 @@ export function simulate(bets, settings) {
   const out = [];
   const active = []; // settledAt ms of lines still open in the sim
   const realized = []; // [settledMs, day, pnl]
-  const skipped = { paused: 0, cap: 0, maxOpen: 0, tooSmall: 0 };
+  const skipped = { kill: 0, paused: 0, cap: 0, maxOpen: 0, tooSmall: 0 };
+  const WHY = { 'kill switch': 'kill', paused: 'paused', 'daily loss cap': 'cap', 'max open': 'maxOpen', size: 'tooSmall' };
   let net = 0, fees = 0, wins = 0, n = 0, recorded = 0, staked = 0;
   for (const b of rows) {
     const t = ms(b.openedAt) ?? 0;
     const day = dayOf(b.openedAt);
     recorded += b.pnl;
-    let skip = null;
-    if (isPaused(s, b.bot)) skip = 'paused';
-    if (!skip && s.dailyLossCap != null) {
-      const dayPnl = realized.reduce((a, [st, d, p]) => (d === day && st <= t ? a + p : a), 0);
-      if (dayPnl <= -s.dailyLossCap) skip = 'cap';
-    }
-    if (!skip && s.maxOpen != null) {
-      for (let i = active.length - 1; i >= 0; i--) if (active[i] <= t) active.splice(i, 1);
-      if (active.length >= s.maxOpen) skip = 'maxOpen';
-    }
+    for (let i = active.length - 1; i >= 0; i--) if (active[i] <= t) active.splice(i, 1);
+    const dayPnl = s.dailyLossCap != null ? realized.reduce((a, [st, d, p]) => (d === day && st <= t ? a + p : a), 0) : 0;
     const stake = lineStake(s, b.bot, b.book === 'coin' ? b.ca : null);
+    // Same limits module as the runner guard and the ticket.
+    const risk = riskCheck({ settings: s, bot: b.bot, stake, counted: true, dayPnl, openCounted: active.length });
+    let skip = risk.ok ? null : WHY[risk.why];
     const sc = skip ? null : rescale(b, stake);
     if (!skip && (!sc || sc.tooSmall)) skip = 'tooSmall';
     if (skip) { skipped[skip] += 1; out.push({ ...b, sim: { skip } }); continue; }
@@ -438,10 +434,9 @@ export function guardNewOpens({ prevOpen = [], nextOpen = [], settledToday = [],
   const dropped = [];
   for (const r of nextOpen || []) {
     if (!r || before.has(r.id)) { kept.push(r); continue; }
-    let why = null;
-    if (isPaused(s, bot(r))) why = 'paused';
-    else if (r.allocated && capHit) why = 'daily loss cap';
-    else if (r.allocated && s.maxOpen != null && countedOpen >= s.maxOpen) why = 'max open';
+    // The runner's size is fixed at $2; the shared limits only drop lines.
+    const risk = riskCheck({ settings: s, bot: bot(r), stake: RECORDED_STAKE, counted: !!r.allocated, dayPnl, openCounted: countedOpen });
+    const why = risk.ok ? null : risk.why;
     if (why) { dropped.push({ id: r.id, why }); continue; }
     if (r.allocated) countedOpen += 1;
     kept.push(r);
