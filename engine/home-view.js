@@ -107,7 +107,7 @@ export function heroHtml({ curve, today, brain, openN, now = Date.now() } = {}) 
   const spark = sparkSvg(curve?.points || [], { w: 132, h: 52, cls: 'hero-spark', label: `Paper P and L curve, now ${usd(net)}` });
   return `<section class="hero2 is-${tone(net)}" aria-label="Paper profit after fees">
     <p class="hero2-k">Paper P&amp;L <span>after fees</span></p>
-    <div class="hero2-row"><b class="hero2-num">${net == null ? '—' : usd(net)}</b>${spark}</div>
+    <div class="hero2-row"><b class="hero2-num"${net == null ? '' : ` data-count="${net}" data-count-key="hero-net" data-count-from="0" data-sign="1"`}>${net == null ? '—' : usd(net)}</b>${spark}</div>
     <p class="hero2-sub">${esc(bits.join(' · '))}</p>
     ${shadow ? `<p class="hero2-practice">Practice today <b class="is-${tone(shadow.pnl)}">${usd(shadow.pnl)}</b> <span>on ${Number(shadow.n || 0).toLocaleString('en-US')}</span></p>` : ''}
   </section>`;
@@ -153,13 +153,48 @@ function agentCard(s, { focus } = {}) {
   const a = accent(fam);
   const st = botStatus(s, { focus });
   const flag = s.flag === 'decaying' ? '<span class="flag dn" title="Last 100 bets worse than before">▼ fading</span>' : s.flag === 'improving' ? '<span class="flag up" title="Last 100 bets better than before">▲ rising</span>' : '';
-  return `<li class="agent${st.kind === 'benched' ? ' is-benched' : ''}" style="--ac:${a.color}" data-bot="${esc(s.id)}">
+  return `<li class="agent${st.kind === 'benched' ? ' is-benched' : ''}" style="--ac:${a.color}" data-bot="${esc(s.id)}" role="button" tabindex="0" aria-label="${esc(s.id)} details">
     <div class="agent-top"><span class="agent-ic" aria-hidden="true">${a.icon}</span>${flag}<span class="agent-role is-${st.kind}" title="${esc(st.hint)}">${esc(st.label)}</span></div>
     <b class="agent-name">${esc(s.id)}</b>
     <span class="agent-num is-${tone(s.net)}">${usd(s.net)}</span>
     <span class="agent-meta">${usd(s.mean)}/bet · ${Number(s.n || 0).toLocaleString('en-US')}</span>
     ${sparkSvg(s.spark, { w: 120, h: 28, cls: 'agent-spark' })}
   </li>`;
+}
+
+// Bot detail for the bottom sheet. Same decay row the card uses: all-time
+// after-fee net, the cumulative spark, and last-100 vs before. Display only.
+export function botSheetHtml(s, { focus } = {}) {
+  if (!s) return '';
+  const fam = familyOf(s);
+  const a = accent(fam);
+  const st = botStatus(s, { focus });
+  const n = Number(s.n || 0);
+  const stat = (k, v) => `<div class="sh-stat"><small>${k}</small><b>${v}</b></div>`;
+  const win = finite(s.recentWinRate) ? `${Math.round(s.recentWinRate * 100)}%` : '—';
+  const chart = sparkSvg(s.spark, { w: 320, h: 120, cls: 'sh-spark', label: `${s.id}, running after-fee total over the last ${s.recentN || 'few'} bets` });
+  let form = '';
+  if (s.recentN && finite(s.recentMean) && finite(s.beforeMean) && s.beforeN) {
+    const max = Math.max(Math.abs(s.recentMean), Math.abs(s.beforeMean), 0.01);
+    const bar = (label, v, cnt) => `<li class="is-${tone(v)}"><span>${label}<small>${Number(cnt).toLocaleString('en-US')} bets</small></span><i style="--w:${Math.round((Math.abs(v) / max) * 100)}%" aria-hidden="true"></i><b>${usd(v)}</b></li>`;
+    form = `<h3 class="sh-sec">Per bet, after fees</h3><ul class="sh-form">${bar('Last 100', s.recentMean, s.recentN)}${bar('Before', s.beforeMean, s.beforeN)}</ul>`;
+  }
+  const row = gateRowOf(focus, s.id);
+  let gate = '';
+  if (row?.gate) {
+    const p = gateProgressOf(row);
+    const segs = Array.from({ length: p.total }, (_, i) => `<i class="${i < p.good ? 'on' : ''}"></i>`).join('');
+    gate = `<h3 class="sh-sec">Test windows</h3><div class="gate2-seg" role="img" aria-label="${p.good} of ${p.total} test windows profitable">${segs}</div><p class="sh-note">${p.good} of ${p.total} profitable. Every window has to be before real money.</p>`;
+  }
+  const flag = s.flag === 'decaying' ? '<span class="flag dn">▼ fading</span>' : s.flag === 'improving' ? '<span class="flag up">▲ rising</span>' : '';
+  return `<div class="sh-bot" style="--ac:${a.color}">
+<header class="sh-head"><span class="agent-ic sh-ic" aria-hidden="true">${a.icon}</span><span class="sh-id"><h2 id="sheetTitle">${esc(s.id)}</h2><small>${esc(a.name)} · ${esc(st.label)}</small></span>${flag}</header>
+<div class="sh-big"><b class="is-${tone(s.net)}">${usd(s.net)}</b><span>all-time, after fees</span></div>
+<div class="sh-chart">${chart ? `${chart}<span class="sh-chart-k">Last ${Number(s.recentN || 0).toLocaleString('en-US')} bets, running total after fees</span>` : '<p class="sh-note">Not enough bets for a chart yet.</p>'}</div>
+<div class="sh-stats">${stat('Bets', n.toLocaleString('en-US'))}${stat('Avg / bet', usd(s.mean))}${stat('Wins, last 100', win)}${stat('Last 100', s.recentN ? usd(s.recentNet) : '—')}</div>
+${form}${gate}
+<p class="sh-note">Paper only. Practice bots trade with $0 until they win every test window.</p>
+</div>`;
 }
 
 export function agentGridHtml(decay, brain, { top = 6, focus } = {}) {
