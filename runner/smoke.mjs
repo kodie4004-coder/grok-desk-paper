@@ -48,7 +48,12 @@ try {
   if (!/focus/i.test(focusText) || !/benched/i.test(focusText) || !/late favorite, looser ask/i.test(focusText)) fails.push('home focus\n' + focusText.slice(0, 400));
   if (await page.locator('section.focus details[open]').count()) fails.push('benched list should start collapsed');
   if (!/paper/i.test(home) || !/cockpit/i.test(home)) fails.push('home cockpit missing\n' + home.slice(0, 400) + '\n' + logs.join('\n'));
-  await page.locator('nav.tabs button[data-tab="arena"]').click();
+  await page.locator('nav.tabs button[data-tab="bets"]').click();
+  await page.waitForSelector('.bhero', { timeout: 8000 }).catch((e) => logs.push(e.message));
+  const bets = await page.locator('#view').innerText();
+  if (!/paper/i.test(bets) || !/after fees/i.test(bets) || !/buy-ins & limits/i.test(bets)) fails.push('bets\n' + bets.slice(0, 400));
+  await page.locator('nav.tabs button[data-tab="more"]').click();
+  await page.locator('button[data-tabjump="arena"]').click();
   const arena = await page.locator('#view').innerText();
   if (!/arena feed/i.test(arena)) fails.push('arena\n' + arena.slice(0, 240));
   await page.locator('button[data-arena="pick"]').click();

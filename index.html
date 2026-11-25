@@ -81,13 +81,15 @@
 <div id="toasts" aria-live="polite"></div>
 <div id="fx" class="fx" aria-hidden="true"></div>
 <nav class="tabs" aria-label="Primary">
-  <button data-tab="home" class="on"><span>◉</span>Desk</button>
-  <button data-tab="brain"><span>✦</span>Bots</button>
-  <button data-tab="coins"><span>◎</span>Coins</button>
-  <button data-tab="arena"><span>▶</span>Arena</button>
-  <button data-tab="more"><span>⋯</span>More</button>
+  <p class="nav-brand" aria-hidden="true"><img src="icons/icon.svg" width="28" height="28" alt="">Grok Desk<small>Paper</small></p>
+  <button data-tab="home" class="on" aria-keyshortcuts="1"><span>◉</span>Desk<kbd>1</kbd></button>
+  <button data-tab="bets" aria-keyshortcuts="2"><span>◈</span>Bets<kbd>2</kbd></button>
+  <button data-tab="brain" aria-keyshortcuts="3"><span>✦</span>Bots<kbd>3</kbd></button>
+  <button data-tab="coins" aria-keyshortcuts="4"><span>◎</span>Coins<kbd>4</kbd></button>
+  <button data-tab="more" aria-keyshortcuts="5"><span>⋯</span>More<kbd>5</kbd></button>
   <span class="tab-indicator" aria-hidden="true"></span>
+  <div class="nav-foot"><button type="button" class="nav-ctl" id="navControls" aria-keyshortcuts="c"><span aria-hidden="true">⚙</span>Buy-ins &amp; limits<kbd>C</kbd></button><p>Paper money only<br>No wallet · live execution off</p></div>
 </nav>
-<script type="module" src="app.js?v=30"></script>
+<script type="module" src="app.js?v=31"></script>
 </body>
 </html>

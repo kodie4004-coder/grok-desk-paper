@@ -5,6 +5,7 @@ import { loadSpots, loadSpotWindow, loadHourCandles } from '../engine/arena.js';
 import { focusDoc } from '../engine/focus.js';
 import { writeTodayFile } from './write-today.mjs';
 import { loadRollingBench, updateRollingBench } from './rolling-bench.mjs';
+import { guardNewOpens, readSettingsText } from '../engine/bets.js';
 
 const board = JSON.parse(fs.readFileSync('data/kalshi-15m.json', 'utf8'));
 const openDoc = fs.existsSync('data/journal-open.json') ? JSON.parse(fs.readFileSync('data/journal-open.json', 'utf8')) : { entries: [] };
@@ -34,6 +35,16 @@ const now = Date.parse(board.fetchedAt || '') || Date.now();
 // Books on the rolling bench open no new paper lines this step.
 loadRollingBench();
 const next = stepJournal({ markets: board.markets || [], open: openDoc.entries || [], quotes: quoteDoc, brain, existingIds, settledRows, spots, now });
+// Owner limits from data/settings.json (paused bots, max open, daily loss cap).
+// They can only drop a line opened in this step. Sizes stay $2.
+try {
+  const settings = readSettingsText(fs.existsSync('data/settings.json') ? fs.readFileSync('data/settings.json', 'utf8') : 'null');
+  const day = new Date(now).toISOString().slice(0, 10);
+  const settledToday = settledRows.concat(next.settled).filter((row) => String(row.settledAt || '').slice(0, 10) === day);
+  const guard = guardNewOpens({ prevOpen: openDoc.entries || [], nextOpen: next.open, settledToday, settings });
+  next.open = guard.open;
+  if (guard.dropped.length) console.log('owner limits dropped', guard.dropped.length, 'new paper lines:', [...new Set(guard.dropped.map((d) => d.why))].join(', '));
+} catch (err) { console.log('owner limits skipped', err.message); }
 fs.mkdirSync('data', { recursive: true });
 if (next.settled.length) {
   fs.appendFileSync('data/journal.jsonl', next.settled.map((row) => JSON.stringify(row)).join('\n') + '\n');
