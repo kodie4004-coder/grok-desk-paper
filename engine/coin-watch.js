@@ -162,7 +162,8 @@ export function sparkFromPair(pair) {
 }
 
 // cands: [{ coin, pair, rug }]. Only safe coins are returned.
-export function rankWatch(cands, now, top = CW_TOP) {
+// The challenger passes scoreChallenger here. Safety is the same either way.
+export function rankWatch(cands, now, top = CW_TOP, scorer = scoreWatch) {
   const rows = [];
   for (const c of cands || []) {
     const ca = c?.coin?.ca;
@@ -170,7 +171,8 @@ export function rankWatch(cands, now, top = CW_TOP) {
     if (!ca || !(price > 0)) continue;
     const safety = watchSafety(c.coin, c.rug);
     if (!safety.ok) continue;
-    const scored = scoreWatch(c.pair, now);
+    const scored = scorer(c.pair, now);
+    if (scored.skip) continue;
     const created = num(c.pair?.pairCreatedAt);
     rows.push({
       ca,
@@ -189,6 +191,7 @@ export function rankWatch(cands, now, top = CW_TOP) {
       flags: safety.flags,
       reason: watchReason(scored, safety),
       spark: sparkFromPair(c.pair),
+      ...(scored.model ? { model: scored.model } : {}),
     });
   }
   rows.sort((a, b) => b.score - a.score || (b.volH1 || 0) - (a.volH1 || 0) || a.ca.localeCompare(b.ca));
@@ -315,4 +318,86 @@ export function formatWatchPush(pick, deskUrl) {
     ].join('; '),
     body: [pick.reason || '', CW_NOTE, pick.ca].filter(Boolean).join('\n'),
   };
+}
+
+// Challenger scorer. Forward-tracked beside the champion above, in its own log
+// and record. Its weights were set from the champion pick log up to
+// 2026-11-25 (46 picks), so that history is in-sample and never counts for it:
+// only picks made at or after challenger.startedAt are scored. It changes the
+// ranking only. Every safety check above still applies, unchanged.
+//   calm 35: 1h move from -20% to +30% gets full marks, fading to 0 at +100%.
+//            A coin already up more than 100% in the hour is never picked.
+//   depth 25: liquidity, log scale $20k to $500k.
+//   age 20: pool age, log scale 1h to 24h.
+//   buys 10: buy share of the last hour's trades.
+//   turnover 10: 1h volume / liquidity from 0.5x to 4x is full, 0 at 12x.
+export const CH_VERSION = 'calm-depth-v1';
+export const CH_MIN_FORWARD = 30;
+export const CH_CHASE_CAP = 100;
+export const CH_WEIGHTS = Object.freeze({ calm: 35, depth: 25, age: 20, buys: 10, turnover: 10 });
+
+export function scoreChallenger(pair, now = Date.now()) {
+  const volH1 = num(pair?.volume?.h1);
+  const volH24 = num(pair?.volume?.h24);
+  const liq = num(pair?.liquidity?.usd);
+  const h1 = num(pair?.priceChange?.h1);
+  const buys = num(pair?.txns?.h1?.buys);
+  const sells = num(pair?.txns?.h1?.sells);
+  const created = num(pair?.pairCreatedAt);
+  const ageMin = created ? (now - created) / 60000 : null;
+  const hours = created ? clamp((now - created) / 3600000, 1, 24) : 24;
+  const surge = volH1 != null && volH24 > 0 ? volH1 / (volH24 / hours) : null;
+  const buyShare = buys != null && sells != null && buys + sells >= 10 ? buys / (buys + sells) : null;
+  const turn = volH1 != null && liq > 0 ? volH1 / liq : null;
+  const W = CH_WEIGHTS;
+  const parts = {
+    calm: h1 == null ? 0 : h1 < -60 ? 0 : h1 < -20 ? W.calm * (h1 + 60) / 40 : h1 <= 30 ? W.calm : h1 <= CH_CHASE_CAP ? W.calm * (CH_CHASE_CAP - h1) / (CH_CHASE_CAP - 30) : 0,
+    depth: liq > 0 ? clamp(W.depth * (Math.log10(liq / 20000) / Math.log10(25)), 0, W.depth) : 0,
+    age: ageMin == null ? 0 : clamp(W.age * (Math.log2(Math.max(ageMin, 1) / 60) / Math.log2(24)), 0, W.age),
+    buys: buyShare == null ? 0 : clamp((buyShare - 0.5) * 50, 0, W.buys),
+    turnover: turn == null ? 0 : turn < 0.5 ? W.turnover * turn / 0.5 : turn <= 4 ? W.turnover : clamp(W.turnover * (12 - turn) / 8, 0, W.turnover),
+  };
+  const score = Math.round(clamp(Object.values(parts).reduce((a, b) => a + b, 0), 0, 100));
+  const skip = h1 != null && h1 > CH_CHASE_CAP;
+  return { score, parts, surge, buyShare, volH1, liq, h1, skip, model: 'challenger' };
+}
+
+export const rankChallenger = (cands, now, top = CW_TOP) => rankWatch(cands, now, top, scoreChallenger);
+
+// Rows picked before the start never count, whatever log they come from.
+export function forwardOnly(log, startedAt) {
+  const t0 = Date.parse(startedAt || '');
+  if (!Number.isFinite(t0)) return [];
+  return (log || []).filter((row) => Date.parse(row?.pickedAt || '') >= t0);
+}
+
+// The challenger keeps its own log. Each new row also stores the pick-time
+// features so later studies do not have to rebuild them from git history.
+export function logChallenger(log, top, now, startedAt) {
+  const res = logPicks(forwardOnly(log, startedAt), top, now);
+  const byCa = new Map((top || []).map((p) => [p.ca, p]));
+  const fresh = new Set(res.added.map((r) => r.id));
+  const add = (row) => {
+    const p = byCa.get(row.ca);
+    return p ? { ...row, model: 'challenger', h1: p.h1 ?? null, ageMin: p.ageMin ?? null, volH1: p.volH1 ?? null } : row;
+  };
+  const rows = res.log.map((row) => (fresh.has(row.id) ? add(row) : row));
+  return { log: rows, added: rows.filter((r) => fresh.has(r.id)) };
+}
+
+// Champion vs challenger on the same window: picks made since the start.
+// Promotion needs CH_MIN_FORWARD challenger picks scored at both 1h and 4h, a
+// higher after-cost mean at 1h, and a 4h mean at least as good. Otherwise the
+// champion stays. Once promoted it stays promoted, with the numbers it had.
+export function promotionCheck({ championLog, challengerLog, startedAt, prev = null, now = Date.now() } = {}) {
+  const champ = pickRecord(forwardOnly(championLog, startedAt));
+  const chall = pickRecord(forwardOnly(challengerLog, startedAt));
+  const n = Math.min(chall.h1.n, chall.h4.n);
+  const base = { status: 'tracking', need: CH_MIN_FORWARD, n, startedAt, champion: champ, challenger: chall };
+  if (prev?.status === 'promoted' && prev.promotedAt) return { ...base, status: 'promoted', promotedAt: prev.promotedAt, atPromotion: prev.atPromotion || null, why: prev.why };
+  if (n < CH_MIN_FORWARD) return { ...base, why: 'not enough forward picks' };
+  if (!champ.h1.n || !champ.h4.n) return { ...base, why: 'no champion picks to compare in the same window' };
+  if (!(chall.h1.avgNet > champ.h1.avgNet)) return { ...base, why: '1h mean not higher' };
+  if (!(chall.h4.avgNet >= champ.h4.avgNet)) return { ...base, why: '4h mean worse' };
+  return { ...base, status: 'promoted', promotedAt: new Date(now).toISOString(), atPromotion: { champion: champ, challenger: chall }, why: 'higher 1h mean, 4h not worse' };
 }

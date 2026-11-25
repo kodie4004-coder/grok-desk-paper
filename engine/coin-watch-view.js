@@ -85,13 +85,41 @@ export function pickHtml(p, rank) {
 // What made the score. Weights from scoreWatch() in coin-watch.js.
 export const SCORE_PARTS = [['surge', 'Volume surge', 30], ['vol', '1h volume', 20], ['depth', 'Liquidity depth', 20], ['trend', '1h trend', 15], ['buys', 'Buy share', 15]];
 
+// Challenger weights from scoreChallenger() in coin-watch.js.
+export const CH_SCORE_PARTS = [['calm', 'Calm 1h move', 35], ['depth', 'Liquidity depth', 25], ['age', 'Pool age', 20], ['buys', 'Buy share', 10], ['turnover', 'Turnover', 10]];
+
+const hitText = (r) => (r?.n ? `${Math.round((r.hits / r.n) * 100)}% <small>${r.hits}/${r.n}</small>` : '—');
+const dayText = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''; };
+
+// Pill plus a tap-to-open compare. Both rows cover the same window: picks made
+// since the challenger started. Nothing shows before the runner writes it.
+export function challengerHtml(doc) {
+  const pr = doc?.promotion;
+  if (!doc?.challenger?.startedAt || !pr) return '';
+  const need = finite(pr.need) ? pr.need : 30;
+  const n = finite(pr.n) ? pr.n : 0;
+  const promoted = pr.status === 'promoted';
+  const label = promoted ? 'Challenger · promoted' : `Challenger · ${n}/${need}`;
+  const row = (name, r, cls) => {
+    const h1 = r?.h1 || {};
+    const t = finite(h1.avgNet) ? (h1.avgNet > 0 ? 'is-up' : h1.avgNet < 0 ? 'is-dn' : '') : '';
+    return `<tr class="${cls}"><th scope="row">${name}</th><td>${finite(r?.picks) ? r.picks : 0}</td><td>${hitText(h1)}</td><td class="${t}">${pct(h1.avgNet)}</td></tr>`;
+  };
+  const champName = promoted ? 'Old champion' : 'Champion';
+  const challName = promoted ? 'Challenger (live)' : 'Challenger';
+  return `<details class="cw-ch${promoted ? ' is-promoted' : ''}" data-fold="cw-challenger"><summary class="cw-ch-pill"><i aria-hidden="true"></i>${label}</summary>
+<table class="cw-ch-cmp"><thead><tr><th scope="col"></th><th scope="col">Picks</th><th scope="col">1h hit</th><th scope="col">1h after cost</th></tr></thead><tbody>${row(champName, pr.champion, 'is-champ')}${row(challName, pr.challenger, 'is-chall')}</tbody></table>
+<p class="cw-ch-k">Since ${esc(dayText(pr.startedAt))} · promotes at ${need} picks if 1h is better and 4h is not worse</p></details>`;
+}
+
 export function pickSheetHtml(p, rank) {
   if (!p) return '';
   const ca = esc(p.ca);
   const flags = (p.flags || []).map((f) => `<span class="cw-flag${f.warn ? ' is-warn' : ''}">${esc(f.label)}</span>`).join('');
   const stat = (k, v) => `<div class="sh-stat"><small>${k}</small><b>${v}</b></div>`;
   const h1 = finite(p.h1) ? `<span class="${p.h1 > 0 ? 'is-up' : p.h1 < 0 ? 'is-dn' : ''}">${p.h1 > 0 ? '+' : ''}${p.h1.toFixed(1)}%</span>` : '—';
-  const parts = p.parts ? SCORE_PARTS.map(([k, label, max]) => {
+  const partList = p.model === 'challenger' ? CH_SCORE_PARTS : SCORE_PARTS;
+  const parts = p.parts ? partList.map(([k, label, max]) => {
     const v = finite(p.parts[k]) ? Math.max(0, Math.min(max, p.parts[k])) : 0;
     return `<li><span>${label}</span><i style="--w:${Math.round((v / max) * 100)}%" aria-hidden="true"></i><b>${Math.round(v)}/${max}</b></li>`;
   }).join('') : '';
@@ -117,5 +145,5 @@ export function coinWatchHtml(doc, now = Date.now()) {
   const body = picks.length
     ? `<ol class="cw-list">${picks.map((p, i) => pickHtml(p, i + 1)).join('')}</ol>`
     : `<p class="cw-empty">Nothing safe right now. ${doc.scanned || 0} checked${doc.blocked ? `, ${doc.blocked} blocked by safety` : ''}.</p>`;
-  return `<section class="cw" aria-label="Coins to watch"><div class="sec-row"><h2 class="sec">Coins to watch</h2><span class="sec-note">${esc(ago)}${doc.pushOn ? ' · push on' : ''}</span></div>${recordHtml(doc.record)}${body}${note}</section>`;
+  return `<section class="cw" aria-label="Coins to watch"><div class="sec-row"><h2 class="sec">Coins to watch</h2><span class="sec-note">${esc(ago)}${doc.pushOn ? ' · push on' : ''}</span></div>${recordHtml(doc.record)}${challengerHtml(doc)}${body}${note}</section>`;
 }
