@@ -312,6 +312,7 @@ function readSafety(info) {
       mintDetail: info.mintDetail || null,
       freezeDetail: info.freezeDetail || null,
       top10Detail: info.top10Detail || null,
+      top10Source: info.top10Source || null,
     };
   }
   const holders = info.holders?.distribution_percentage?.top_10;
@@ -384,7 +385,7 @@ export function scoreCoin(pair, info, now) {
   reasons.push(check('quote', MEME_RULES.quotes.includes(quote), quote || 'missing'));
   reasons.push(check('fdv / liquidity', ratio == null || ratio <= MEME_RULES.maxFdvToLiq, ratio == null ? 'missing, not blocking' : ratio.toFixed(1)));
   reasons.push(check('1h move', h1 == null || (h1 <= MEME_RULES.maxH1 && h1 >= MEME_RULES.minH1), h1 == null ? 'missing' : `${h1}%`));
-  reasons.push(check('top 10 holders', top10 != null && top10 <= MEME_RULES.maxTop10, top10 == null ? (safety.top10Detail || 'missing') : `${(top10 * 100).toFixed(1)}%`));
+  reasons.push(check('top 10 holders', top10 != null && top10 <= MEME_RULES.maxTop10, top10 == null ? (safety.top10Detail || 'missing') : `${(top10 * 100).toFixed(1)}%${safety.top10Source === 'rugcheck' ? ' (RugCheck)' : ''}`));
   reasons.push(check('mint authority', mint === 'no', mint == null ? (safety.mintDetail || 'missing') : String(mint)));
   reasons.push(check('freeze authority', freeze === 'no', freeze == null ? (safety.freezeDetail || 'missing') : String(freeze)));
   reasons.push(check('dev wallet share', null, 'unknown, does not block'));
@@ -485,10 +486,9 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
   const book = withoutQuoteErrors([...(history || []), ...settled]);
   const bench = sleeveBenched(book);
   const feeOk = memeTargetClearsFees();
-  // Focus bench (static or rolling): the safety sleeve opens no new lines.
+  // Focus bench (static or rolling): the safety sleeve opens shadow lines only.
   const focusBenched = isFocusBenched('meme-safety');
   for (const coin of coins || []) {
-    if (focusBenched) break;
     if (!coin.pass || known.has(coin.ca) || !(coin.priceUsd > 0)) continue;
     if (still.filter((p) => p.variant !== 'early-entry' && p.variant !== 'early-track').length >= 8) break;
     if (!feeOk) continue;
@@ -503,8 +503,11 @@ export function stepMeme({ coins, open = [], history = [], now, track = null }) 
       openedAt: new Date(now).toISOString(),
       variant: 'meme-safety',
       family: 'meme',
-      allocated: !bench.benched,
-      shadow: bench.benched,
+      // A focus-benched sleeve still logs $0 shadow lines so the repair gate
+      // (20 shadow trades, mean above zero) can be measured. Never allocated.
+      allocated: !focusBenched && !bench.benched,
+      shadow: focusBenched || bench.benched,
+      ...(focusBenched ? { benchShadow: true } : {}),
       paper: true,
       open: true,
       ...(jev ? { jev } : {}),
