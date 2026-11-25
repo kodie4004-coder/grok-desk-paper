@@ -13,6 +13,7 @@ import {
   EARLY_SCAN, advanceEarlyExits, candidatesFromSources, decideCandidate, loadSources, needsChain, nextLog, openEarly, readRug, rollEarlyLog, withPair,
 } from '../engine/early.js';
 import { withShadowScores } from '../engine/upgrades.js';
+import { fetchRugTop10, wantsRugTop10, withRugTop10, RUG_FALLBACK_CAP } from '../engine/holder-fallback.js';
 import { loadRollingBench } from './rolling-bench.mjs';
 import { parseTrending, stepTrend, TREND_URL } from '../engine/trend.js';
 
@@ -147,6 +148,19 @@ try {
       safety = await lookupMints(mints, meta, { budgetMs: 45000 });
     } catch (e) { console.log('rpc', e.message); }
     const missed = { mint: null, freeze: null, top10: null, mintDetail: 'lookup failed', freezeDetail: 'lookup failed', top10Detail: 'lookup failed' };
+    // RPC top 10 is rate-limited: fill it from RugCheck for coins that clear
+    // every other check. Same 40% limit; a failed report still fails.
+    let rugAsked = 0;
+    let rugFilled = 0;
+    for (const mint of mints) {
+      if (rugAsked >= RUG_FALLBACK_CAP) break;
+      const row = safety.get(mint) || missed;
+      if (!wantsRugTop10(scoreCoin(meta.get(mint)?.pair || null, row, now))) continue;
+      rugAsked += 1;
+      const top10 = await fetchRugTop10(mint, fetch);
+      if (top10 != null) { safety.set(mint, withRugTop10(row, top10)); rugFilled += 1; }
+    }
+    if (rugAsked) console.log('top10 rugcheck', `asked=${rugAsked}`, `filled=${rugFilled}`);
     coins = mints.map((mint) => {
       const pair = meta.get(mint)?.pair || null;
       const score = scoreCoin(pair, safety.get(mint) || missed, now);
