@@ -260,7 +260,9 @@ export function deskHomeHtml(data = {}) {
   if (data.state === 'loading' && !data.today) return '<section class="hero2" aria-busy="true"><p class="hero2-k">Paper P&amp;L</p><b class="hero2-num skel">$——</b></section>';
   return [
     botChipsHtml(data.today?.decay),
+    data.beforeHero || '',
     heroHtml({ curve: data.curve, today: data.today, brain: data.brain, openN: data.openDoc?.entries?.length, now }),
+    data.afterHero || '',
     statusRowHtml({ today: data.today, focus: data.focus, now }),
     agentGridHtml(data.today?.decay, data.brain, { focus: data.focus }),
     gateMeterHtml(data.focus),
