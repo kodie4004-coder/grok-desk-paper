@@ -7,6 +7,7 @@ import { modelCalibration } from '../engine/calibration.js';
 import { variantAddedAt } from '../engine/learn.js';
 import { recentForm } from '../engine/decay.js';
 import { betsDoc } from '../engine/bets.js';
+import { linesFile } from '../engine/sim.js';
 
 function readJson(path) {
   try { return JSON.parse(fs.readFileSync(path, 'utf8')); } catch { return null; }
@@ -67,6 +68,13 @@ export function writeTodayFile({ now, kalshiFetchedAt, memeFetchedAt, kalshiRows
     fs.writeFileSync('data/bets.json', JSON.stringify(betsDoc({ kalshiRows: kRows, kalshiOpen: kOpen, memeRows: mRows, memeOpen: memeOpen?.entries || [], now: t, recentPerBot: 10, histPerBot: 150 })) + '\n');
   } catch (err) {
     console.log('bets list skipped', err.message);
+  }
+  // Every settled line, compact, so the app can re-scale all of them to the
+  // owner's paper buy-ins. Derived only; the runner still records $2 lines.
+  try {
+    fs.writeFileSync('data/lines.json', JSON.stringify(linesFile({ kalshiRows: kRows, memeRows: mRows, now: t })) + '\n');
+  } catch (err) {
+    console.log('lines file skipped', err.message);
   }
   fs.writeFileSync('data/today.json', JSON.stringify(out, null, 2) + '\n');
   return out;

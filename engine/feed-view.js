@@ -35,7 +35,7 @@ export function shareModel(kind, x) {
     return {
       kind, accent: fam.color, title: x.id, kicker: fam.name,
       big: usd(x.net), bigTone: x.net > 0 ? 'up' : x.net < 0 ? 'dn' : 'flat', bigLabel: 'all-time, after fees',
-      lines: [`${Number(x.n || 0).toLocaleString('en-US')} paper bets · ${usd(x.mean)} per bet`],
+      lines: [`${Number(x.n || 0).toLocaleString('en-US')} paper bets at $2 · ${usd(x.mean)} per bet`],
       spark: (x.spark || []).filter(finite), sparkCum: true, sparkLabel: x.recentN ? `last ${x.recentN} bets, running total` : '',
       badge: 'PAPER TRADING · NOT REAL MONEY',
     };

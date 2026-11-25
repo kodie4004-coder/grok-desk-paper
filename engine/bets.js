@@ -77,6 +77,13 @@ export function coinBuyInFor(settings, ca) {
   const s = settings || BET_DEFAULTS;
   return s.coinBuyIn?.[ca] ?? s.defaultBuyIn ?? BET_DEFAULTS.defaultBuyIn;
 }
+// Stake for one line. A coin line uses its coin's practice buy-in, then its
+// bot's buy-in, then the default; a Kalshi line its bot's, then the default.
+export function lineStake(settings, bot, ca) {
+  const s = settings || BET_DEFAULTS;
+  if (ca && s.coinBuyIn && s.coinBuyIn[ca] != null) return s.coinBuyIn[ca];
+  return s.buyIn?.[bot] ?? s.defaultBuyIn ?? BET_DEFAULTS.defaultBuyIn;
+}
 export function isPaused(settings, bot) {
   return !!settings?.paused?.includes(bot);
 }
@@ -345,7 +352,7 @@ export function simulate(bets, settings) {
       for (let i = active.length - 1; i >= 0; i--) if (active[i] <= t) active.splice(i, 1);
       if (active.length >= s.maxOpen) skip = 'maxOpen';
     }
-    const stake = b.book === 'coin' && b.ca ? coinBuyInFor(s, b.ca) : buyInFor(s, b.bot);
+    const stake = lineStake(s, b.bot, b.book === 'coin' ? b.ca : null);
     const sc = skip ? null : rescale(b, stake);
     if (!skip && (!sc || sc.tooSmall)) skip = 'tooSmall';
     if (skip) { skipped[skip] += 1; out.push({ ...b, sim: { skip } }); continue; }

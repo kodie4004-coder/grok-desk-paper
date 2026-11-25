@@ -1072,3 +1072,31 @@ svg.dchart:focus-visible{outline:2px solid var(--b);outline-offset:4px;border-ra
 .dc-range{display:inline-flex}.dc-range button{flex:none;min-width:52px}
 .dcard.is-max .dc-max{font-size:0}.dcard.is-max .dc-max::after{content:'✕';font-size:15px}
 #view.enter .dcard.is-max{animation:none;transform:none}
+
+/* ---- Round 5: sim at your buy-ins ---------------------------------- */
+.simb{display:inline-flex;align-items:center;gap:4px;font:800 10.5px/1 var(--mono);letter-spacing:.4px;text-transform:uppercase;font-style:normal;color:#1a1200;background:linear-gradient(90deg,#ffd34d,#ffb020);border-radius:999px;padding:4px 8px;white-space:nowrap;vertical-align:middle;box-shadow:0 0 0 1px #ffd34d55,0 0 14px #ffb02033}
+.simbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 var(--space-3);padding:10px 12px;border-radius:14px;border:1px solid #ffb02066;background:linear-gradient(90deg,#ffb0201f,#0b0f14 75%);animation:simIn .32s var(--ease,ease) both}
+.simbar-t{flex:1 1 180px;font:600 12px/1.35 var(--sans);color:var(--mut)}
+.simbar-btn,.bsim-reset{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border-radius:12px;font:800 13px var(--sans);color:#1a1200;background:#ffd34d;white-space:nowrap}
+.simbar-btn:hover,.bsim-reset:hover{background:#ffe27f}
+.simbar-btn:focus-visible,.bsim-reset:focus-visible,.linkbtn:focus-visible{outline:2px solid #ffd34d;outline-offset:2px}
+.bctl-row{display:flex;gap:8px;align-items:stretch}
+.bctl-row .bctl{flex:1 1 auto;min-width:0}
+.bctl-row .bsim-reset{min-height:56px;border-radius:16px}
+.bhero.is-sim{box-shadow:inset 0 0 0 1px #ffb02055}
+.bsim-rec{color:#ffd98a !important}
+.hero2-rec{color:#ffd98a;margin-top:2px}
+.ctl-simtag{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#ffb02014;border:1px solid #ffb02044;font:600 12.5px/1.45 var(--sans);color:var(--mut)}
+.ctl-simtag .simb{margin-right:6px}
+.linkbtn{all:unset;cursor:pointer;color:#ffd34d;font-weight:800;text-decoration:underline;text-underline-offset:3px;margin-left:4px}
+.update-bar{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;display:flex;gap:10px;align-items:center;padding:10px 12px 10px 16px;border-radius:16px;background:#121820;border:1px solid #3dff9a66;box-shadow:0 10px 30px #000a;font:700 13px var(--sans);color:var(--txt);animation:simIn .3s ease both;max-width:calc(100vw - 24px)}
+.update-bar button{all:unset;cursor:pointer;padding:9px 14px;border-radius:11px;background:#3dff9a;color:#04140b;font:800 13px var(--sans)}
+.update-bar button.ghost{background:transparent;color:var(--mut);padding:9px 8px}
+.update-bar button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media (min-width:900px){.update-bar{bottom:24px}}
+@keyframes simIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.update-bar{animation-name:simInX}
+@keyframes simInX{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+[data-count].is-ticking{transition:color .2s}
+@media (max-width:519px){.bctl-row{flex-wrap:wrap}.bctl-row .bsim-reset{width:100%;min-height:44px}}
+@media (prefers-reduced-motion:reduce){.simbar,.update-bar{animation:none}}
