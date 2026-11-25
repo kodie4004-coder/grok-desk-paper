@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-25T20:38:12.162Z",
+  "updatedAt": "2026-11-25T20:42:42.560Z",
   "entries": [
     {
       "id": "flip:KXAUDUSD15M-26NOV251545-30",
@@ -2528,6 +2528,61 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.87, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-strict:KXBTC15M-26NOV251545-45",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXBTC15M-26NOV251545-45",
+      "series": "KXBTC15M",
+      "title": "BTC price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.973,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.01,
+      "openedAt": "2026-11-25T20:42:42.560Z",
+      "closeTime": "2026-11-25T20:45:00Z",
+      "exit": null,
+      "price": 0.973,
+      "secondsLeft": 137,
+      "spread": 0.001,
+      "momentum": -0.502,
+      "volatility": 0.2515578131033368,
+      "strategy": "mom-strict",
+      "market": "KXBTC15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXBTC15M-26NOV251545-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.973 with 137s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.973, fee included"
         }
       ],
       "skipped": false,
