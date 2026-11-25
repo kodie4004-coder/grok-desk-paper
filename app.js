@@ -24,6 +24,8 @@ import { freshDecay, recentFormChipHtml } from './engine/decay.js';
 import { deskHomeHtml, agentGridHtml, botChipsHtml, gateMeterHtml, gateListHtml, botSheetHtml, gateSummary, FAMILY } from './engine/home-view.js';
 import { withoutQuoteErrors } from './engine/quote-guard.js';
 import { coinWatchHtml, pickSheetHtml } from './engine/coin-watch-view.js';
+import { seenSnapshot, awaySummary, awayHtml, todayStripHtml, clockText } from './engine/away.js';
+import { feedSheetHtml, shareModel, SHARE_URL } from './engine/feed-view.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -589,13 +591,14 @@ function arenaView(st) {
   const spots = Object.entries(st.spots || {}).slice(0, 8).map(([k, v]) => `<li><small>${esc(k)}</small><b>${v.px?.toFixed ? v.px.toFixed(2) : esc(v.px)}</b></li>`).join('');
   const openN = (st.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length;
   const famColor = (rule) => (FAMILY[String(rule || '').split('-')[0]] || { color: '#8b97a6' }).color;
-  const rows = feed.map((d, i) => `<li class="af-row${i === 0 ? ' in' : ''}${d.won ? ' is-won' : ''}" style="--ac:${famColor(d.rule)};--i:${i}"><div class="af-top"><span class="af-act">${esc(d.action)}</span><span class="af-rule">${esc(d.rule)}</span></div><b class="af-title">${esc(d.title || d.rule)}</b>${d.reason ? `<small class="af-why">${esc(d.reason)}</small>` : ''}</li>`).join('');
+  ui.feedRows = feed;
+  const rows = feed.map((d, i) => `<li class="af-row${i === 0 ? ' in' : ''}${d.won ? ' is-won' : ''}" style="--ac:${famColor(d.rule)};--i:${i}" data-feed="${i}" role="button" tabindex="0"><div class="af-top"><span class="af-act">${esc(d.action)}</span><span class="af-rule">${esc(d.rule)}</span></div><b class="af-title">${esc(d.title || d.rule)}</b>${d.reason ? `<small class="af-why">${esc(d.reason)}</small>` : ''}</li>`).join('');
   const soonS = soon ? Math.max(0, Math.round((Date.parse(soon.closeTime) - now) / 1000)) : 0;
   const ringPct = soon ? Math.max(0, Math.min(100, (soonS / 900) * 100)) : 0;
   return `<section class="arena2" aria-label="Arena">
     <div class="sec-row"><h2 class="sec">Arena feed</h2>${sound}</div>
     <div class="arena-hero">
-      <div class="ah-ring" style="--p:${ringPct}%" role="img" aria-label="${soon ? `Next close in ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}"><b>${soon ? countdown(soon.closeTime, now) : '—'}</b><small>${soon ? 'next close' : 'waiting'}</small></div>
+      <div class="ah-ring" style="--p:${ringPct}%"${soon ? ` data-close="${esc(soon.closeTime)}"` : ''} role="img" aria-label="${soon ? `Next close in ${countdown(soon.closeTime, now)}` : 'Waiting for the next window'}"><b>${soon ? countdown(soon.closeTime, now) : '—'}</b><small>${soon ? 'next close' : 'waiting'}</small></div>
       <div class="ah-side">
         ${won ? '<span class="ah-win">Paper win</span>' : ''}
         <div class="ah-stat"><b>${(st.arenaLog || []).length}</b><small>paper lines</small></div>
@@ -725,11 +728,46 @@ function loadDesk() {
     if (ui.tab === 'home' || ui.tab === 'brain') render();
   });
 }
+// While-you-were-away: compare this visit with the last one saved on this
+// phone. The snapshot is saved again whenever the app goes to the background.
+function currentSeen() { return seenSnapshot({ curve: ui.allocCurve, today: ui.today, coinWatch: ui.coinWatch, now: Date.now() }); }
+function noteAway() {
+  if (ui.awayDone || !ui.allocCurve || !ui.today || !ui.cwTried) return;
+  ui.awayDone = true;
+  let prev = null;
+  try { prev = JSON.parse(localStorage.getItem('gd.lastSeen') || 'null'); } catch { prev = null; }
+  const cur = currentSeen();
+  ui.away = awaySummary(prev, cur);
+  ui.awayShown = !!ui.away;
+  if (cur) localStorage.setItem('gd.lastSeen', JSON.stringify(cur));
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden' || !ui.awayDone) return;
+  const cur = currentSeen();
+  if (cur) localStorage.setItem('gd.lastSeen', JSON.stringify(cur));
+});
+// One clock for every live countdown on screen (Today strip, arena ring).
+setInterval(() => {
+  const now = Date.now();
+  document.querySelectorAll('.live-clock[data-close], .ah-ring[data-close]').forEach((el) => {
+    const close = Date.parse(el.dataset.close);
+    if (!Number.isFinite(close)) return;
+    const txt = clockText(close, now);
+    const target = el.matches('.ah-ring') ? el.querySelector('b') : el;
+    if (target && target.textContent !== txt) target.textContent = txt;
+    if (el.matches('.ah-ring')) el.style.setProperty('--p', `${Math.max(0, Math.min(100, ((close - now) / 9000)))}%`);
+  });
+}, 1000);
 function deskTop() {
   loadDesk();
   if (!ui.focusState) loadFocus();
   if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
-  return deskHomeHtml({ state: ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading', today: ui.today, curve: ui.allocCurve, brain: ui.brainDoc, focus: ui.focus, openDoc: ui.journalOpen, alerts: ui.alerts, now: Date.now() });
+  noteAway();
+  const now = Date.now();
+  const soon = (state?.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
+  const beforeHero = ui.awayShown ? awayHtml(ui.away) : '';
+  const afterHero = todayStripHtml({ today: ui.today, coinWatch: ui.coinWatch, closeAt: soon?.closeTime, now });
+  return deskHomeHtml({ state: ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading', today: ui.today, curve: ui.allocCurve, brain: ui.brainDoc, focus: ui.focus, openDoc: ui.journalOpen, alerts: ui.alerts, now, beforeHero, afterHero });
 }
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
@@ -963,7 +1001,10 @@ function loadMorning() {
     fetch('data/meme-open.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : { entries: [] }).catch(() => ({ entries: [] })),
     fetch('data/meme-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
     fetch('data/today.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
-  ]).then(([morning, heartbeat, curve, openDoc, watchDoc, today]) => {
+    fetch('data/coin-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
+  ]).then(([morning, heartbeat, curve, openDoc, watchDoc, today, coinWatch]) => {
+    if (coinWatch && !ui.coinWatch) ui.coinWatch = coinWatch;
+    ui.cwTried = true;
     ui.morning = morning;
     ui.heartbeat = heartbeat;
     ui.allocCurve = curve;
@@ -1560,6 +1601,7 @@ function openSheet(html, key) {
   $('#sheetBody').scrollTop = 0;
   haptic(8);
   bindCopy($('#sheetBody'));
+  $('#sheetBody').querySelectorAll('[data-share]').forEach((b) => (b.onclick = () => shareCard(b.dataset.share, b.dataset.id, b)));
   $('#sheetBody').querySelectorAll('img.logo').forEach((img) => { img.onerror = () => img.replaceWith(Object.assign(document.createElement('span'), { className: 'logo fallback', textContent: img.dataset.initials || '?' })); });
 }
 function closeSheet() {
@@ -1568,14 +1610,90 @@ function closeSheet() {
   d.classList.add('closing');
   setTimeout(() => { d.classList.remove('closing'); d.style.removeProperty('--drag'); if (d.open) d.close(); ui.sheetKey = null; }, motionOn() ? 220 : 0);
 }
+// Share card: a 1080x1350 PNG drawn on a canvas from real fields only, with
+// a paper label baked in. Web Share with the file when the phone allows it,
+// otherwise a download.
+function shareBtn(kind, id) {
+  return `<button type="button" class="btn share-btn" data-share="${kind}" data-id="${esc(id)}"><span aria-hidden="true">↗</span> Share card</button>`;
+}
+const loadImg = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
+function wrapText(ctx, text, maxW) {
+  const words = String(text).split(/\s+/); const out = []; let line = '';
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; }
+  if (line) out.push(line);
+  return out;
+}
+async function drawShareCard(m) {
+  const W = 1080, H = 1350, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const [bg, icon] = await Promise.all([loadImg('splash/splash.webp'), loadImg('icons/icon-192.png')]);
+  x.fillStyle = '#07090C'; x.fillRect(0, 0, W, H);
+  if (bg) { x.globalAlpha = 0.55; x.drawImage(bg, 0, -260, W, W * 1920 / 1080); x.globalAlpha = 1; }
+  const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#07090C00'); g.addColorStop(0.55, '#07090Ccc'); g.addColorStop(1, '#07090C'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const sans = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif', mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  // badge
+  x.font = `800 30px ${mono}`; const bw = x.measureText(m.badge).width + 56;
+  x.fillStyle = '#ffd56a22'; x.strokeStyle = '#ffd56a'; x.lineWidth = 3; x.beginPath(); x.roundRect(72, 96, bw, 64, 32); x.fill(); x.stroke();
+  x.fillStyle = '#ffd56a'; x.fillText(m.badge, 100, 139);
+  // title
+  x.fillStyle = m.accent; x.font = `700 34px ${mono}`; x.fillText(m.kicker.toUpperCase(), 72, 270);
+  x.fillStyle = '#ffffff'; x.font = `850 76px ${sans}`;
+  wrapText(x, m.title, W - 144).slice(0, 2).forEach((l, i) => x.fillText(l, 72, 360 + i * 86));
+  // big number
+  const tone = m.bigTone === 'up' ? '#3dff9a' : m.bigTone === 'dn' ? '#ff6b7d' : '#f4f7fb';
+  x.fillStyle = tone; x.font = `900 168px ${sans}`; x.shadowColor = tone; x.shadowBlur = 40; x.fillText(m.big, 64, 620); x.shadowBlur = 0;
+  x.fillStyle = '#8c99a8'; x.font = `600 34px ${mono}`; x.fillText(m.bigLabel, 72, 676);
+  // chart
+  const pts = m.sparkCum ? [0, ...m.spark] : m.spark;
+  if (pts.length >= 2) {
+    const top = 730, h = 300, min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1;
+    const px = (i) => 72 + (i / (pts.length - 1)) * (W - 144), py = (v) => top + h - ((v - min) / span) * h;
+    const up = pts[pts.length - 1] >= pts[0]; const lc = up ? '#3dff9a' : '#ff6b7d';
+    x.beginPath(); pts.forEach((v, i) => (i ? x.lineTo(px(i), py(v)) : x.moveTo(px(i), py(v))));
+    x.lineTo(px(pts.length - 1), top + h); x.lineTo(px(0), top + h); x.closePath();
+    const ag = x.createLinearGradient(0, top, 0, top + h); ag.addColorStop(0, lc + '55'); ag.addColorStop(1, lc + '00'); x.fillStyle = ag; x.fill();
+    x.beginPath(); pts.forEach((v, i) => (i ? x.lineTo(px(i), py(v)) : x.moveTo(px(i), py(v))));
+    x.strokeStyle = lc; x.lineWidth = 7; x.lineJoin = 'round'; x.shadowColor = lc; x.shadowBlur = 24; x.stroke(); x.shadowBlur = 0;
+    if (m.sparkLabel) { x.fillStyle = '#6c7a8a'; x.font = `600 26px ${mono}`; x.fillText(m.sparkLabel, 72, top + h + 40); }
+  }
+  // lines
+  x.fillStyle = '#dfe6ef'; x.font = `600 36px ${sans}`;
+  let y = 1130; for (const l of m.lines) for (const w of wrapText(x, l, W - 144).slice(0, 2)) { x.fillText(w, 72, y); y += 48; }
+  // footer
+  x.fillStyle = '#ffffff14'; x.fillRect(72, H - 150, W - 144, 2);
+  if (icon) x.drawImage(icon, 72, H - 124, 72, 72);
+  x.fillStyle = '#ffffff'; x.font = `850 40px ${sans}`; x.fillText('Grok Desk', 164, H - 80);
+  x.fillStyle = '#7d8a99'; x.font = `600 26px ${mono}`; x.fillText(SHARE_URL, 164, H - 44);
+  return new Promise((ok) => c.toBlob(ok, 'image/png'));
+}
+async function shareCard(kind, id, btn) {
+  const src = kind === 'bot' ? sheetDecay().find((s) => s && s.id === id) : (ui.coinWatch?.picks || []).find((p) => p?.ca === id);
+  const m = shareModel(kind, src);
+  if (!m) { toast({ text: 'Nothing real to share yet.' }); return; }
+  haptic(10);
+  if (btn) btn.disabled = true;
+  try {
+    const blob = await drawShareCard(m);
+    const name = `grok-desk-${kind}-${String(kind === 'bot' ? id : src.symbol).replace(/[^a-z0-9-]/gi, '')}.png`;
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Grok Desk · paper trading', text: `${m.title} on Grok Desk (paper trading, not real money)` }).catch(() => {});
+    } else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast({ text: 'Saved the share card.' });
+    }
+  } finally { if (btn) btn.disabled = false; }
+}
 function openBotSheet(id) {
   const s = sheetDecay().find((x) => x && x.id === id);
-  if (s) openSheet(botSheetHtml(s, { focus: ui.focus }), 'bot:' + id);
+  if (s) openSheet(botSheetHtml(s, { focus: ui.focus }) + shareBtn('bot', id), 'bot:' + id);
 }
 function openPickSheet(ca) {
   const picks = (ui.coinWatch?.picks || []).filter((p) => p?.ca);
   const i = picks.findIndex((p) => p.ca === ca);
-  if (i >= 0) openSheet(pickSheetHtml(picks[i], i + 1), 'pick:' + ca);
+  if (i >= 0) openSheet(pickSheetHtml(picks[i], i + 1) + shareBtn('pick', ca), 'pick:' + ca);
 }
 function mountSheet() {
   const d = $('#sheet');
@@ -1669,6 +1787,12 @@ function bind() {
     el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
   });
   document.querySelectorAll('[data-open-pick]').forEach((b) => (b.onclick = () => openPickSheet(b.dataset.openPick)));
+  document.querySelectorAll('[data-feed]').forEach((el) => {
+    const open = () => { const d = (ui.feedRows || [])[Number(el.dataset.feed)]; if (d) openSheet(feedSheetHtml(d), 'feed'); };
+    el.onclick = open;
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+  });
+  document.querySelectorAll('[data-away-close]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); ui.awayShown = false; haptic(8); render(); }));
   document.querySelectorAll('[data-open-coin]').forEach((b) => (b.onclick = () => { ui.coinOpen = b.dataset.openCoin; render(); }));
   document.querySelectorAll('[data-close-sheet]').forEach((b) => (b.onclick = () => { ui.coinOpen = null; render(); }));
   runCounts();

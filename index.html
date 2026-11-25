@@ -48,33 +48,33 @@
 <div id="ticker" class="ticker" hidden><button type="button" id="tickerPause" class="ticker-pause">Pause</button><div class="ticker-clip"><div class="ticker-track" id="tickerTrack"></div></div></div>
 <main id="view" tabindex="-1"></main>
 <section id="intro" role="dialog" aria-modal="true" aria-label="Welcome">
-  <div class="card intro-card">
+  <div class="intro-card">
+    <p class="intro-brand"><img src="icons/icon-192.png" width="40" height="40" alt="">Grok Desk</p>
     <div class="intro-track" id="introTrack" tabindex="0">
       <article class="intro-page" id="introTitle">
-        <p class="note">Card 1 of 3</p>
-        <h2>Paper mode</h2>
-        <p>Grok Desk uses fake money on public data. It does not connect a wallet, hold a key, or send an order. The numbers are a paper record. They are not advice and they are not a promise.</p>
+        <img class="intro-art" src="onboarding/onb-paper.webp" width="720" height="542" alt="Glowing play-money bills and a gold practice chip.">
+        <h2>Fake money, real markets</h2>
+        <p>Every bet here is paper. No wallet, no keys, no orders. Just live public prices and an honest after-fee score.</p>
       </article>
       <article class="intro-page">
-        <p class="note">Card 2 of 3</p>
-        <h2>What the bots do</h2>
-        <p>The bots record paper bets on 15-minute markets and on coins that pass a fixed safety list. A loss does not make the next bet bigger. A larger paper size needs three separate windows, enough trades, a positive average after fees, and a lower bound above zero. Live execution stays off.</p>
+        <img class="intro-art" src="onboarding/onb-bots.webp" width="720" height="542" alt="Four small neon bots holding little charts, like a team scoreboard." loading="lazy">
+        <h2>Bots compete, you watch</h2>
+        <p>Each bot bets $2 on 15-minute markets. A bot only counts as ready when it wins every test window. A loss never makes the next bet bigger.</p>
       </article>
       <article class="intro-page">
-        <p class="note">Card 3 of 3</p>
-        <h2>Buying a coin is on you</h2>
-        <p>If you want the coin, you buy it in your own pump.fun or fomo account. Open Coins, copy the contract address with the Copy button, and paste it there yourself. This app cannot do that step. There is no sample address on this card, so you do not paste the wrong mint.</p>
+        <img class="intro-art" src="onboarding/onb-safety.webp" width="720" height="542" alt="A neon shield with a check mark next to a coin under a magnifying glass." loading="lazy">
+        <h2>Coins pass safety first</h2>
+        <p>Coins to watch must pass rug checks. Ideas, not advice. If you want one, copy the address and buy it yourself in Pump.fun or FOMO.</p>
         <button type="button" class="btn" id="introCopy">Copy the reminder</button>
       </article>
     </div>
     <div class="intro-dots">
-      <button type="button" data-intro="0" aria-current="true" aria-label="Card 1 of 3">1</button>
-      <button type="button" data-intro="1" aria-label="Card 2 of 3">2</button>
-      <button type="button" data-intro="2" aria-label="Card 3 of 3">3</button>
+      <button type="button" data-intro="0" aria-current="true" aria-label="Card 1 of 3"></button>
+      <button type="button" data-intro="1" aria-label="Card 2 of 3"></button>
+      <button type="button" data-intro="2" aria-label="Card 3 of 3"></button>
     </div>
-    <p class="note">Swipe sideways, or use Next.</p>
     <button type="button" class="btn pri wide" id="introNext">Next</button>
-    <button type="button" class="btn wide" id="introSkip">Skip</button>
+    <button type="button" class="btn wide intro-skip" id="introSkip">Skip</button>
   </div>
 </section>
 <dialog id="sheet" class="bsheet" closedby="any" aria-labelledby="sheetTitle"><div class="bsheet-grab" aria-hidden="true"><i></i></div><button type="button" class="bsheet-x" data-sheet-close aria-label="Close">✕</button><div id="sheetBody" class="bsheet-body"></div></dialog>
@@ -88,6 +88,6 @@
   <button data-tab="more"><span>⋯</span>More</button>
   <span class="tab-indicator" aria-hidden="true"></span>
 </nav>
-<script type="module" src="app.js?v=29"></script>
+<script type="module" src="app.js?v=30"></script>
 </body>
 </html>
