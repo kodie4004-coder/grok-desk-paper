@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { guardNewOpens, readSettingsText } from '../engine/bets.js';
 import { bestPair, candidateMints, lookupMints, openMemeCount, pricesForOpen, pricesFromDex, scoreCoin, stepMeme, stopSlippage } from '../engine/meme.js';
 import { cacheDoc, cacheFromDoc, jevRunCap, noteJevCalls, prepareJevState, reviewCandidates, JEV_CALL_CAP } from '../engine/jev.js';
 import {
@@ -299,6 +300,15 @@ try {
     const trendStep = stepTrend({ trending, open: next.open, history: history.concat(next.settled, next.shadows || []), now, prices });
     next.open = trendStep.open;
     if (trendStep.settled.length) next.settled.push(...trendStep.settled);
+    // Owner limits from data/settings.json: drop only coin lines opened in this step.
+    try {
+      const settings = readSettingsText(fs.existsSync('data/settings.json') ? fs.readFileSync('data/settings.json', 'utf8') : 'null');
+      const day = new Date(now).toISOString().slice(0, 10);
+      const settledToday = history.concat(next.settled).filter((row) => String(row.settledAt || '').slice(0, 10) === day);
+      const guard = guardNewOpens({ prevOpen: openEntries, nextOpen: next.open, settledToday, settings });
+      next.open = guard.open;
+      if (guard.dropped.length) console.log('owner limits dropped', guard.dropped.length, 'new coin lines:', [...new Set(guard.dropped.map((d) => d.why))].join(', '));
+    } catch (e) { console.log('owner limits skipped', e.message); }
     fs.mkdirSync('data', { recursive: true });
     const journalRows = [...next.settled, ...(next.shadows || [])];
     if (journalRows.length) fs.appendFileSync('data/meme-journal.jsonl', journalRows.map((row) => JSON.stringify(row)).join('\n') + '\n');

@@ -54,6 +54,7 @@ else
     data/focus.json \
     data/rolling-bench.json \
     data/today.json \
+    data/bets.json \
     data/meme-board.json \
     data/coin-watch.json \
     data/meme-open.json \
@@ -128,6 +129,7 @@ rebase_onto_main() {
   if [ -f runner/write-today.mjs ]; then
     node runner/write-today.mjs || true
     git add -- data/today.json || true
+    if [ -f data/bets.json ]; then git add -- data/bets.json || true; fi
   fi
   if ! GIT_EDITOR=true git rebase --continue; then
     git rebase --skip

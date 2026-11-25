@@ -6,6 +6,7 @@ import { todayDoc } from '../engine/today.js';
 import { modelCalibration } from '../engine/calibration.js';
 import { variantAddedAt } from '../engine/learn.js';
 import { recentForm } from '../engine/decay.js';
+import { betsDoc } from '../engine/bets.js';
 
 function readJson(path) {
   try { return JSON.parse(fs.readFileSync(path, 'utf8')); } catch { return null; }
@@ -59,6 +60,14 @@ export function writeTodayFile({ now, kalshiFetchedAt, memeFetchedAt, kalshiRows
     console.log('recent form skipped', err.message);
   }
   fs.mkdirSync('data', { recursive: true });
+  // Bets list for the app: open lines, newest settled lines, per-bot totals.
+  // Derived only, after fees, bad coin quotes set aside.
+  try {
+    const kOpen = readJson('data/journal-open.json')?.entries || [];
+    fs.writeFileSync('data/bets.json', JSON.stringify(betsDoc({ kalshiRows: kRows, kalshiOpen: kOpen, memeRows: mRows, memeOpen: memeOpen?.entries || [], now: t, recentPerBot: 10, histPerBot: 150 })) + '\n');
+  } catch (err) {
+    console.log('bets list skipped', err.message);
+  }
   fs.writeFileSync('data/today.json', JSON.stringify(out, null, 2) + '\n');
   return out;
 }

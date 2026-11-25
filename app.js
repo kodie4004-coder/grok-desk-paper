@@ -26,6 +26,11 @@ import { withoutQuoteErrors } from './engine/quote-guard.js';
 import { coinWatchHtml, pickSheetHtml } from './engine/coin-watch-view.js';
 import { seenSnapshot, awaySummary, awayHtml, todayStripHtml, clockText } from './engine/away.js';
 import { feedSheetHtml, shareModel, SHARE_URL } from './engine/feed-view.js';
+import { normalizeBetSettings, settingsFileText, readSettingsText, BUYIN_MIN, BUYIN_MAX, RECORDED_STAKE } from './engine/bets.js';
+import { betsViewHtml, betSheetHtml, controlsSheetHtml, viewRows, skelHtml, money as betMoney, PAPER } from './engine/bets-view.js';
+import { chartSvg, chartCardHtml, inRange, nearestPoint, fmtValue, freshHtml, freshness, RANGE_KEYS } from './engine/chart.js';
+import { pnlSeries } from './engine/bets.js';
+import { layoutFor, isDesk, shortcutFor, sheetMode, SHORTCUTS, NAV_TABS } from './engine/layout.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -96,12 +101,26 @@ const saveSettings = (s) => localStorage.setItem('gd.settings', JSON.stringify(s
 
 const ui = { tab: 'home', tf: 'all', market: 'all', logFilter: 'all', replay: null, busy: false, notify: localStorage.getItem('gd.notify') === '1', arena: 'feed', sound: localStorage.getItem('gd.sound') === '1', coinAlerts: localStorage.getItem('gd.coinAlerts') === '1', memeJournal: [], train: 'call', haptics: localStorage.getItem('gd.haptics') !== '0', motion: localStorage.getItem('gd.motion') !== '0', remind: localStorage.getItem('gd.remind') === '1', coinFilter: 'all', trainSide: '', trainConf: '60' };
 if (localStorage.getItem('gd.motion') === '0') document.documentElement.classList.add('motion-off');
+// Public demo mode (?demo=1): the same public paper data, nothing saved,
+// controls read-only, no personal fields. For the promo link.
+const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+if (DEMO) document.documentElement.classList.add('demo');
+function loadBetSettings() {
+  if (DEMO) return normalizeBetSettings(null);
+  try { return normalizeBetSettings(JSON.parse(localStorage.getItem('gd.bets') || 'null')); } catch { return normalizeBetSettings(null); }
+}
+function saveBetSettings() { if (!DEMO) localStorage.setItem('gd.bets', JSON.stringify(ui.bets)); }
+ui.bets = loadBetSettings();
+ui.betsFilt = { bot: 'all', market: 'all', status: 'all', counted: 'all', q: '' };
+ui.betsSort = { key: 'time', dir: 'desc' };
+ui.layout = layoutFor(window.innerWidth);
+document.documentElement.dataset.layout = ui.layout;
 if (localStorage.getItem('gd.theme') === 'light') document.documentElement.dataset.theme = 'light';
 let live = null;          // live state
 let state = null;         // what is on screen (live or replay)
 const src = createLiveSource();
 
-async function persist() { if (ui.shotLock || !live) return; await idb.set('state', serialize(live)); }
+async function persist() { if (ui.shotLock || DEMO || !live) return; await idb.set('state', serialize(live)); }
 function motionOn() {
   if (document.documentElement.classList.contains('motion-off')) return false;
   return !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -716,6 +735,42 @@ function todayCard() {
   const state = ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading';
   return todayHeaderHtml(doc, { state, now: Date.now() });
 }
+function loadBets(force) {
+  if (!force && (ui.betsState === 'ready' || ui.betsState === 'loading')) return;
+  ui.betsState = 'loading';
+  const get = (f) => fetch(`data/${f}?v=` + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.text() : null)).catch(() => null);
+  Promise.all([get('bets.json'), get('settings.json')]).then(([bets, conf]) => {
+    let doc = null;
+    try { doc = bets ? JSON.parse(bets) : null; } catch { doc = null; }
+    if (doc && doc.paper !== true) doc = null;
+    ui.betsDoc = doc || ui.betsDoc || null;
+    ui.runnerSettings = conf ? readSettingsText(conf) : null;
+    ui.betsState = ui.betsDoc ? 'ready' : 'error';
+    if (['bets', 'home'].includes(ui.tab)) softRender();
+    if (ui.sheetKey === 'controls') refreshControls();
+  });
+}
+function betsLive() {
+  const prices = {};
+  for (const c of ui.coins || []) if (c?.ca && c.priceUsd > 0) prices[c.ca] = Number(c.priceUsd);
+  Object.assign(prices, ui.livePx || {});
+  return { board: state?.kalshiBoard || live?.kalshiBoard || null, prices };
+}
+function betsView() {
+  loadBets();
+  if (ui.coinsState !== 'ready' && ui.coinsState !== 'error') loadCoins();
+  return betsViewHtml({ chart: ui.betsDoc ? chartCard('bets') : '', fresh: ui.betsDoc ? freshHtml(ui.betsDoc.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot, about every 4 to 5 minutes') + (ui.livePxAt ? freshHtml(ui.livePxAt, { liveMs: 60e3, staleMs: 5 * 60e3 }, 'Coin marks from DexScreener') : '') : '', doc: ui.betsDoc, state: ui.betsState === 'error' ? 'error' : ui.betsDoc ? 'ready' : 'loading', settings: ui.bets, runner: ui.runnerSettings, live: betsLive(), filt: ui.betsFilt, sort: ui.betsSort, now: Date.now(), desk: isDesk(window.innerWidth), demo: DEMO });
+}
+// Small Bets card for the Desk: open count, exposure, today, one tap in.
+function betsMiniHtml() {
+  loadBets();
+  const d = ui.betsDoc;
+  if (!d) return `<section class="bmini" aria-busy="true">${skelHtml('table', 2)}</section>`;
+  const rows = viewRows(d, ui.bets, betsLive());
+  const open = rows.filter((r) => r.pnl == null);
+  const tone = (x) => (x > 0.004 ? 'up' : x < -0.004 ? 'dn' : 'flat');
+  return `<section class="bmini"><button type="button" class="bmini-btn" data-tabjump="bets"><span class="bmini-k">Bets ${PAPER}${freshHtml(d.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot')}</span><span class="bmini-row"><span><b>${open.length}</b><small>open</small></span><span><b>${betMoney(open.reduce((a, r) => a + (r.book === 'kalshi' ? r.contracts * r.entry : r.view.stake), 0))}</b><small>exposure</small></span><span class="is-${tone(d.totals?.todayNet ?? 0)}"><b>${betMoney(d.totals?.todayNet, true)}</b><small>today</small></span><span><b>${betMoney(ui.bets.defaultBuyIn)}</b><small>buy-in</small></span></span><span class="bmini-go" aria-hidden="true">›</span></button></section>`;
+}
 function loadDesk() {
   if (ui.deskState === 'ready' || ui.deskState === 'loading') return;
   ui.deskState = 'loading';
@@ -749,6 +804,13 @@ document.addEventListener('visibilitychange', () => {
 // One clock for every live countdown on screen (Today strip, arena ring).
 setInterval(() => {
   const now = Date.now();
+  document.querySelectorAll('[data-fresh]').forEach((el) => {
+    const f = freshness(el.dataset.fresh, now, { liveMs: Number(el.dataset.live), staleMs: Number(el.dataset.stale) });
+    const span = el.querySelector('span');
+    if (span && span.textContent !== f.text) span.textContent = f.text;
+    const cls = `fresh is-${f.state}`;
+    if (el.className !== cls) el.className = cls;
+  });
   document.querySelectorAll('.live-clock[data-close], .ah-ring[data-close]').forEach((el) => {
     const close = Date.parse(el.dataset.close);
     if (!Number.isFinite(close)) return;
@@ -766,7 +828,8 @@ function deskTop() {
   const now = Date.now();
   const soon = (state?.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
   const beforeHero = ui.awayShown ? awayHtml(ui.away) : '';
-  const afterHero = todayStripHtml({ today: ui.today, coinWatch: ui.coinWatch, closeAt: soon?.closeTime, now });
+  const afterHero = todayStripHtml({ today: ui.today, coinWatch: ui.coinWatch, closeAt: soon?.closeTime, now }) + betsMiniHtml();
+  if (!ui.today && ui.morningState !== 'error') return skelHtml('cards', 3);
   return deskHomeHtml({ state: ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading', today: ui.today, curve: ui.allocCurve, brain: ui.brainDoc, focus: ui.focus, openDoc: ui.journalOpen, alerts: ui.alerts, now, beforeHero, afterHero });
 }
 function home(st) {
@@ -846,19 +909,21 @@ function botsTop() {
   if (!ui.focusState) loadFocus();
   if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
   const decay = freshDecay(ui.lessons, ui.today);
+  if (!ui.today && ui.morningState !== 'error') return skelHtml('cards', 2);
   return `${botChipsHtml(decay)}${agentGridHtml(decay, ui.brainDoc, { top: 8, focus: ui.focus }).replace('Top bots', 'Bots')}`;
 }
 function scoreTop() {
   if (!ui.focusState) loadFocus();
   return `${gateMeterHtml(ui.focus)}${gateListHtml(ui.focus)}`;
 }
-const MORE_TABS = ['score', 'predict', 'train', 'settings', 'agents', 'activity'];
+const MORE_TABS = ['arena', 'score', 'predict', 'train', 'settings', 'agents', 'activity'];
 function moreView() {
   if (!ui.focusState) loadFocus();
   const g = gateSummary(ui.focus);
   const now = Date.now();
   const openN = (state?.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length;
   const tiles = [
+    ['arena', '▶', 'Arena', 'Pick a side, feed, badges', openN ? `${openN} live` : '', '#3dff9a'],
     ['score', '★', 'Scoreboard', 'Real-money gate', g.total ? `${g.passed}/${g.total} ready` : '', '#3dff9a'],
     ['predict', '◎', 'Predict', 'Live 15-min markets', state?.kalshiBoard ? `${openN} open` : '', '#38e1ff'],
     ['train', '◷', 'Train', 'Practice your own calls', '', '#b98cff'],
@@ -866,7 +931,8 @@ function moreView() {
     ['activity', '▤', 'Log', 'Paper trades on this phone', '', '#ff6bd5'],
     ['settings', '⚙', 'Settings', 'Rules, export, theme', '', '#7aa8ff'],
   ];
-  return `<section class="more-grid" aria-label="More">${tiles.map(([id, ic, name, sub, val, ac], i) => `<button type="button" class="tile" data-tabjump="${id}" style="--ac:${ac};--i:${i}"><span class="tile-ic" aria-hidden="true">${ic}</span><b>${name}</b><small>${sub}</small>${val ? `<em class="tile-val">${esc(val)}</em>` : ''}</button>`).join('')}</section><p class="more-foot">Paper only · no wallet · live execution off</p>`;
+  const keys = isDesk(window.innerWidth) ? `<section class="keys" aria-label="Keyboard shortcuts"><h2 class="sec">Keyboard</h2><dl>${SHORTCUTS.map(([k, v]) => `<div><dt><kbd>${esc(k)}</kbd></dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>` : '';
+  return `<section class="more-grid" aria-label="More">${tiles.map(([id, ic, name, sub, val, ac], i) => `<button type="button" class="tile" data-tabjump="${id}" style="--ac:${ac};--i:${i}"><span class="tile-ic" aria-hidden="true">${ic}</span><b>${name}</b><small>${sub}</small>${val ? `<em class="tile-val">${esc(val)}</em>` : ''}</button>`).join('')}</section>${keys}<p class="more-foot">Paper only · no wallet · live execution off${DEMO ? ' · demo view' : ''}</p>`;
 }
 function emptyArt(file, alt, line) {
   return `<figure class="empty-art"><img src="empty/${file}" alt="${esc(alt)}" width="640" height="640" loading="lazy" decoding="async"><figcaption>${esc(line)}</figcaption></figure>`;
@@ -1003,7 +1069,7 @@ function loadMorning() {
     fetch('data/today.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
     fetch('data/coin-watch.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).catch(() => null),
   ]).then(([morning, heartbeat, curve, openDoc, watchDoc, today, coinWatch]) => {
-    if (coinWatch && !ui.coinWatch) ui.coinWatch = coinWatch;
+    if (coinWatch && (!ui.coinWatch || String(coinWatch.updatedAt || '') >= String(ui.coinWatch.updatedAt || ''))) ui.coinWatch = coinWatch;
     ui.cwTried = true;
     ui.morning = morning;
     ui.heartbeat = heartbeat;
@@ -1012,8 +1078,8 @@ function loadMorning() {
     ui.memeUpdatedAt = openDoc?.updatedAt || null;
     noteMemeWatch(openDoc, watchDoc);
     ui.morningState = 'ready';
-    if (ui.tab === 'home' || ui.tab === 'brain') render();
-  }).catch(() => { ui.morningState = 'error'; ui.today = null; if (ui.tab === 'home') render(); });
+    if (ui.tab === 'home' || ui.tab === 'brain') softRender();
+  }).catch(() => { ui.morningState = ui.today ? 'ready' : 'error'; if (ui.tab === 'home') softRender(); });
 }
 function allocCard() {
   const curve = ui.allocCurve;
@@ -1220,7 +1286,7 @@ async function loadCoins() {
     ui.coinsState = 'error';
     ui.coinsError = e.message || 'Coin feed failed';
   }
-  if (ui.tab === 'coins') render();
+  if (ui.tab === 'coins' || ui.tab === 'bets') render();
 }
 function mergeEarly(board, early) {
   const extra = new Map((early?.coins || []).filter((row) => row?.ca).map((row) => [row.ca, row]));
@@ -1268,7 +1334,8 @@ function coinsView() {
   const books = memeBooks(ui.memeJournal || []);
   const gate = books.gate;
   const age = ui.coinsAt ? `Prices checked ${Math.max(0, Math.round((Date.now() - ui.coinsAt) / 60000))}m ago.` : '';
-  return `<section aria-label="Coin signals">${coinWatchHtml(ui.coinWatch)}${foldWrap('coins-all', 'All scanned coins', 'paper buys, safety checks, your watchlist', `${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(books.net, true)} after the 1.25% fee and 1% slippage each side. Shadow and early logs are separate: n ${books.shadowN}, net ${money(books.shadowNet, true)} after fees, and they are not in that total. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p>${watchStatus()}<p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}`)}${sheet}</section>`;
+  const freshRow = `<div class="fresh-row">${freshHtml(ui.coinWatch?.updatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Coins to watch, written by the runner')}${ui.livePxAt ? freshHtml(ui.livePxAt, { liveMs: 60e3, staleMs: 5 * 60e3 }, 'Prices from DexScreener in this browser') : ''}</div>`;
+  return `<section aria-label="Coin signals">${freshRow}${coinWatchHtml(ui.coinWatch)}${foldWrap('coins-all', 'All scanned coins', 'paper buys, safety checks, your watchlist', `${note}<div class="card"><div class="row"><h2 style="margin:0">Coins</h2>${alert}</div>${filters}<p class="note">Paper meme book: n ${gate.n}, net ${money(books.net, true)} after the 1.25% fee and 1% slippage each side. Shadow and early logs are separate: n ${books.shadowN}, net ${money(books.shadowNet, true)} after fees, and they are not in that total. ${gate.graduated ? 'Gate cleared. Live execution stays off.' : 'Not ready for real money. The edge gate still needs 3 days of 20+ trades.'}</p>${watchStatus()}<p class="note">${esc(age)} The paper chain writes this list. pump.fun's API did not answer here. Prices are DexScreener. Mint and freeze come from the mint account. Top 10 holders come from the largest token accounts, and the pool vault is left out when that account is owned by the pair. Dev wallet share is unknown and does not block. A missed lookup fails that check.</p></div>${coinEmpty}${filtered.length || ui.coinFilter === 'watch' ? '' : ''}${cards}`)}${sheet}</section>`;
 }
 function coinLinks(ca, dexUrl) {
   const item = (href, icon, label) => `<a class="btn coin-link" href="${esc(href)}" target="_blank" rel="noopener"><img src="${icon}" alt="" width="18" height="18">${label}</a>`;
@@ -1354,6 +1421,13 @@ function moveTabIndicator() {
   const bar = nav?.querySelector('.tab-indicator');
   if (!bar) return;
   if (!on) { bar.style.width = '0px'; return; }
+  if (isDesk(window.innerWidth)) {
+    bar.style.width = '3px';
+    bar.style.height = `${on.offsetHeight - 16}px`;
+    bar.style.transform = `translate(0, ${on.offsetTop + 8}px)`;
+    return;
+  }
+  bar.style.height = '';
   bar.style.width = `${on.offsetWidth}px`;
   bar.style.transform = `translateX(${on.offsetLeft}px)`;
   const left = on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2;
@@ -1528,7 +1602,7 @@ function render() {
   const tabChanged = ui.paintedTab !== ui.tab;
   if (!ui.folds) ui.folds = new Set();
   v.querySelectorAll('details[data-fold]').forEach((d) => { if (d.open) ui.folds.add(d.dataset.fold); else ui.folds.delete(d.dataset.fold); });
-  v.innerHTML = ui.tab === 'more' ? moreView() : ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? `${scoreTop()}${foldWrap('score-detail', 'Full scoreboard', 'fees, gate table, research, phone arena', scoreView(state))}` : ui.tab === 'brain' ? `${botsTop()}${foldWrap('brain-detail', 'Lessons and research', 'what each bot learned, model vs market, upgrades', brainView())}` : ui.tab === 'predict' ? predictView(state) : ui.tab === 'train' ? trainerView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  v.innerHTML = ui.tab === 'bets' ? betsView() : ui.tab === 'more' ? moreView() : ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? chartCard('spot:btc') + arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? `${scoreTop()}${foldWrap('score-detail', 'Full scoreboard', 'fees, gate table, research, phone arena', scoreView(state))}` : ui.tab === 'brain' ? `${botsTop()}${foldWrap('brain-detail', 'Lessons and research', 'what each bot learned, model vs market, upgrades', brainView())}` : ui.tab === 'predict' ? predictView(state) : ui.tab === 'train' ? trainerView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   if (tabChanged) {
     ui.paintedTab = ui.tab;
     if (ui.didPaint) {
@@ -1538,6 +1612,7 @@ function render() {
     }
   }
   ui.didPaint = true;
+  v.dataset.tab = ui.tab;
   v.querySelectorAll('details[data-fold]').forEach((d) => {
     if (ui.folds.has(d.dataset.fold)) d.open = true;
     d.addEventListener('toggle', () => {
@@ -1550,7 +1625,7 @@ function render() {
   paintTicker(state);
   if (ui.tab === 'home') { drawChart($('#chart'), state); drawAlloc($('#allocChart')); updateTimer(); }
   const navTab = MORE_TABS.includes(ui.tab) ? 'more' : ui.tab;
-  document.querySelectorAll('.tabs button').forEach((b) => {
+  document.querySelectorAll('.tabs button[data-tab]').forEach((b) => {
     const on = b.dataset.tab === navTab;
     b.classList.toggle('on', on);
     b.setAttribute('aria-current', on ? 'page' : 'false');
@@ -1594,6 +1669,8 @@ function openSheet(html, key) {
   const d = $('#sheet');
   if (!d || !html) return;
   $('#sheetBody').innerHTML = html;
+  if (key !== 'controls') d.classList.remove('is-ctl');
+  d.dataset.mode = sheetMode(window.innerWidth);
   ui.sheetKey = key;
   d.classList.remove('closing');
   d.style.removeProperty('--drag');
@@ -1608,7 +1685,7 @@ function closeSheet() {
   const d = $('#sheet');
   if (!d || !d.open || d.classList.contains('closing')) return;
   d.classList.add('closing');
-  setTimeout(() => { d.classList.remove('closing'); d.style.removeProperty('--drag'); if (d.open) d.close(); ui.sheetKey = null; }, motionOn() ? 220 : 0);
+  setTimeout(() => { d.classList.remove('closing', 'is-ctl'); d.style.removeProperty('--drag'); if (d.open) d.close(); ui.sheetKey = null; }, motionOn() ? 220 : 0);
 }
 // Share card: a 1080x1350 PNG drawn on a canvas from real fields only, with
 // a paper label baked in. Web Share with the file when the phone allows it,
@@ -1688,12 +1765,355 @@ async function shareCard(kind, id, btn) {
 }
 function openBotSheet(id) {
   const s = sheetDecay().find((x) => x && x.id === id);
-  if (s) openSheet(botSheetHtml(s, { focus: ui.focus }) + shareBtn('bot', id), 'bot:' + id);
+  if (s) { openSheet(botSheetHtml(s, { focus: ui.focus }) + chartCard('bot:' + id) + shareBtn('bot', id), 'bot:' + id); bindCharts($('#sheetBody')); }
+}
+// Practice buy-in on a coin pick: the forward record of past picks
+// (net after 1.25% each way and slippage) times the owner's practice amount.
+function practiceHtml(p) {
+  const stake = ui.bets.coinBuyIn?.[p.ca] ?? ui.bets.defaultBuyIn;
+  const rec = ui.coinWatch?.record || {};
+  const cell = (k, label) => { const r = rec[k]; if (!r || !r.n || !Number.isFinite(r.avgNet)) return ''; const v = r.avgNet * stake; return `<div class="sh-stat"><small>${label}</small><b class="${v > 0 ? 'is-up' : v < 0 ? 'is-dn' : ''}">${betMoney(v, true)}</b></div>`; };
+  const cells = cell('m15', 'avg at 15m') + cell('h1', 'avg at 1h') + cell('h4', 'avg at 4h');
+  return `<section class="cw-practice"><div class="row"><b>Practice buy-in ${betMoney(stake)}</b>${PAPER}</div><p class="note">What past picks averaged at this amount, after 1.25% each way and slippage. A practice number, not advice. You buy coins yourself.</p>${cells ? `<div class="sh-stats cw-prac-grid">${cells}</div>` : '<p class="note">No forward marks yet.</p>'}<button type="button" class="btn" data-ctl-coin>Change practice buy-in</button></section>`;
 }
 function openPickSheet(ca) {
   const picks = (ui.coinWatch?.picks || []).filter((p) => p?.ca);
   const i = picks.findIndex((p) => p.ca === ca);
-  if (i >= 0) openSheet(pickSheetHtml(picks[i], i + 1) + shareBtn('pick', ca), 'pick:' + ca);
+  if (i >= 0) { openSheet(pickSheetHtml(picks[i], i + 1) + chartCard('coin:' + ca) + practiceHtml(picks[i]) + shareBtn('pick', ca), 'pick:' + ca); bindCharts($('#sheetBody')); }
+  const set = $('#sheetBody [data-ctl-coin]');
+  if (set) set.onclick = () => openControls();
+}
+// ---- Charts: Detailed switch, ranges, crosshair, expand ------------------
+function chartPrefs() {
+  if (!ui.chartPrefs) { try { ui.chartPrefs = JSON.parse(localStorage.getItem('gd.charts') || '{}'); } catch { ui.chartPrefs = {}; } }
+  return ui.chartPrefs;
+}
+const chartKind = (id) => String(id).split(':')[0];
+function chartPref(id) {
+  const p = chartPrefs()[chartKind(id)] || {};
+  return { detailed: !!p.detailed, range: RANGE_KEYS.includes(p.range) ? p.range : '1d' };
+}
+function setChartPref(id, patch) {
+  const all = chartPrefs();
+  all[chartKind(id)] = { ...chartPref(id), ...patch };
+  if (!DEMO) localStorage.setItem('gd.charts', JSON.stringify(all));
+}
+// Public candles, fetched in the browser (CORS open, no key).
+const CANDLE_PLAN = {
+  coin: { '1h': ['minute', 1, 60, 60e3], '1d': ['minute', 5, 288, 300e3], '1w': ['hour', 1, 168, 3600e3], all: ['day', 1, 180, 86400e3] },
+  spot: { '1h': [60, 60e3], '1d': [300, 300e3], '1w': [3600, 3600e3], all: [86400, 86400e3] },
+};
+async function fetchJson(url, ms = 9000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try { const r = await fetch(url, { signal: ctl.signal, headers: { accept: 'application/json' } }); if (!r.ok) throw new Error(String(r.status)); return await r.json(); } finally { clearTimeout(timer); }
+}
+async function pairFor(ca) {
+  ui.pairs = ui.pairs || {};
+  if (ui.pairs[ca]) return ui.pairs[ca];
+  const body = await fetchJson(`https://api.dexscreener.com/latest/dex/tokens/${encodeURIComponent(ca)}`);
+  const pair = (body.pairs || []).filter((p) => p.chainId === 'solana').sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+  if (!pair) throw new Error('no pair');
+  ui.pairs[ca] = pair.pairAddress;
+  return pair.pairAddress;
+}
+function loadCandles(id, range) {
+  ui.candles = ui.candles || {};
+  const key = `${id}|${range}`;
+  const have = ui.candles[key];
+  if (have && (have.state === 'loading' || Date.now() - have.at < 30e3)) return have;
+  const kind = chartKind(id);
+  ui.candles[key] = { state: 'loading', at: Date.now(), points: have?.points || null };
+  const job = kind === 'coin' ? (async () => {
+    const [tf, agg, limit] = CANDLE_PLAN.coin[range];
+    const pool = await pairFor(id.slice(5));
+    const body = await fetchJson(`https://api.geckoterminal.com/api/v2/networks/solana/pools/${pool}/ohlcv/${tf}?aggregate=${agg}&limit=${limit}&currency=usd`);
+    return (body.data?.attributes?.ohlcv_list || []).map((c) => ({ t: c[0] * 1000, v: Number(c[4]) })).filter((p) => p.v > 0);
+  })() : (async () => {
+    const [g] = CANDLE_PLAN.spot[range];
+    const body = await fetchJson(`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${g}`);
+    const n = range === '1h' ? 60 : range === '1d' ? 288 : range === '1w' ? 168 : 300;
+    return (Array.isArray(body) ? body : []).slice(0, n).map((c) => ({ t: c[0] * 1000, v: Number(c[4]) })).filter((p) => p.v > 0);
+  })();
+  job.then((points) => { ui.candles[key] = { state: 'ready', at: Date.now(), points: points.sort((a, b) => a.t - b.t) }; repaintChart(id); })
+    .catch((e) => { ui.candles[key] = { state: 'error', at: Date.now(), points: have?.points || null, error: e.message }; repaintChart(id); });
+  return ui.candles[key];
+}
+function chartModel(id) {
+  const { detailed, range } = chartPref(id);
+  const kind = chartKind(id);
+  const now = Date.now();
+  if (kind === 'bets' || kind === 'bot') {
+    if (!ui.betsDoc) { loadBets(); return { state: 'loading', detailed, range }; }
+    const f = ui.betsFilt || {};
+    const bot = kind === 'bot' ? id.slice(4) : f.bot && f.bot !== 'all' ? f.bot : null;
+    const s = pnlSeries(ui.betsDoc, { bot, range, now: Date.parse(ui.betsDoc.generatedAt) || now, counted: kind === 'bets' ? f.counted || 'all' : 'all' });
+    const title = kind === 'bot' ? 'P&amp;L after fees' : `${bot ? esc(bot) : 'All bots'} · P&amp;L after fees`;
+    const sub = `${s.resolution === 'line' ? 'every settled line' : 'hourly totals'} · recorded $2 lines · ${PAPER}`;
+    return { state: 'ready', detailed, range, kind: 'pnl', points: s.points, gapMs: Infinity, title, sub, fresh: freshHtml(ui.betsDoc.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot') };
+  }
+  const c = loadCandles(id, range);
+  const plan = kind === 'coin' ? CANDLE_PLAN.coin[range] : CANDLE_PLAN.spot[range];
+  const step = kind === 'coin' ? plan[3] : plan[1];
+  const title = kind === 'coin' ? 'Price, live candles' : 'BTC spot, live candles';
+  const sub = kind === 'coin' ? `GeckoTerminal ${plan[1] > 1 ? plan[1] + ' ' : ''}${plan[0]} closes · gaps are minutes with no trades` : `Coinbase ${step / 60e3 >= 60 ? step / 3600e3 + 'h' : step / 60e3 + 'm'} closes`;
+  const lastT = c.points?.length ? new Date(c.points[c.points.length - 1].t + step).toISOString() : null;
+  return { state: c.points ? 'ready' : c.state === 'error' ? 'error' : 'loading', detailed, range, kind: 'price', points: c.points || [], gapMs: step * 3, title, sub, error: c.error, fresh: c.points ? freshHtml(lastT, { liveMs: Math.max(90e3, step * 2), staleMs: Math.max(15 * 60e3, step * 4) }, 'Last candle close') : '' };
+}
+function chartCard(id, size = null) {
+  const m = chartModel(id);
+  ui.chartW = ui.chartW || {};
+  const W = size?.w || ui.chartW[chartKind(id)] || (m.detailed ? 720 : 640);
+  const H = size?.h || (m.detailed ? 260 : 120);
+  const pts = m.points ? (m.kind === 'pnl' ? m.points : inRange(m.points, m.range, Date.now() + 60e3)) : [];
+  const body = m.state === 'error' && !pts.length ? `<div class="dchart-empty">Candles did not load (${esc(m.error || 'network')}). Try again in a minute.</div>` : chartSvg({ points: pts, kind: m.kind, gapMs: m.gapMs, w: Math.round(W), h: Math.round(H), label: String(m.title || '').replace(/&amp;/g, '&') });
+  return chartCardHtml({ id, title: m.title || '', sub: m.sub || '', detailed: m.detailed, range: m.range, body, state: m.state === 'loading' && !pts.length ? 'loading' : 'ready', fresh: m.fresh || '' });
+}
+function repaintChart(id) {
+  document.querySelectorAll(`[data-chart-card="${CSS.escape(id)}"]`).forEach((el) => {
+    const max = el.classList.contains('is-max');
+    const body = el.querySelector('.dc-body');
+    const size = max && body ? { w: body.clientWidth, h: Math.max(300, body.clientHeight) } : null;
+    el.outerHTML = chartCard(id, size);
+    const fresh = document.querySelector(`[data-chart-card="${CSS.escape(id)}"]`);
+    if (fresh && max) fresh.classList.add('is-max');
+  });
+  bindCharts(document);
+}
+function bindCharts(root) {
+  root.querySelectorAll('[data-detailed]').forEach((el) => (el.onchange = () => { setChartPref(el.dataset.detailed, { detailed: el.checked }); haptic(6); repaintChart(el.dataset.detailed); }));
+  root.querySelectorAll('[data-range]').forEach((b) => (b.onclick = () => { setChartPref(b.dataset.chart, { range: b.dataset.range }); repaintChart(b.dataset.chart); }));
+  root.querySelectorAll('[data-expand]').forEach((b) => (b.onclick = () => {
+    const card = b.closest('.dcard');
+    const on = !card.classList.contains('is-max');
+    card.classList.toggle('is-max', on);
+    const id = card.dataset.chartCard;
+    if (on) requestAnimationFrame(() => repaintChart(id));
+    else repaintChart(id);
+  }));
+  // Draw at the real pixel width so text and strokes are not stretched.
+  root.querySelectorAll('.dcard:not(.is-max)').forEach((card) => {
+    const body = card.querySelector('.dc-body');
+    const svg = card.querySelector('svg.dchart');
+    if (!body || !svg || !body.clientWidth) return;
+    ui.chartW = ui.chartW || {};
+    const id = card.dataset.chartCard;
+    const w = body.clientWidth;
+    if (Math.abs(svg.viewBox.baseVal.width - w) > 8 && ui.chartW[chartKind(id)] !== w) { ui.chartW[chartKind(id)] = w; requestAnimationFrame(() => repaintChart(id)); }
+  });
+  root.querySelectorAll('.dcard svg.dchart').forEach((svg) => {
+    if (!svg.closest('.dcard.is-detailed') && !svg.closest('.dcard.is-max')) return;
+    if (svg.dataset.bound) return;
+    svg.dataset.bound = '1';
+    svg.setAttribute('tabindex', '0');
+    let pts = [];
+    try { pts = JSON.parse(svg.dataset.points || '[]'); } catch { pts = []; }
+    const vb = svg.viewBox.baseVal;
+    const geo = { l: +svg.dataset.l, r: +svg.dataset.r, w: vb.width, t0: +svg.dataset.t0, t1: +svg.dataset.t1 };
+    const lo = +svg.dataset.lo, hi = +svg.dataset.hi, T = +svg.dataset.t, B = +svg.dataset.b;
+    const cross = svg.querySelector('.dc-cross');
+    const tip = svg.parentElement.querySelector('.dc-tip');
+    const kind = svg.dataset.kind;
+    let idx = pts.length - 1;
+    const show = (i) => {
+      if (!pts[i]) return;
+      idx = i;
+      const [t, v] = pts[i];
+      const x = geo.l + ((t - geo.t0) / Math.max(1, geo.t1 - geo.t0)) * (geo.w - geo.l - geo.r);
+      const y = T + (1 - (v - lo) / (hi - lo || 1)) * (vb.height - T - B);
+      cross.hidden = false;
+      cross.querySelector('.dc-vx').setAttribute('x1', x); cross.querySelector('.dc-vx').setAttribute('x2', x);
+      cross.querySelector('.dc-dot').setAttribute('cx', x); cross.querySelector('.dc-dot').setAttribute('cy', y);
+      const prev = pts[i - 1];
+      tip.hidden = false;
+      tip.innerHTML = `<b>${fmtValue(v, kind)}</b><span>${new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>${kind === 'pnl' && prev ? `<span class="${v - prev[1] >= 0 ? 'is-up' : 'is-dn'}">${fmtValue(v - prev[1], 'pnl')} this step</span>` : ''}`;
+      const left = (x / geo.w) * 100;
+      tip.style.left = `${Math.min(82, Math.max(2, left - 9))}%`;
+    };
+    const hide = () => { cross.hidden = true; tip.hidden = true; };
+    svg.addEventListener('pointermove', (e) => { const r = svg.getBoundingClientRect(); const hit = nearestPoint(pts, ((e.clientX - r.left) / r.width) * geo.w, geo); if (hit) show(hit.i); });
+    svg.addEventListener('pointerleave', hide);
+    svg.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); show(Math.max(0, idx - 1)); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); show(Math.min(pts.length - 1, idx + 1)); }
+      else if (e.key === 'Home') { e.preventDefault(); show(0); }
+      else if (e.key === 'End') { e.preventDefault(); show(pts.length - 1); }
+    });
+    svg.addEventListener('focus', () => show(idx));
+    svg.addEventListener('blur', hide);
+  });
+}
+// Re-render unless the owner is typing in a field on the page.
+function softRender() {
+  const a = document.activeElement;
+  if (a && $('#view')?.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return;
+  if (document.querySelector('.dcard.is-max')) return;
+  render();
+}
+// Live prices straight from DexScreener for open coin lines and coin picks.
+async function pollLivePrices() {
+  if (ui.livePxBusy || document.hidden || ui.shotLock) return;
+  const cas = [...new Set([...(ui.betsDoc?.open || []).filter((b) => b.book === 'coin' && b.ca).map((b) => b.ca), ...(ui.coinWatch?.picks || []).map((p) => p?.ca).filter(Boolean)])].slice(0, 30);
+  if (!cas.length) return;
+  ui.livePxBusy = true;
+  try {
+    const body = await fetchJson(`https://api.dexscreener.com/latest/dex/tokens/${cas.map(encodeURIComponent).join(',')}`);
+    const best = {};
+    for (const p of body.pairs || []) {
+      const ca = p.baseToken?.address;
+      if (!cas.includes(ca) || !(Number(p.priceUsd) > 0)) continue;
+      if (!best[ca] || (p.liquidity?.usd || 0) > best[ca].liq) best[ca] = { px: Number(p.priceUsd), liq: p.liquidity?.usd || 0 };
+    }
+    ui.livePx = Object.fromEntries(Object.entries(best).map(([k, v]) => [k, v.px]));
+    ui.livePxAt = new Date().toISOString();
+    ui.livePxFail = 0;
+    if (ui.tab === 'bets') softRender();
+  } catch { ui.livePxFail = (ui.livePxFail || 0) + 1; } finally { ui.livePxBusy = false; }
+}
+// Committed JSON from the runner: refetch on focus and every minute.
+function refreshSnapshots() {
+  if (document.hidden) return;
+  loadBets(true);
+  if (ui.morningState !== 'loading') { ui.morningState = null; loadMorning(); }
+  if (ui.focusState !== 'loading') { ui.focusState = null; loadFocus(); }
+}
+let livePxWait = 20e3;
+(function liveLoop() {
+  setTimeout(async () => { await pollLivePrices(); livePxWait = Math.min(160e3, 20e3 * 2 ** Math.min(3, ui.livePxFail || 0)); liveLoop(); }, livePxWait);
+})();
+setInterval(refreshSnapshots, 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.didPaint) { refreshSnapshots(); pollLivePrices(); } });
+window.addEventListener('focus', () => { if (ui.didPaint && Date.now() - (ui.lastFocusRefresh || 0) > 15e3) { ui.lastFocusRefresh = Date.now(); refreshSnapshots(); } });
+
+// ---- Bets: row sheet and the buy-in controls ---------------------------
+function openBetSheet(id) {
+  const r = viewRows(ui.betsDoc, ui.bets, betsLive()).find((x) => x.id === id);
+  if (!r) return;
+  openSheet(betSheetHtml(r), 'bet:' + id);
+  bindBetLinks($('#sheetBody'));
+}
+function bindBetLinks(root) {
+  root.querySelectorAll('[data-bot-filter]').forEach((b) => (b.onclick = () => {
+    ui.betsFilt = { ...ui.betsFilt, bot: b.dataset.botFilter };
+    haptic(8);
+    if (ui.sheetKey) closeSheet();
+    if (ui.tab !== 'bets') { ui.tab = 'bets'; window.scrollTo(0, 0); }
+    render();
+  }));
+  root.querySelectorAll('[data-ctl-bot]').forEach((b) => (b.onclick = () => openControls(b.dataset.ctlBot)));
+}
+function controlsHtml(focusBot) {
+  return controlsSheetHtml({ settings: ui.bets, doc: ui.betsDoc, picks: (ui.coinWatch?.picks || []).filter((p) => p?.ca), runner: ui.runnerSettings, focusBot, demo: DEMO });
+}
+function openControls(focusBot = null) {
+  loadBets();
+  ui.ctlFocus = focusBot;
+  openSheet(controlsHtml(focusBot), 'controls');
+  $('#sheet')?.classList.add('is-ctl');
+  bindControls();
+  if (focusBot) {
+    const row = $('#sheetBody').querySelector(`[data-bot-buyin="${CSS.escape(focusBot)}"]`);
+    if (row) { row.closest('li')?.scrollIntoView({ block: 'center' }); row.focus({ preventScroll: true }); }
+  }
+}
+function refreshControls() {
+  const body = $('#sheetBody');
+  if (!body || ui.sheetKey !== 'controls') return;
+  const top = body.scrollTop;
+  const fid = document.activeElement && body.contains(document.activeElement) ? (document.activeElement.id || document.activeElement.dataset.botBuyin || document.activeElement.dataset.coinBuyin || document.activeElement.dataset.botOn || '') : '';
+  body.innerHTML = controlsHtml(ui.ctlFocus);
+  body.scrollTop = top;
+  bindControls();
+  if (fid) {
+    const el = body.querySelector(`#${CSS.escape(fid)}`) || body.querySelector(`[data-bot-buyin="${CSS.escape(fid)}"],[data-coin-buyin="${CSS.escape(fid)}"],[data-bot-on="${CSS.escape(fid)}"]`);
+    el?.focus({ preventScroll: true });
+  }
+}
+function setBets(patch, quiet) {
+  if (DEMO) { toast({ text: 'Demo view. Changes are off.' }); return; }
+  ui.bets = normalizeBetSettings({ ...ui.bets, ...patch });
+  saveBetSettings();
+  refreshControls();
+  if (['bets', 'home'].includes(ui.tab)) render();
+  if (!quiet) haptic(8);
+}
+function bindControls() {
+  const body = $('#sheetBody');
+  if (!body) return;
+  const num = (v) => (v === '' || v == null ? null : Number(v));
+  const def = body.querySelector('#ctlDefault');
+  if (def) def.onchange = () => setBets({ defaultBuyIn: num(def.value) ?? 2 });
+  const cap = body.querySelector('#ctlCap');
+  if (cap) cap.onchange = () => setBets({ dailyLossCap: num(cap.value) });
+  const mo = body.querySelector('#ctlMaxOpen');
+  if (mo) mo.onchange = () => setBets({ maxOpen: num(mo.value) });
+  body.querySelectorAll('[data-stepper]').forEach((w) => w.querySelectorAll('[data-step]').forEach((b) => (b.onclick = () => {
+    const input = w.querySelector('input');
+    const dir = Number(b.dataset.step);
+    const id = w.dataset.stepper;
+    const cur = num(input.value);
+    if (id === 'ctlDefault') setBets({ defaultBuyIn: Math.min(BUYIN_MAX, Math.max(BUYIN_MIN, (cur ?? 2) + dir * (cur >= 10 ? 1 : 0.5))) });
+    else if (id === 'ctlCap') setBets({ dailyLossCap: cur == null ? (dir > 0 ? 10 : null) : Math.max(0, cur + dir * 5) || null });
+    else if (id === 'ctlMaxOpen') setBets({ maxOpen: cur == null ? (dir > 0 ? 10 : null) : Math.max(0, cur + dir) || null });
+  })));
+  if (DEMO) body.querySelectorAll('input,[data-step]').forEach((el) => { el.disabled = true; });
+  body.querySelectorAll('[data-preset]').forEach((b) => (b.onclick = () => setBets({ defaultBuyIn: Number(b.dataset.preset) })));
+  body.querySelectorAll('[data-bot-buyin]').forEach((el) => (el.onchange = () => {
+    const buyIn = { ...ui.bets.buyIn };
+    const v = num(el.value);
+    if (v == null || v === ui.bets.defaultBuyIn) delete buyIn[el.dataset.botBuyin]; else buyIn[el.dataset.botBuyin] = v;
+    setBets({ buyIn });
+  }));
+  body.querySelectorAll('[data-coin-buyin]').forEach((el) => (el.onchange = () => {
+    const coinBuyIn = { ...ui.bets.coinBuyIn };
+    const v = num(el.value);
+    if (v == null || v === ui.bets.defaultBuyIn) delete coinBuyIn[el.dataset.coinBuyin]; else coinBuyIn[el.dataset.coinBuyin] = v;
+    setBets({ coinBuyIn });
+  }));
+  body.querySelectorAll('[data-bot-on]').forEach((el) => (el.onchange = () => {
+    const set = new Set(ui.bets.paused);
+    if (el.checked) set.delete(el.dataset.botOn); else set.add(el.dataset.botOn);
+    setBets({ paused: [...set] });
+    toast({ text: el.checked ? `${el.dataset.botOn} is on.` : `${el.dataset.botOn} paused. Send the file to the runner to pause it there too.` });
+  }));
+  const text = () => settingsFileText(ui.bets);
+  const ex = body.querySelector('#ctlExport');
+  if (ex) ex.onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text()], { type: 'application/json' })); a.download = 'settings.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast({ text: 'Saved settings.json. Commit it as data/settings.json.' }); };
+  const cp = body.querySelector('#ctlCopy');
+  if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(text()); toast({ text: 'Settings JSON copied.' }); } catch { toast({ text: 'Copy did not stick. Use Download instead.' }); } };
+  const fr = body.querySelector('#ctlFromRunner');
+  if (fr) fr.onclick = () => { if (ui.runnerSettings) setBets({ ...ui.runnerSettings }); toast({ text: 'Loaded the runner file.' }); };
+  const rs = body.querySelector('#ctlReset');
+  if (rs) rs.onclick = () => { if (!confirm('Reset every buy-in to $2 and clear the limits?')) return; setBets(normalizeBetSettings(null)); };
+}
+function openShortcuts() {
+  openSheet(`<h2 id="sheetTitle" class="ctl-h">Keyboard</h2><dl class="keys-dl">${SHORTCUTS.map(([k, v]) => `<div><dt><kbd>${esc(k)}</kbd></dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`, 'keys');
+}
+function bindBets() {
+  const v = $('#view');
+  if (!v || ui.tab !== 'bets') return;
+  v.querySelectorAll('[data-bf]').forEach((b) => (b.onclick = () => { ui.betsFilt = { ...ui.betsFilt, [b.dataset.bf]: b.dataset.v }; haptic(6); render(); }));
+  const bot = $('#bfBot'); if (bot) bot.onchange = () => { ui.betsFilt = { ...ui.betsFilt, bot: bot.value }; render(); };
+  const mk = $('#bfMarket'); if (mk) mk.onchange = () => { ui.betsFilt = { ...ui.betsFilt, market: mk.value }; render(); };
+  const q = $('#bfSearch');
+  if (q) q.oninput = () => {
+    clearTimeout(ui.qTimer);
+    ui.qTimer = setTimeout(() => { ui.betsFilt = { ...ui.betsFilt, q: q.value }; const pos = q.selectionStart; render(); const n = $('#bfSearch'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch { /* search input */ } } }, 180);
+  };
+  v.querySelectorAll('[data-sort]').forEach((b) => (b.onclick = () => {
+    const k = b.dataset.sort;
+    ui.betsSort = { key: k, dir: ui.betsSort.key === k && ui.betsSort.dir === 'desc' ? 'asc' : 'desc' };
+    render();
+    $(`[data-sort="${k}"]`)?.focus();
+  }));
+  v.querySelectorAll('[data-bet]').forEach((el) => {
+    const open = () => openBetSheet(el.dataset.bet);
+    el.onclick = open;
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+  });
+  const oc = $('#openControls'); if (oc) oc.onclick = () => openControls();
+  const br = $('#betsRetry'); if (br) br.onclick = () => loadBets(true);
+  bindBetLinks(v);
 }
 function mountSheet() {
   const d = $('#sheet');
@@ -1701,6 +2121,7 @@ function mountSheet() {
   d.dataset.bound = '1';
   d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-sheet-close]')) closeSheet(); });
   d.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(); });
+  d.addEventListener('close', () => d.classList.remove('is-ctl'));
   const grab = d.querySelector('.bsheet-grab');
   let y0 = null, dy = 0;
   grab.addEventListener('pointerdown', (e) => { y0 = e.clientY; dy = 0; grab.setPointerCapture(e.pointerId); d.classList.add('dragging'); });
@@ -1871,6 +2292,8 @@ function bind() {
     const row = (loadTrainer().closed || []).find((c) => c.id === b.dataset.share);
     if (row) downloadCallCard(row);
   }));
+  bindBets();
+  bindCharts(document);
   runCounts();
   fillXp();
   paintRings();
@@ -1933,15 +2356,50 @@ async function refreshKalshi() {
     }
   }
 }
-document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => {
+document.getElementById('navControls')?.addEventListener('click', () => openControls());
+document.querySelectorAll('.tabs button[data-tab]').forEach((b) => (b.onclick = () => {
   haptic();
   ui.tab = b.dataset.tab;
-  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.tabs button[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
   render();
   window.scrollTo(0, 0);
   if (b.dataset.tab === 'predict' || b.dataset.tab === 'train') refreshKalshi();
 }));
-window.addEventListener('resize', () => ui.tab === 'home' && state && drawChart($('#chart'), state));
+window.addEventListener('resize', () => {
+  const next = layoutFor(window.innerWidth);
+  if (next !== ui.layout) {
+    ui.layout = next;
+    document.documentElement.dataset.layout = next;
+    const d = $('#sheet'); if (d) d.dataset.mode = sheetMode(window.innerWidth);
+    if (state) render();
+    return;
+  }
+  if (ui.tab === 'home' && state) drawChart($('#chart'), state);
+});
+function goTab(tab) {
+  const btn = document.querySelector(`.tabs [data-tab="${tab}"]`);
+  if (btn) btn.click(); else { ui.tab = tab; render(); window.scrollTo(0, 0); }
+}
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  const act = shortcutFor({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, targetTag: t?.tagName, editable: !!t?.isContentEditable });
+  if (!act) return;
+  if (act.type === 'close') {
+    const big = document.querySelector('.dcard.is-max');
+    if (big) { e.preventDefault(); big.querySelector('[data-expand]')?.click(); return; }
+    if ($('#sheet')?.open) { e.preventDefault(); closeSheet(); }
+    else if (t?.id === 'bfSearch') t.blur();
+    return;
+  }
+  if (document.getElementById('intro')?.isConnected && !document.documentElement.classList.contains('intro-done')) return;
+  if ($('#sheet')?.open && act.type !== 'help') return;
+  e.preventDefault();
+  if (act.type === 'tab') goTab(act.tab);
+  else if (act.type === 'search') { if (ui.tab !== 'bets') goTab('bets'); requestAnimationFrame(() => $('#bfSearch')?.focus()); }
+  else if (act.type === 'controls') openControls();
+  else if (act.type === 'help') openShortcuts();
+  else if (act.type === 'refresh') { loadBets(true); ui.quoteManual = true; refreshKalshi(); toast({ text: 'Refreshing paper data.' }); }
+});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) liveTick(); });
 
 let splashSettled = false;
@@ -1984,7 +2442,8 @@ function dismissSplash() {
   setTimeout(drop, 1200);
 }
 (async () => {
-  if (new URLSearchParams(location.search).get('shot')) document.getElementById('intro')?.remove();
+  if (new URLSearchParams(location.search).get('shot') || DEMO) document.getElementById('intro')?.remove();
+  if (DEMO) { const rb = document.createElement('div'); rb.className = 'demo-ribbon'; rb.setAttribute('role', 'note'); rb.innerHTML = '<b>Demo</b> Live public paper data · nothing is saved · not advice'; document.body.prepend(rb); }
   if (localStorage.getItem('gd.intro') === '1') mountSplash();
   const saved = await idb.get('state');
   live = migrate(saved ? JSON.parse(saved) : newState(loadSettings(), Date.now()));
@@ -2001,7 +2460,8 @@ function dismissSplash() {
   if (q.get('replay') === '1') startReplay();
   if (q.get('tab')) { const btn = document.querySelector(`.tabs [data-tab="${q.get('tab')}"]`); if (btn) btn.click(); else { ui.tab = q.get('tab'); render(); } }
   if (q.get('shot')) applyShot(q.get('shot'));
-  else showIntro();
+  else if (!DEMO) showIntro();
+  if (q.get('controls') === '1') { const tryOpen = (n) => { if (ui.betsDoc) openControls(); else if (n > 0) setTimeout(() => tryOpen(n - 1), 300); }; loadBets(); tryOpen(20); }
 })();
 function setInert(on) {
   for (const sel of ['header.top', 'main', 'nav.tabs', '#ticker', '#linkState', '#ptr']) {
