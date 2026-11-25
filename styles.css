@@ -1256,3 +1256,22 @@ html[data-theme="light"] .callit{background:linear-gradient(180deg,#efe9ff,#fff)
 html[data-theme="light"] .ci-side,html[data-theme="light"] .cal-cell,html[data-theme="light"] .tk-cell,html[data-theme="light"] .ticket,html[data-theme="light"] .rp{background:#fff;border-color:#d4dbe4}
 html[data-theme="light"] .cal-net,html[data-theme="light"] .cal-d{color:#12161c}
 @media (prefers-reduced-motion:reduce){.ci-side,button.cal-cell{transition:none}}
+
+/* Coins: challenger pill + compare (details behind a tap) */
+.cw-ch{margin:-6px 0 12px}
+.cw-ch>summary{list-style:none}.cw-ch>summary::-webkit-details-marker{display:none}
+.cw-ch-pill{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 12px;border-radius:999px;background:#0b0f14;border:1px solid #2a3a55;color:#bcd0ff;font:800 11.5px var(--mono);cursor:pointer;box-shadow:0 0 14px #5b8cff22}
+.cw-ch-pill i{width:7px;height:7px;border-radius:50%;background:#5b8cff;box-shadow:0 0 8px #5b8cff}
+.cw-ch.is-promoted .cw-ch-pill{border-color:#2f6b4c;color:var(--g)}.cw-ch.is-promoted .cw-ch-pill i{background:var(--g);box-shadow:0 0 8px var(--g)}
+.cw-ch-pill:focus-visible{outline:2px solid #5b8cff;outline-offset:2px}
+.cw-ch[open] .cw-ch-pill{margin-bottom:8px}
+.cw-ch-cmp{width:100%;border-collapse:separate;border-spacing:0;padding:6px 8px;border-radius:14px;background:#0b0f14;border:1px solid #1d2632;font:600 11.5px var(--mono);color:#dfe6ef;font-variant-numeric:tabular-nums}
+.cw-ch-cmp th,.cw-ch-cmp td{padding:6px 4px;text-align:right;white-space:nowrap}
+.cw-ch-cmp th[scope="row"],.cw-ch-cmp thead th:first-child{text-align:left}
+.cw-ch-cmp thead th{font:700 9.5px var(--mono);color:#6c7a8a}
+.cw-ch-cmp th[scope="row"]{font:800 12px var(--sans)}
+.cw-ch-cmp .is-chall th{color:#bcd0ff}
+.cw-ch-cmp td small{color:#6c7a8a;font-size:9.5px}
+.cw-ch-cmp td.is-up{color:var(--g)}.cw-ch-cmp td.is-dn{color:var(--r)}
+.cw-ch-k{margin:6px 2px 0;font:600 10px var(--mono);color:#6c7a8a}
+html[data-theme="light"] .cw-ch-pill,html[data-theme="light"] .cw-ch-cmp{background:#fff;color:#1a2230}

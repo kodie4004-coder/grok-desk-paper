@@ -7,8 +7,8 @@ import { bestPair, pricesFromDex, scoreCoin } from '../engine/meme.js';
 import { RUG_URL } from '../engine/early.js';
 import { ntfyTopic, DESK_URL } from '../engine/alerts.js';
 import {
-  CW_NOTE, CW_SAFETY_TTL_MS, CW_SCAN, formatWatchPush, logPicks, markPicks, pendingMints, pickRecord,
-  planWatchPush, rankWatch, readRugReport, watchSafety,
+  CH_VERSION, CW_NOTE, CW_SAFETY_TTL_MS, CW_SCAN, forwardOnly, formatWatchPush, logChallenger, logPicks, markPicks,
+  pendingMints, pickRecord, planWatchPush, promotionCheck, rankChallenger, rankWatch, readRugReport, watchSafety,
 } from '../engine/coin-watch.js';
 
 const PATH = 'data/coin-watch.json';
@@ -75,10 +75,16 @@ export async function updateCoinWatch({ coins = [], meta = new Map(), trending =
   const top = rankWatch(cands, now);
   const blocked = cands.filter((c) => !watchSafety(c.coin, c.rug).ok).length;
   const logged = logPicks(prev.log || [], top, now);
+  // Challenger: same candidates, same safety, own log. A new version restarts
+  // the forward test from this scan.
+  const prevCh = prev.challenger && prev.challenger.version === CH_VERSION && prev.challenger.startedAt ? prev.challenger : null;
+  const chStart = prevCh ? prevCh.startedAt : new Date(now).toISOString();
+  const chTop = rankChallenger(cands, now);
+  const chLogged = logChallenger(prevCh?.log || [], chTop, now, chStart);
   const priceMap = {};
   for (const [ca, pair] of pairs) { const px = Number(pair?.priceUsd); if (px > 0) priceMap[ca] = px; }
   for (const [ca, m] of meta) { const px = Number(m?.pair?.priceUsd); if (px > 0 && !priceMap[ca]) priceMap[ca] = px; }
-  const need = pendingMints(logged.log, now).filter((ca) => !priceMap[ca]);
+  const need = [...new Set([...pendingMints(logged.log, now), ...pendingMints(chLogged.log, now)])].filter((ca) => !priceMap[ca]);
   for (let i = 0; i < need.length; i += 30) {
     const slice = need.slice(i, i + 30);
     try {
@@ -86,9 +92,14 @@ export async function updateCoinWatch({ coins = [], meta = new Map(), trending =
     } catch (e) { console.log('watch marks', e.message); }
   }
   const marked = markPicks(logged.log, priceMap, now);
+  const chMarked = markPicks(chLogged.log, priceMap, now);
+  const promotion = promotionCheck({ championLog: marked.log, challengerLog: chMarked.log, startedAt: chStart, prev: prev.promotion?.startedAt === chStart ? prev.promotion : null, now });
+  const active = promotion.status === 'promoted' ? 'challenger' : 'champion';
+  const shown = active === 'challenger' ? chTop : top;
+  const shownAdded = active === 'challenger' ? chLogged.added : logged.added;
   let push = prev.push && typeof prev.push === 'object' ? prev.push : { sent: [] };
   const topic = ntfyTopic(env);
-  const queued = planWatchPush(top, logged.added, push, now);
+  const queued = planWatchPush(shown, shownAdded, push, now);
   let delivered = 0;
   if (topic && queued.length) {
     for (const pick of queued) {
@@ -115,14 +126,23 @@ export async function updateCoinWatch({ coins = [], meta = new Map(), trending =
     pushOn: !!topic,
     scanned: cands.length,
     blocked,
-    picks: top,
+    active,
+    picks: shown,
     record: pickRecord(marked.log),
     log: marked.log,
+    challenger: {
+      version: CH_VERSION,
+      startedAt: chStart,
+      picks: chTop,
+      record: pickRecord(forwardOnly(chMarked.log, chStart)),
+      log: chMarked.log,
+    },
+    promotion,
     push,
     rugCache: nextCache,
   };
   fs.mkdirSync('data', { recursive: true });
   fs.writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
-  console.log('coin watch', `scanned=${cands.length}`, `safe=${top.length}`, `blocked=${blocked}`, `new=${logged.added.length}`, `marked=${marked.marked}`, `rug=${rugCalls}`, `push=${pushed}`);
+  console.log('coin watch', `scanned=${cands.length}`, `safe=${top.length}`, `blocked=${blocked}`, `new=${logged.added.length}`, `marked=${marked.marked}`, `ch_new=${chLogged.added.length}`, `ch_n=${promotion.n}/${promotion.need}`, `active=${active}`, `rug=${rugCalls}`, `push=${pushed}`);
   return doc;
 }
