@@ -32,7 +32,13 @@ import { chartSvg, chartCardHtml, inRange, nearestPoint, fmtValue, freshHtml, fr
 import { pnlSeries } from './engine/bets.js';
 import { isSim, simLabel, decodeLines, simBook, simDoc, simDecay, simCurve } from './engine/sim.js';
 import { layoutFor, isDesk, shortcutFor, sheetMode, SHORTCUTS, NAV_TABS } from './engine/layout.js';
-import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
+import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE, callStreak } from './engine/trainer.js';
+import { resolveMode, liveReadiness } from './engine/mode.js';
+import { preTradeCheck, preTradeCoin, ticketHtml } from './engine/ticket.js';
+import { dayKey, localOffset, dayTotals, calendarHtml, daySheetHtml, calendarShareModel } from './engine/calendar.js';
+import { windowOf, candlePoints, coinbaseUrl, lineMarks, coinMarks, replayFrame, REPLAY_STEPS } from './engine/replay.js';
+import { ALERT_TYPES, DEFAULT_RULES, cleanRule, cleanRules, ruleText, emptyMemory, evaluateAlerts, addToInbox, unreadCount } from './engine/user-alerts.js';
+import { callItHtml, pickCallMarket } from './engine/callit-view.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -748,7 +754,7 @@ function loadBets(force) {
     ui.betsDoc = doc || ui.betsDoc || null;
     ui.runnerSettings = conf ? readSettingsText(conf) : null;
     ui.betsState = ui.betsDoc ? 'ready' : 'error';
-    if (isSim(ui.bets)) loadLines(force && ui.betsDoc?.generatedAt !== ui.linesAt);
+    if (isSim(ui.bets) || ui.calWanted) loadLines(force && ui.betsDoc?.generatedAt !== ui.linesAt);
     if (['bets', 'home', 'brain'].includes(ui.tab)) softRender();
     if (ui.sheetKey === 'controls') refreshControls();
   });
@@ -764,7 +770,7 @@ function loadLines(force) {
     if (f && f.paper === true && f.generatedAt !== ui.linesAt) { ui.lines = decodeLines(f); ui.linesAt = f.generatedAt; ui.simCache = null; }
     ui.linesState = ui.lines ? 'ready' : 'error';
     if (!ui.lines) ui.linesErrAt = Date.now();
-    if (isSim(ui.bets)) softRender();
+    if (isSim(ui.bets) || (ui.calWanted && ['bets', 'calendar', 'settings'].includes(ui.tab))) softRender();
   });
 }
 function simBookNow() {
@@ -809,6 +815,12 @@ function todayView() {
   return out;
 }
 function simBarHtml() {
+  return killBarHtml() + simBarOnly();
+}
+function killBarHtml() {
+  return ui.bets?.killSwitch ? `<div class="killbar" role="status"><b>Kill switch on</b><span>No new paper lines open. Open lines settle as normal.</span>${DEMO ? '' : '<button type="button" class="simbar-btn" id="killOff">Turn off</button>'}</div>` : '';
+}
+function simBarOnly() {
   const label = simLabel(ui.bets);
   if (!label) return '';
   const pending = !ui.lines;
@@ -832,6 +844,9 @@ function betsLive() {
 function betsView() {
   loadBets();
   if (ui.coinsState !== 'ready' && ui.coinsState !== 'error') loadCoins();
+  return killBarHtml() + betsViewMain() + (ui.betsDoc ? `<h2 class="sec">P&amp;L calendar</h2>${calendarSection()}` : '');
+}
+function betsViewMain() {
   return betsViewHtml({ chart: ui.betsDoc ? chartCard('bets') : '', fresh: ui.betsDoc ? freshHtml(ui.betsDoc.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot, about every 4 to 5 minutes') + (ui.livePxAt ? freshHtml(ui.livePxAt, { liveMs: 60e3, staleMs: 5 * 60e3 }, 'Coin marks from DexScreener') : '') : '', doc: betsDocView(), rawDoc: ui.betsDoc, state: ui.betsState === 'error' ? 'error' : ui.betsDoc ? 'ready' : 'loading', settings: ui.bets, runner: ui.runnerSettings, live: betsLive(), filt: ui.betsFilt, sort: ui.betsSort, now: Date.now(), desk: isDesk(window.innerWidth), demo: DEMO });
 }
 // Small Bets card for the Desk: open count, exposure, today, one tap in.
@@ -902,7 +917,7 @@ function deskTop() {
   noteAway();
   const now = Date.now();
   const soon = (state?.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
-  const beforeHero = ui.awayShown ? awayHtml(ui.away) : '';
+  const beforeHero = (ui.awayShown ? awayHtml(ui.away) : '') + callItCard();
   const afterHero = todayStripHtml({ today: todayView(), coinWatch: ui.coinWatch, closeAt: soon?.closeTime, now }) + betsMiniHtml();
   if (!ui.today && ui.morningState !== 'error') return skelHtml('cards', 3);
   return simBarHtml() + deskHomeHtml({ state: ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading', today: todayView(), curve: curveView(), brain: ui.brainDoc, focus: ui.focus, openDoc: ui.journalOpen, alerts: ui.alerts, now, beforeHero, afterHero });
@@ -991,13 +1006,14 @@ function scoreTop() {
   if (!ui.focusState) loadFocus();
   return `${gateMeterHtml(ui.focus)}${gateListHtml(ui.focus)}`;
 }
-const MORE_TABS = ['arena', 'score', 'predict', 'train', 'settings', 'agents', 'activity'];
+const MORE_TABS = ['calendar', 'arena', 'score', 'predict', 'train', 'settings', 'agents', 'activity'];
 function moreView() {
   if (!ui.focusState) loadFocus();
   const g = gateSummary(ui.focus);
   const now = Date.now();
   const openN = (state?.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).length;
   const tiles = [
+    ['calendar', '▦', 'Calendar', 'Green and red days, after fees', '', '#3dff9a'],
     ['arena', '▶', 'Arena', 'Pick a side, feed, badges', openN ? `${openN} live` : '', '#3dff9a'],
     ['score', '★', 'Scoreboard', 'Real-money gate', g.total ? `${g.passed}/${g.total} ready` : '', '#3dff9a'],
     ['predict', '◎', 'Predict', 'Live 15-min markets', state?.kalshiBoard ? `${openN} open` : '', '#38e1ff'],
@@ -1100,6 +1116,7 @@ function settingsView(st) {
   <button class="btn pri wide" style="margin-top:10px" ${locked ? 'disabled' : ''}>Save rules</button>
   <button type="button" class="btn wide" id="defaults" style="margin-top:8px" ${locked ? 'disabled' : ''}>Reset to defaults</button></form>
   <div class="note" style="margin-top:8px">There is no "make it back" setting on purpose. Raising size or loosening rules after a loss is loss-chasing and drains accounts; the loss cap stops new entries instead. The edge gate only shrinks or stops. It never sizes above the position you set, and a loss never increases size.</div></div>
+  ${liveReadyHtml()}
   <div class="card"><h2>Notifications</h2><label class="f">Browser notifications when the app is in the background<input type="checkbox" id="notify" ${ui.notify ? 'checked' : ''}></label><div class="note">In-app toasts always show. Browser notifications stay on this device.</div></div>
   <div class="card"><h2>Phone alerts</h2><p class="note">Install the ntfy app and subscribe to the topic your assistant gave you. A push means a coin passed the early paper checks. It is an unproven paper signal. The strategy has not passed the edge gate. This page does not show the topic.</p></div>
   <div class="card" id="pro"><h2>Pro</h2><p class="note">Coming soon. There is no payment and no account. If you would pay for a finished version, you can leave an email on this phone. It is stored only in this browser and is not sent anywhere.</p><label class="f">Email on this phone<input id="proEmail" type="email" inputmode="email" autocomplete="off" value="${esc(localStorage.getItem('gd.proEmail') || '')}"></label><button type="button" class="btn wide" id="proSave">Save on this phone</button></div>
@@ -1677,7 +1694,7 @@ function render() {
   const tabChanged = ui.paintedTab !== ui.tab;
   if (!ui.folds) ui.folds = new Set();
   v.querySelectorAll('details[data-fold]').forEach((d) => { if (d.open) ui.folds.add(d.dataset.fold); else ui.folds.delete(d.dataset.fold); });
-  v.innerHTML = ui.tab === 'bets' ? betsView() : ui.tab === 'more' ? moreView() : ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? chartCard('spot:btc') + arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? `${scoreTop()}${foldWrap('score-detail', 'Full scoreboard', 'fees, gate table, research, phone arena', scoreView(state))}` : ui.tab === 'brain' ? `${botsTop()}${foldWrap('brain-detail', 'Lessons and research', 'what each bot learned, model vs market, upgrades', brainView())}` : ui.tab === 'predict' ? predictView(state) : ui.tab === 'train' ? trainerView(state) : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
+  v.innerHTML = ui.tab === 'bets' ? betsView() : ui.tab === 'more' ? moreView() : ui.tab === 'home' ? home(state) : ui.tab === 'arena' ? chartCard('spot:btc') + arenaView(state) : ui.tab === 'coins' ? coinsView() : ui.tab === 'score' ? `${scoreTop()}${foldWrap('score-detail', 'Full scoreboard', 'fees, gate table, research, phone arena', scoreView(state))}` : ui.tab === 'brain' ? `${botsTop()}${foldWrap('brain-detail', 'Lessons and research', 'what each bot learned, model vs market, upgrades', brainView())}` : ui.tab === 'predict' ? predictView(state) : ui.tab === 'train' ? trainerView(state) : ui.tab === 'calendar' ? calendarView() : ui.tab === 'agents' ? agents(state) : ui.tab === 'activity' ? activity(state) : settingsView(state);
   if (tabChanged) {
     ui.paintedTab = ui.tab;
     if (ui.didPaint) {
@@ -1946,8 +1963,9 @@ function chartCard(id, size = null) {
   const W = size?.w || ui.chartW[chartKind(id)] || (m.detailed ? 720 : 640);
   const H = size?.h || (m.detailed ? 260 : 120);
   const pts = m.points ? (m.kind === 'pnl' ? m.points : inRange(m.points, m.range, Date.now() + 60e3)) : [];
-  const body = m.state === 'error' && !pts.length ? `<div class="dchart-empty">Candles did not load (${esc(m.error || 'network')}). Try again in a minute.</div>` : chartSvg({ points: pts, kind: m.kind, gapMs: m.gapMs, w: Math.round(W), h: Math.round(H), label: String(m.title || '').replace(/&amp;/g, '&') });
-  return chartCardHtml({ id, title: m.title || '', sub: m.sub || '', detailed: m.detailed, range: m.range, body, state: m.state === 'loading' && !pts.length ? 'loading' : 'ready', fresh: m.fresh || '' });
+  const marks = m.detailed && m.kind === 'price' && pts.length ? chartMarks(id, pts) : [];
+  const body = m.state === 'error' && !pts.length ? `<div class="dchart-empty">Candles did not load (${esc(m.error || 'network')}). Try again in a minute.</div>` : chartSvg({ points: pts, kind: m.kind, gapMs: m.gapMs, w: Math.round(W), h: Math.round(H), label: String(m.title || '').replace(/&amp;/g, '&'), marks });
+  return chartCardHtml({ id, title: m.title || '', sub: (m.sub || '') + (marks.length ? ' · ▲ entry ■ exit' : ''), detailed: m.detailed, range: m.range, body, state: m.state === 'loading' && !pts.length ? 'loading' : 'ready', fresh: m.fresh || '' });
 }
 function repaintChart(id) {
   document.querySelectorAll(`[data-chart-card="${CSS.escape(id)}"]`).forEach((el) => {
@@ -2033,7 +2051,7 @@ function softRender() {
 // Live prices straight from DexScreener for open coin lines and coin picks.
 async function pollLivePrices() {
   if (ui.livePxBusy || document.hidden || ui.shotLock) return;
-  const cas = [...new Set([...(ui.betsDoc?.open || []).filter((b) => b.book === 'coin' && b.ca).map((b) => b.ca), ...(ui.coinWatch?.picks || []).map((p) => p?.ca).filter(Boolean)])].slice(0, 30);
+  const cas = [...new Set([...(ui.betsDoc?.open || []).filter((b) => b.book === 'coin' && b.ca).map((b) => b.ca), ...(ui.coinWatch?.picks || []).map((p) => p?.ca).filter(Boolean), ...(ui.alertRules || []).filter((r) => r.on && r.type === 'price' && r.target.startsWith('coin:')).map((r) => r.target.slice(5))])].slice(0, 30);
   if (!cas.length) return;
   ui.livePxBusy = true;
   try {
@@ -2069,8 +2087,11 @@ window.addEventListener('focus', () => { if (ui.didPaint && Date.now() - (ui.las
 function openBetSheet(id) {
   const r = viewRows(ui.betsDoc, ui.bets, betsLive()).find((x) => x.id === id);
   if (!r) return;
-  openSheet(betSheetHtml(r), 'bet:' + id);
+  const win = r.book === 'kalshi' ? replayBlock(r.ticker, r) : '';
+  const mk = r.book === 'kalshi' && r.pnl == null && boardMarket(r.ticker) ? `<button type="button" class="btn" data-market-sheet="${esc(r.ticker)}">Window &amp; tickets</button>` : '';
+  openSheet(betSheetHtml(r).replace('<dl class="bsh-dl">', betTicketHtml(r) + '<dl class="bsh-dl">').replace('<div class="bsh-act">', win + '<div class="bsh-act">' + mk), 'bet:' + id);
   bindBetLinks($('#sheetBody'));
+  bindR6($('#sheetBody'));
 }
 function bindBetLinks(root) {
   root.querySelectorAll('[data-bot-filter]').forEach((b) => (b.onclick = () => {
@@ -2181,6 +2202,13 @@ function bindControls() {
     if (v == null) delete coinBuyIn[el.dataset.coinBuyin]; else coinBuyIn[el.dataset.coinBuyin] = v;
     setBets({ coinBuyIn }, false, typing);
   }, () => ui.bets.coinBuyIn[el.dataset.coinBuyin]));
+  const kill = body.querySelector('#ctlKill');
+  if (kill) kill.onchange = () => {
+    if (kill.checked && !confirm('Turn on the kill switch? Every new paper line stops until you turn it off. Open lines settle as normal.')) { kill.checked = false; return; }
+    setBets({ killSwitch: kill.checked }, true);
+    haptic(kill.checked ? [20, 30, 20] : 8);
+    toast({ text: kill.checked ? 'Kill switch on. No new paper lines. Send settings.json to the runner to stop it there too.' : 'Kill switch off. Paper lines can open again.', key: 'bets' });
+  };
   body.querySelectorAll('[data-bot-on]').forEach((el) => (el.onchange = () => {
     const set = new Set(ui.bets.paused);
     if (el.checked) set.delete(el.dataset.botOn); else set.add(el.dataset.botOn);
@@ -2327,6 +2355,7 @@ function bind() {
   document.querySelectorAll('[data-away-close]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); ui.awayShown = false; haptic(8); render(); }));
   document.querySelectorAll('[data-open-coin]').forEach((b) => (b.onclick = () => { ui.coinOpen = b.dataset.openCoin; render(); }));
   document.querySelectorAll('[data-close-sheet]').forEach((b) => (b.onclick = () => { ui.coinOpen = null; render(); }));
+  bindR6(document.getElementById('view'));
   runCounts();
   document.querySelectorAll('img.logo').forEach((img) => {
     img.onerror = () => {
@@ -2739,3 +2768,470 @@ if (tickerPause) tickerPause.addEventListener('click', () => {
 window.addEventListener('offline', () => { const n = $('#linkState'); if (!n) return; n.hidden = false; n.textContent = 'Offline. The saved app shell is still here. Live prices are not.'; });
 window.addEventListener('online', () => { const n = $('#linkState'); if (n) n.hidden = true; });
 if (localStorage.getItem('gd.theme') === 'light') document.documentElement.dataset.theme = 'light';
+
+// ---- Round 6: calendar, tickets, replay, alerts, call-it, kill switch ----
+// All paper. Nothing in this block places, sizes or gates a bet: tickets and
+// the call-it card size through preTradeCheck, the calendar reads recorded
+// lines, alerts only notify. Trading mode is always paper (engine/mode.js).
+
+// P&L calendar.
+function calState() {
+  if (!ui.calYM) { const d = new Date(); ui.calYM = [d.getFullYear(), d.getMonth()]; }
+  return ui.calYM;
+}
+function calTotals(recorded) {
+  ui.calWanted = true;
+  if (!ui.lines) { loadLines(); return null; }
+  const off = localOffset();
+  const slot = recorded ? 'r' : 's';
+  const key = (recorded ? 'rec' : JSON.stringify(ui.bets)) + '|' + ui.linesAt + '|' + off;
+  ui.calCache = ui.calCache || {};
+  if (ui.calCache[slot]?.key !== key) ui.calCache[slot] = { key, totals: dayTotals(ui.lines, { settings: recorded ? null : ui.bets, offsetMin: off, recorded }) };
+  return ui.calCache[slot].totals;
+}
+function calendarSection() {
+  const [y, m] = calState();
+  const sim = isSim(ui.bets);
+  const totals = calTotals(!sim);
+  return calendarHtml({ totals, year: y, month: m, today: dayKey(Date.now(), localOffset()), simLabel: sim ? simLabel(ui.bets) : null, pending: !totals });
+}
+function calendarView() {
+  loadBets();
+  return `${simBarHtml()}<h2 class="sec">P&amp;L calendar</h2>${calendarSection()}<p class="note cal-foot">Each day is every settled paper line that day, after the real fees. Times are this device's day. ${PAPER}</p>`;
+}
+function openCalDay(day) {
+  const sim = isSim(ui.bets);
+  const d = calTotals(!sim)?.get(day);
+  if (!d) return;
+  const off = localOffset();
+  const rows = viewRows(ui.betsDoc, ui.bets, betsLive()).filter((r) => r.pnl != null && r.settledAt && dayKey(Date.parse(r.settledAt), off) === day).slice(0, 30);
+  const list = rows.length ? `<ul class="cal-rows">${rows.map((r) => `<li><button type="button" class="cal-row" data-cal-bet="${esc(r.id)}"><span><b>${esc(r.market)}</b> <em class="side-${esc(r.side)}">${esc(String(r.side).toUpperCase())}</em><small>${esc(r.bot)} · ${esc(String(r.settledAt).slice(11, 16))} UTC</small></span><b class="is-${r.view.pnl > 0 ? 'up' : r.view.pnl < 0 ? 'dn' : 'flat'}">${betMoney(r.view.pnl, true)}</b></button></li>`).join('')}</ul>` : '';
+  openSheet(daySheetHtml(d, { simLabel: sim ? simLabel(ui.bets) : null, rows: list }), 'cal:' + day);
+  const body = $('#sheetBody');
+  body.querySelectorAll('[data-cal-bet]').forEach((b) => (b.onclick = () => openBetSheet(b.dataset.calBet)));
+  body.querySelectorAll('[data-cal-bot]').forEach((b) => (b.onclick = () => {
+    ui.betsFilt = { ...ui.betsFilt, bot: b.dataset.calBot };
+    closeSheet();
+    ui.tab = 'bets'; render(); window.scrollTo(0, 0);
+  }));
+}
+function bindCalendar(root) {
+  root.querySelectorAll('[data-cal-step]').forEach((b) => (b.onclick = () => {
+    const [y, m] = calState();
+    const d = new Date(y, m + Number(b.dataset.calStep), 1);
+    ui.calYM = [d.getFullYear(), d.getMonth()];
+    haptic(6); render();
+  }));
+  root.querySelectorAll('[data-cal-day]').forEach((b) => (b.onclick = () => { haptic(6); openCalDay(b.dataset.calDay); }));
+  root.querySelectorAll('[data-cal-share]').forEach((b) => (b.onclick = () => shareCalendar(b)));
+}
+async function drawCalendarCard(m) {
+  const W = 1080, H = 1350, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const icon = await loadImg('icons/icon-192.png');
+  const sans = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif', mono = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  x.fillStyle = '#07090C'; x.fillRect(0, 0, W, H);
+  x.font = `800 30px ${mono}`; const bw = x.measureText(m.badge).width + 56;
+  x.fillStyle = '#ffd56a22'; x.strokeStyle = '#ffd56a'; x.lineWidth = 3; x.beginPath(); x.roundRect(72, 80, bw, 64, 32); x.fill(); x.stroke();
+  x.fillStyle = '#ffd56a'; x.fillText(m.badge, 100, 123);
+  x.fillStyle = '#ffffff'; x.font = `850 72px ${sans}`; x.fillText(m.title, 72, 236);
+  const tone = m.net > 0.004 ? '#3dff9a' : m.net < -0.004 ? '#ff6b7d' : '#f4f7fb';
+  const big = (m.net > 0.004 ? '+' : m.net < -0.004 ? '−' : '') + '$' + Math.abs(m.net).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  x.fillStyle = tone; x.font = `900 120px ${sans}`; x.fillText(big, 64, 370);
+  x.fillStyle = '#8c99a8'; x.font = `600 28px ${mono}`; x.fillText(m.note, 72, 418); x.fillText(`${m.green} green · ${m.red} red · ${m.n.toLocaleString('en-US')} lines · fees $${m.fees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 72, 456);
+  const top = 520, gx = 72, cw = (W - 144 - 6 * 12) / 7, ch = Math.min(118, (H - 230 - top - (m.weeks - 1) * 12) / m.weeks);
+  const maxAbs = Math.max(0.01, ...m.cells.filter((c2) => c2 && c2.net != null).map((c2) => Math.abs(c2.net)));
+  x.font = `700 24px ${mono}`; x.fillStyle = '#6c7a8a';
+  ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach((d, i) => x.fillText(d, gx + i * (cw + 12) + 8, top - 14));
+  m.cells.forEach((cell, i) => {
+    if (!cell) return;
+    const cx = gx + (i % 7) * (cw + 12), cy = top + Math.floor(i / 7) * (ch + 12);
+    const a = cell.net == null ? 0 : Math.max(0.18, Math.min(1, Math.abs(cell.net) / maxAbs));
+    x.fillStyle = cell.net == null ? '#ffffff08' : cell.net > 0.004 ? `rgba(61,255,154,${(0.15 + a * 0.55).toFixed(2)})` : cell.net < -0.004 ? `rgba(255,107,125,${(0.15 + a * 0.55).toFixed(2)})` : '#ffffff14';
+    x.beginPath(); x.roundRect(cx, cy, cw, ch, 16); x.fill();
+    x.fillStyle = '#dfe6ef'; x.font = `700 24px ${mono}`; x.fillText(String(cell.d), cx + 12, cy + 32);
+    if (cell.net != null) {
+      const a2 = Math.abs(cell.net);
+      const v = (cell.net > 0.004 ? '+' : cell.net < -0.004 ? '−' : '') + '$' + (a2 >= 1000 ? (a2 / 1000).toFixed(1) + 'k' : a2 >= 100 ? Math.round(a2) : a2.toFixed(2));
+      x.fillStyle = '#ffffff'; x.font = `800 26px ${sans}`; x.fillText(v, cx + 12, cy + ch - 18);
+    }
+  });
+  x.fillStyle = '#ffffff14'; x.fillRect(72, H - 150, W - 144, 2);
+  if (icon) x.drawImage(icon, 72, H - 124, 72, 72);
+  x.fillStyle = '#ffffff'; x.font = `850 40px ${sans}`; x.fillText('Grok Desk', 164, H - 80);
+  x.fillStyle = '#7d8a99'; x.font = `600 24px ${mono}`; x.fillText('Paper bets at $2, after fees', 164, H - 44);
+  return new Promise((ok) => c.toBlob(ok, 'image/png'));
+}
+async function shareCalendar(btn) {
+  const rec = calTotals(true);
+  if (!rec) { toast({ text: 'Still loading the lines. Try again in a moment.' }); return; }
+  const [y, mo] = calState();
+  const m = calendarShareModel(rec, y, mo);
+  if (!m.n) { toast({ text: 'No paper lines in this month to share.' }); return; }
+  if (btn) btn.disabled = true;
+  try {
+    const blob = await drawCalendarCard(m);
+    const name = `grok-desk-${m.title.replace(/\s+/g, '-').toLowerCase()}.png`;
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: 'Grok Desk · paper trading', text: `${m.title} on Grok Desk (paper trading, not real money)` }).catch(() => {});
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast({ text: 'Saved the month image (recorded $2 lines).' }); }
+  } finally { if (btn) btn.disabled = false; }
+}
+
+// Fee-first tickets.
+function boardMarket(ticker) {
+  return (state?.kalshiBoard?.markets || live?.kalshiBoard?.markets || []).find((m) => m.ticker === ticker) || null;
+}
+function betTicketHtml(r) {
+  const stake = r.view.stake;
+  const lab = stake !== RECORDED_STAKE ? simLabel(ui.bets) : null;
+  if (r.book === 'coin') return ticketHtml(preTradeCoin({ entry: r.entry, stake }), { title: 'Ticket at entry', simLabel: lab });
+  const m = r.pnl == null ? boardMarket(r.ticker) : null;
+  const bid = m ? (r.side === 'yes' ? m.yesBid : m.noBid) : null;
+  return ticketHtml(preTradeCheck({ ask: r.entry, bid, side: r.side, stake, maker: r.maker }), { title: 'Ticket at entry', simLabel: lab, note: r.pnl == null ? '' : ' Settled; this is the ticket as it was filled.' });
+}
+function marketSheetHtml(mk) {
+  const now = Date.now();
+  const stake = ui.bets.defaultBuyIn;
+  const lab = stake !== RECORDED_STAKE ? simLabel(ui.bets) : null;
+  const pct = Number(ui.mkPct);
+  const pYes = pct >= 1 && pct <= 99 ? pct / 100 : null;
+  const base = { stake, settings: ui.bets, counted: false };
+  const yes = preTradeCheck({ ...base, ask: mk.yesAsk, bid: mk.yesBid, side: 'yes', pWin: pYes });
+  const no = preTradeCheck({ ...base, ask: mk.noAsk, bid: mk.noBid, side: 'no', pWin: pYes == null ? null : 1 - pYes });
+  const ideas = arenaIdeas(mk, now, live?.spots || {}, live?.arenaQuotes || {});
+  const closed = mk.result === 'yes' || mk.result === 'no';
+  const strike = Number(mk.floorStrike) > 0 ? `$${Number(mk.floorStrike).toLocaleString('en-US', { maximumFractionDigits: 2 })}` : 'not in the quote';
+  return `<div class="mksh"><h2 id="sheetTitle">${esc(mk.title || mk.ticker)}</h2>
+  <p class="note">${esc(mk.ticker)} · start ${strike} · ${closed ? `settled <b>${esc(mk.result.toUpperCase())}</b>` : `locks in <span class="live-clock" data-close="${esc(mk.closeTime)}">${esc(clockText(Date.parse(mk.closeTime), now))}</span>`}</p>
+  ${closed ? '' : `<label class="mk-pct">Your chance it goes up <input type="number" id="mkPct" inputmode="numeric" min="1" max="99" step="1" placeholder="–" value="${pYes ? Math.round(pYes * 100) : ''}"><span>%</span></label>`}
+  <div class="tk-pair">${ticketHtml(yes, { title: `YES (up) at ${betMoney(stake)}`, simLabel: lab })}${ticketHtml(no, { title: `NO (down) at ${betMoney(stake)}`, simLabel: lab })}</div>
+  ${replayBlock(mk.ticker, { closeTime: mk.closeTime, floorStrike: mk.floorStrike, series: mk.series, ticker: mk.ticker })}
+  <h3 class="sh-sec">Paper bot setups on this quote</h3><p class="note">${ideas.length ? ideas.map((b) => `${esc(b.rule)} ${esc(String(b.side).toUpperCase())}`).join(' · ') : 'None right now.'}</p>
+  <p class="sh-note">A paper ticket. No order is placed, and live trading is off in this build (docs/LIVE_READINESS.md).</p></div>`;
+}
+function openMarketSheet(ticker) {
+  const mk = boardMarket(ticker);
+  if (!mk) { toast({ text: 'That window is not in the snapshot any more.' }); return; }
+  openSheet(marketSheetHtml(mk), 'mk:' + ticker);
+  bindMarketSheet(ticker);
+}
+function bindMarketSheet(ticker) {
+  const body = $('#sheetBody');
+  const inp = body.querySelector('#mkPct');
+  if (inp) inp.oninput = () => {
+    clearTimeout(ui.mkTimer);
+    ui.mkTimer = setTimeout(() => {
+      ui.mkPct = inp.value;
+      const mk = boardMarket(ticker);
+      if (!mk || ui.sheetKey !== 'mk:' + ticker) return;
+      const tmp = document.createElement('div');
+      tmp.innerHTML = marketSheetHtml(mk);
+      const fresh = tmp.querySelector('.tk-pair');
+      const cur = body.querySelector('.tk-pair');
+      if (fresh && cur) cur.replaceWith(fresh);
+    }, 300);
+  };
+  bindReplay(body);
+}
+
+// Window replay.
+function rpData(key, win) {
+  ui.rpData = ui.rpData || {};
+  const have = ui.rpData[key];
+  const open = win.end > Date.now();
+  if (have && (have.state === 'loading' || (!open && have.state === 'ready') || Date.now() - have.at < 30e3)) return have;
+  ui.rpData[key] = { state: 'loading', at: Date.now(), points: have?.points || null };
+  fetchJson(coinbaseUrl(win.product, win.start - 60e3, Math.min(Date.now(), win.end + 60e3)))
+    .then((rows) => { ui.rpData[key] = { state: 'ready', at: Date.now(), points: candlePoints(rows) }; paintReplay(key); })
+    .catch((e) => { ui.rpData[key] = { state: 'error', at: Date.now(), points: have?.points || null, error: e.message }; paintReplay(key); });
+  return ui.rpData[key];
+}
+function replayMarks(ticker, points) {
+  const first = ui.rpSrc?.[ticker]?.id;
+  const rows = ui.betsDoc ? viewRows(ui.betsDoc, ui.bets, betsLive()).filter((r) => r.ticker === ticker).sort((a, b) => (b.id === first) - (a.id === first)) : [];
+  const marks = rows.slice(0, 3).flatMap((r) => lineMarks(r, points).map((m) => ({ ...m, label: `${r.bot} ${m.label}` })));
+  const book = loadTrainer();
+  for (const c of [...(book.open || []), ...(book.closed || [])].filter((c) => c.ticker === ticker)) {
+    marks.push({ t: c.calledAt, kind: 'entry', label: `You ${c.side === 'yes' ? 'Up' : 'Down'} ${c.confidence}%` });
+    if (c.won != null) marks.push({ t: Date.parse(c.closeTime), kind: 'exit', label: `You ${c.won ? 'right' : 'wrong'} ${betMoney(c.pnl, true)}`, tone: c.won ? 'up' : 'dn' });
+  }
+  return marks;
+}
+function replayBlock(ticker, src) {
+  const win = windowOf(src);
+  if (!win) return '';
+  if (!win.product) return `<section class="rp" data-rp="${esc(ticker)}"><h3 class="sh-sec">Window replay</h3><p class="note">No public minute candles for ${esc(win.series || 'this market')}, so there is no replay.</p></section>`;
+  ui.rpSrc = ui.rpSrc || {};
+  ui.rpSrc[ticker] = src;
+  return `<section class="rp" data-rp="${esc(ticker)}">${replayInner(ticker)}</section>`;
+}
+function replayInner(ticker) {
+  const src = ui.rpSrc?.[ticker];
+  const win = windowOf(src);
+  const d = rpData(ticker, win);
+  const pts = d.points || [];
+  const now = Date.now();
+  const openFrac = Math.min(1, Math.max(0, (now - win.start) / (win.end - win.start)));
+  const settled = win.end <= now;
+  ui.rpFrame = ui.rpFrame || {};
+  const frame = ui.rpFrame[ticker] ?? (settled ? 1 : openFrac);
+  const f = replayFrame({ points: pts, win, marks: replayMarks(ticker, pts), frame: Math.min(frame, settled ? 1 : openFrac) });
+  const min = Math.round(((f.at - win.start) / 60e3) * 10) / 10;
+  const svg = pts.length ? chartSvg({ points: f.points.length ? f.points : pts.slice(0, 1), kind: 'price', gapMs: 180e3, w: ui.rpW || 620, h: 220, label: 'Window replay', marks: f.marks, hline: f.strike ? { v: f.strike, label: `start $${f.strike.toLocaleString('en-US', { maximumFractionDigits: 2 })}` } : null, domain: [win.start, win.end] }) : `<div class="dchart-empty">${d.state === 'error' ? `Candles did not load (${esc(d.error || 'network')}).` : 'Loading minute candles…'}</div>`;
+  const lean = f.leaning ? `<b class="is-${f.leaning === 'up' ? 'up' : f.leaning === 'down' ? 'dn' : 'flat'}">${f.leaning === 'up' ? 'above' : f.leaning === 'down' ? 'below' : 'at'} start${f.vsStrike != null ? ` by $${Math.abs(f.vsStrike).toLocaleString('en-US', { maximumFractionDigits: 2 })}` : ''}</b>` : '';
+  const playing = ui.rpPlay === ticker;
+  return `<div class="rp-head"><h3 class="sh-sec">Window replay <small>${settled ? 'settled' : 'live so far'} · ${esc(win.product)}</small></h3>${settled ? `<button type="button" class="btn rp-play" data-rp-play="${esc(ticker)}" aria-pressed="${playing}">${playing ? '❚❚ Pause' : '▶ Play'}</button>` : ''}</div>
+    <div class="rp-chart dc-body">${svg}</div>
+    <label class="rp-scrub"><span class="sr">Scrub through the window</span><input type="range" min="0" max="${REPLAY_STEPS}" step="0.25" value="${(Math.min(frame, settled ? 1 : openFrac) * REPLAY_STEPS).toFixed(2)}" data-rp-scrub="${esc(ticker)}"${pts.length ? '' : ' disabled'}></label>
+    <p class="rp-read">Minute ${Math.max(0, min)} of 15${f.last ? ` · $${f.last.v.toLocaleString('en-US', { maximumFractionDigits: 4 })}` : ''} ${lean}</p>
+    <p class="sh-note">Coinbase price, not Kalshi's CF Benchmarks index, so a close call can settle the other way. ▲ entry · ■ exit. Paper.</p>`;
+}
+function paintReplay(key) {
+  document.querySelectorAll(`[data-rp="${CSS.escape(key)}"]`).forEach((el) => {
+    const w = el.querySelector('.rp-chart')?.clientWidth;
+    if (w && Math.abs((ui.rpW || 0) - w) > 8) ui.rpW = w;
+    const focus = document.activeElement?.dataset?.rpScrub === key;
+    el.innerHTML = replayInner(key);
+    bindReplay(el);
+    if (focus) el.querySelector('[data-rp-scrub]')?.focus();
+  });
+}
+function bindReplay(root) {
+  root.querySelectorAll('[data-rp-scrub]').forEach((el) => (el.oninput = () => {
+    const k = el.dataset.rpScrub;
+    ui.rpFrame = { ...(ui.rpFrame || {}), [k]: Number(el.value) / REPLAY_STEPS };
+    if (ui.rpPlay === k) { clearInterval(ui.rpTimer); ui.rpPlay = null; }
+    paintReplay(k);
+  }));
+  root.querySelectorAll('[data-rp-play]').forEach((b) => (b.onclick = () => {
+    const k = b.dataset.rpPlay;
+    if (ui.rpPlay === k) { clearInterval(ui.rpTimer); ui.rpPlay = null; paintReplay(k); return; }
+    clearInterval(ui.rpTimer);
+    ui.rpPlay = k;
+    if ((ui.rpFrame?.[k] ?? 1) >= 1) ui.rpFrame = { ...(ui.rpFrame || {}), [k]: 0 };
+    ui.rpTimer = setInterval(() => {
+      if (!document.querySelector(`[data-rp="${CSS.escape(k)}"]`)) { clearInterval(ui.rpTimer); ui.rpPlay = null; return; }
+      const next = Math.min(1, (ui.rpFrame[k] || 0) + 0.25 / REPLAY_STEPS);
+      ui.rpFrame[k] = next;
+      if (next >= 1) { clearInterval(ui.rpTimer); ui.rpPlay = null; }
+      paintReplay(k);
+    }, motionOn() ? 120 : 30);
+    paintReplay(k);
+  }));
+  if (!root.querySelector('.rp')) return;
+  root.querySelectorAll('.rp').forEach((el) => {
+    const w = el.querySelector('.rp-chart')?.clientWidth;
+    if (w && Math.abs((ui.rpW || 620) - w) > 8) { ui.rpW = w; requestAnimationFrame(() => paintReplay(el.dataset.rp)); }
+  });
+}
+
+// Chart marks for the detailed coin and BTC charts.
+function chartMarks(id, points) {
+  if (!ui.betsDoc || !points?.length) return [];
+  const kind = chartKind(id);
+  const t0 = points[0].t, t1 = points[points.length - 1].t + 60e3;
+  const rows = viewRows(ui.betsDoc, ui.bets, betsLive());
+  if (kind === 'coin') return coinMarks(rows, id.slice(5)).filter((m) => m.t >= t0 && m.t <= t1).slice(-8);
+  if (kind === 'spot') {
+    const out = [];
+    const book = loadTrainer();
+    for (const c of [...(book.open || []), ...(book.closed || [])].filter((c) => c.series === 'KXBTC15M' && c.calledAt >= t0)) out.push({ t: c.calledAt, kind: 'entry', label: `You ${c.side === 'yes' ? 'Up' : 'Down'}` });
+    const btc = rows.filter((r) => r.market === 'KXBTC15M' && Date.parse(r.openedAt) >= t0).slice(0, 4);
+    for (const r of btc) out.push(...lineMarks(r, points).map((m) => ({ ...m, v: null, label: `${r.bot} ${m.label}` })));
+    return out.filter((m) => m.t >= t0 && m.t <= t1).sort((a, b) => a.t - b.t).slice(-8);
+  }
+  return [];
+}
+
+// Alerts.
+function alertRules() {
+  if (!ui.alertRules) { try { ui.alertRules = cleanRules(JSON.parse(localStorage.getItem('gd.alertRules') || 'null') || DEFAULT_RULES); } catch { ui.alertRules = cleanRules(DEFAULT_RULES); } }
+  return ui.alertRules;
+}
+function saveAlerts() {
+  if (DEMO) return;
+  localStorage.setItem('gd.alertRules', JSON.stringify(ui.alertRules || []));
+  localStorage.setItem('gd.inbox', JSON.stringify(ui.inbox || []));
+  localStorage.setItem('gd.alertMem', JSON.stringify(ui.alertMem || {}));
+}
+function inbox() {
+  if (!ui.inbox) { try { ui.inbox = JSON.parse(localStorage.getItem('gd.inbox') || '[]'); } catch { ui.inbox = []; } }
+  return ui.inbox;
+}
+function paintBell() {
+  const n = unreadCount(inbox());
+  const b = $('#bellN');
+  if (b) { b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); }
+  $('#bellBtn')?.setAttribute('aria-label', n ? `Alerts, ${n} unread` : 'Alerts');
+}
+async function majorPrices(rules) {
+  const want = [...new Set(rules.filter((r) => r.on && r.type === 'price' && !r.target.startsWith('coin:')).map((r) => r.target))];
+  const out = {};
+  if (live?.spots?.BTC?.px > 0) out.BTC = live.spots.BTC.px;
+  for (const sym of want) {
+    if (out[sym] && sym === 'BTC' && Date.now() - (ui.kalshiAt || 0) < 60e3) continue;
+    try { const t = await fetchJson(`https://api.exchange.coinbase.com/products/${sym}-USD/ticker`, 6000); if (Number(t.price) > 0) out[sym] = Number(t.price); } catch { /* keep the last */ }
+  }
+  return out;
+}
+async function checkAlerts() {
+  if (ui.alertBusy || ui.shotLock || DEMO) return;
+  const rules = alertRules();
+  if (!rules.some((r) => r.on)) return;
+  ui.alertBusy = true;
+  try {
+    if (!ui.alertMem) { try { ui.alertMem = JSON.parse(localStorage.getItem('gd.alertMem') || 'null') || emptyMemory(); } catch { ui.alertMem = emptyMemory(); } }
+    const prices = await majorPrices(rules);
+    for (const [ca, px] of Object.entries(ui.livePx || {})) prices['coin:' + ca] = px;
+    const now = Date.now();
+    const d = new Date(now);
+    const t = ui.betsDoc?.totals;
+    const ctx = { prices, markets: state?.kalshiBoard?.markets || [], decay: sheetDecayRaw(), picks: (ui.coinWatch?.picks || []).filter((p) => p?.ca), recap: t && Number.isFinite(t.todayNet) ? { net: t.todayNet, n: t.todayN || 0 } : null, localDay: dayKey(now, localOffset()), localHour: d.getHours() };
+    const res = evaluateAlerts(rules, ctx, ui.alertMem, now);
+    ui.alertMem = res.memory;
+    if (res.events.length) {
+      ui.inbox = addToInbox(inbox(), res.events);
+      paintBell();
+      const away = document.hidden || !document.hasFocus();
+      for (const e of res.events) {
+        if (away && e.notify && 'Notification' in window && Notification.permission === 'granted') {
+          const opts = { body: e.body, tag: e.id, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' };
+          try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) await reg.showNotification(e.title, opts); else new Notification(e.title, opts); } catch { /* inbox still has it */ }
+        }
+      }
+      if (!away) toast({ text: res.events.length === 1 ? `${res.events[0].title}` : `${res.events.length} new alerts in the inbox.`, key: 'alert' });
+      if (ui.sheetKey === 'alerts') refreshAlerts();
+    }
+    saveAlerts();
+  } finally { ui.alertBusy = false; }
+}
+function notifyState() {
+  if (!('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
+function alertsHtml() {
+  const list = inbox();
+  const rules = alertRules();
+  const tab = ui.alertTab || 'inbox';
+  const ns = notifyState();
+  const nsLine = ns === 'granted' ? 'System notifications are on for this browser while Grok Desk is open.' : ns === 'denied' ? 'This browser blocked notifications. Alerts still land in this inbox.' : ns === 'unsupported' ? 'This browser has no notifications. Alerts land in this inbox.' : '<button type="button" class="btn" data-al-perm>Allow notifications</button> Only while Grok Desk is open.';
+  const picks = (ui.coinWatch?.picks || []).filter((p) => p?.ca).slice(0, 12);
+  const inboxHtml = list.length ? `<ul class="al-list">${list.map((e) => `<li class="${e.read ? '' : 'is-new'}"><b>${esc(e.title)}</b><p>${esc(e.body)}</p><time>${esc(new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</time></li>`).join('')}</ul><div class="ctl-act"><button type="button" class="btn" data-al-read>Mark all read</button><button type="button" class="btn dng" data-al-clear>Clear inbox</button></div>` : '<p class="note">No alerts yet. Turn on a rule and alerts land here.</p>';
+  const rulesHtml = `<ul class="al-rules">${rules.map((r) => `<li><span><b>${esc(ALERT_TYPES[r.type])}</b><small>${esc(ruleText(r))}</small></span>${r.type === 'price' ? `<button type="button" class="linkbtn" data-al-del="${esc(r.id)}" aria-label="Delete ${esc(ruleText(r))}">Delete</button>` : ''}<label class="sw"><input type="checkbox" role="switch" data-al-on="${esc(r.id)}" ${r.on ? 'checked' : ''}${DEMO ? ' disabled' : ''}><span class="sr">${esc(ruleText(r))}</span><i aria-hidden="true"></i></label></li>`).join('')}</ul>
+    <form class="al-add" data-al-add><h3>Add a price alert</h3><div class="al-row"><select name="target" aria-label="What"><option value="BTC">BTC</option><option value="ETH">ETH</option><option value="SOL">SOL</option>${picks.map((p) => `<option value="coin:${esc(p.ca)}">$${esc(p.symbol)}</option>`).join('')}</select><select name="op" aria-label="Direction"><option value="above">goes above</option><option value="below">goes below</option></select><input name="level" type="number" step="any" min="0" inputmode="decimal" placeholder="price in $" aria-label="Price level" required><button class="btn pri"${DEMO ? ' disabled' : ''}>Add</button></div></form>
+    <section class="al-tune"><h3>Tune</h3><label>Window warning <select data-al-tune="closing-btc:secs">${[...new Set([60, 120, 180, 300, rules.find((r) => r.id === 'closing-btc')?.secs].filter(Boolean))].sort((a, b) => a - b).map((s) => `<option value="${s}" ${rules.find((r) => r.id === 'closing-btc')?.secs === s ? 'selected' : ''}>${Math.round(s / 60)} min before</option>`).join('')}</select></label><label>Coin pick score <select data-al-tune="pick-60:minScore">${[50, 60, 70, 80].map((s) => `<option value="${s}" ${rules.find((r) => r.id === 'pick-60')?.minScore === s ? 'selected' : ''}>${s}+</option>`).join('')}</select></label><label>Recap time <select data-al-tune="recap:hour">${[...new Set([18, 20, 21, 22, 23, rules.find((r) => r.id === 'recap')?.hour].filter((h) => Number.isFinite(h)))].sort((a, b) => a - b).map((h) => `<option value="${h}" ${rules.find((r) => r.id === 'recap')?.hour === h ? 'selected' : ''}>${((h + 11) % 12) + 1}${h < 12 ? 'am' : 'pm'}</option>`).join('')}</select></label></section>`;
+  return `<div class="alsh"><h2 id="sheetTitle" class="ctl-h">Alerts</h2>
+  <div class="seg al-seg"><button type="button" data-al-tab="inbox" class="${tab === 'inbox' ? 'on' : ''}">Inbox${unreadCount(list) ? ` (${unreadCount(list)})` : ''}</button><button type="button" data-al-tab="rules" class="${tab === 'rules' ? 'on' : ''}">Rules</button></div>
+  <p class="note al-ns">${nsLine}</p>
+  ${tab === 'inbox' ? inboxHtml : rulesHtml}
+  <p class="sh-note">Checked in this browser every 15 seconds while the app is open. Alerts never place or size a bet. Push with the app closed needs a runner change; see docs/ALERTS.md.</p></div>`;
+}
+function openAlerts() {
+  openSheet(alertsHtml(), 'alerts');
+  bindAlerts();
+  if ((ui.alertTab || 'inbox') === 'inbox') setTimeout(() => { if (ui.sheetKey !== 'alerts') return; ui.inbox = inbox().map((e) => ({ ...e, read: true })); saveAlerts(); paintBell(); }, 1500);
+}
+function refreshAlerts() { const b = $('#sheetBody'); if (!b || ui.sheetKey !== 'alerts') return; b.innerHTML = alertsHtml(); bindAlerts(); }
+function setRules(next, msg) {
+  if (DEMO) { toast({ text: 'Demo view. Changes are off.' }); return; }
+  ui.alertRules = cleanRules(next);
+  saveAlerts(); refreshAlerts();
+  if (msg) toast({ text: msg, key: 'alert' });
+  checkAlerts();
+}
+function bindAlerts() {
+  const body = $('#sheetBody');
+  body.querySelectorAll('[data-al-tab]').forEach((b) => (b.onclick = () => { ui.alertTab = b.dataset.alTab; refreshAlerts(); }));
+  body.querySelectorAll('[data-al-on]').forEach((el) => (el.onchange = async () => {
+    if (el.checked && notifyState() === 'default') { try { await Notification.requestPermission(); } catch { /* inbox only */ } }
+    setRules(alertRules().map((r) => (r.id === el.dataset.alOn ? { ...r, on: el.checked } : r)), el.checked ? 'Alert on. It checks while the app is open.' : 'Alert off.');
+  }));
+  body.querySelectorAll('[data-al-del]').forEach((b) => (b.onclick = () => setRules(alertRules().filter((r) => r.id !== b.dataset.alDel), 'Alert deleted.')));
+  body.querySelectorAll('[data-al-tune]').forEach((el) => (el.onchange = () => { const [id, k] = el.dataset.alTune.split(':'); setRules(alertRules().map((r) => (r.id === id ? { ...r, [k]: Number(el.value) } : r))); }));
+  const add = body.querySelector('[data-al-add]');
+  if (add) add.onsubmit = (e) => {
+    e.preventDefault();
+    const sel = add.target;
+    const target = sel.value;
+    const label = target.startsWith('coin:') ? sel.options[sel.selectedIndex].text : '';
+    const rule = cleanRule({ id: `price-${Date.now().toString(36)}`, type: 'price', target, op: add.op.value, level: add.level.value, label });
+    if (!rule) { toast({ text: 'Enter a price above zero.' }); return; }
+    ui.alertTab = 'rules';
+    setRules([...alertRules(), rule], `Added: ${ruleText(rule)}.`);
+  };
+  const perm = body.querySelector('[data-al-perm]');
+  if (perm) perm.onclick = async () => { try { await Notification.requestPermission(); } catch { /* none */ } refreshAlerts(); };
+  const rd = body.querySelector('[data-al-read]');
+  if (rd) rd.onclick = () => { ui.inbox = inbox().map((e) => ({ ...e, read: true })); saveAlerts(); paintBell(); refreshAlerts(); };
+  const cl = body.querySelector('[data-al-clear]');
+  if (cl) cl.onclick = () => { ui.inbox = []; saveAlerts(); paintBell(); refreshAlerts(); };
+}
+
+// Call it: the trainer at the front of the Desk.
+function callItCard() {
+  const board = state?.kalshiBoard;
+  const now = Date.now();
+  const book = loadTrainer();
+  const market = pickCallMarket(board?.markets, now);
+  const stale = board ? quoteAge(board.fetchedAt, now).stale : false;
+  const last = (book.closed || []).filter((r) => r.won != null).sort((a, b) => (b.settledAt || 0) - (a.settledAt || 0))[0] || null;
+  return callItHtml({ market: board ? market : null, book, streak: callStreak(book, now, localOffset()), side: ui.ciSide || '', conf: Number(ui.ciConf) || 65, now, stale, last });
+}
+function bindCallIt(root) {
+  root.querySelectorAll('[data-ci-side]').forEach((b) => (b.onclick = () => { ui.ciSide = ui.ciSide === b.dataset.ciSide ? '' : b.dataset.ciSide; haptic(8); render(); }));
+  root.querySelectorAll('[data-ci-conf]').forEach((b) => (b.onclick = () => { ui.ciConf = b.dataset.ciConf; haptic(6); render(); }));
+  root.querySelectorAll('[data-ci-go]').forEach((b) => (b.onclick = () => {
+    if (!live) return;
+    if (ui.ciSide !== 'yes' && ui.ciSide !== 'no') return toast({ text: 'Pick Up or Down first.' });
+    const market = (live.kalshiBoard?.markets || []).find((m) => m.ticker === b.dataset.ciGo);
+    if (!market) return toast({ text: 'That window is not in the snapshot.' });
+    const book = loadTrainer();
+    const res = placeTrainerCall(book, market, ui.ciSide, Number(ui.ciConf) || 65, Date.now(), { fetchedAt: live.kalshiBoard?.fetchedAt, spots: live.spots || {}, prev: live.arenaQuotes || {} });
+    if (!res.ok) return toast({ text: res.reason });
+    saveTrainer();
+    ui.ciSide = '';
+    haptic([10, 20, 10]);
+    toast({ text: `Called ${res.call.side === 'yes' ? 'Up' : 'Down'}. Scored when the window settles. Size stays $2.` });
+    if (res.levelUp) burst('level');
+    render();
+  }));
+}
+function bindR6(root) {
+  bindCalendar(root);
+  bindCallIt(root);
+  bindReplay(root);
+  const ko = root.querySelector('#killOff'); if (ko) ko.onclick = () => { setBets({ killSwitch: false }, true); toast({ text: 'Kill switch off. Paper lines can open again.', key: 'bets' }); };
+  root.querySelectorAll('[data-market-sheet]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openMarketSheet(b.dataset.marketSheet); }));
+}
+
+// Live readiness, shown in Settings. Always "not ready": live is off.
+function liveForward() {
+  // The checklist is per bot: the counted bot closest to proof (best 90%
+  // lower bound with 30+ lines, else the most lines).
+  const by = new Map();
+  for (const l of ui.lines || []) if (l.counted) { const a = by.get(l.bot) || []; a.push(l); by.set(l.bot, a); }
+  if (!by.size) return ui.betsDoc?.totals ? { n: 0 } : null;
+  const off = localOffset();
+  const g = gateSummary(ui.focus);
+  const stats = [...by.entries()].map(([bot, ls]) => {
+    const n = ls.length;
+    const mean = ls.reduce((a, l) => a + l.pnl, 0) / n;
+    const sd = Math.sqrt(ls.reduce((a, l) => a + (l.pnl - mean) ** 2, 0) / Math.max(1, n - 1));
+    return { bot, n, mean, lo: mean - 1.645 * sd / Math.sqrt(n), days: new Set(ls.map((l) => dayKey(l.t, off))).size, graduated: !!(g.total && g.passed) };
+  });
+  const ok = stats.filter((x) => x.n >= 30).sort((a, b) => b.lo - a.lo);
+  return ok[0] || stats.sort((a, b) => b.n - a.n)[0];
+}
+function liveReadyHtml() {
+  if (!ui.lines) loadLines();
+  const f = liveForward();
+  const r = liveReadiness({ forward: f });
+  const m = resolveMode('live');
+  return `<div class="card live-ready"><h2>Trading mode <b class="tk-mode">${esc(m.mode.toUpperCase())} · LIVE OFF</b></h2><p class="note">${esc(m.reason)}</p><p class="note">Live readiness: ${r.met} of ${r.total}. ${f?.bot ? `Closest bot: <b>${esc(f.bot)}</b>. ` : ''}Counted forward lines only, recorded $2, after fees.</p><ul class="lr-list">${r.items.map((i) => `<li class="${i.met ? 'is-ok' : ''}"><span class="lr-ic" aria-hidden="true">${i.met ? '✓' : '○'}</span><span><b>${esc(i.label)}</b><small>${esc(i.detail || '')}</small></span></li>`).join('')}</ul><p class="note">Live money stays off until every line is checked; the last three need work outside this app. Nothing here can place a real order.</p></div>`;
+}
+
+setInterval(checkAlerts, 15e3);
+setTimeout(() => { paintBell(); checkAlerts(); }, 4000);
+document.getElementById('bellBtn')?.addEventListener('click', () => openAlerts());

@@ -116,7 +116,7 @@ export function betsViewHtml({ chart = '', fresh = '', doc, rawDoc = null, state
   const t = betTotals(all, doc);
   const simOn = !!doc.sim || !!doc.simPending;
   const simTag = doc.sim?.label || doc.simPending || null;
-  const limits = settings?.paused?.length || settings?.dailyLossCap || settings?.maxOpen;
+  const limits = settings?.paused?.length || settings?.dailyLossCap || settings?.maxOpen || settings?.killSwitch;
   const sim = limits ? whatIf(rawDoc || doc, settings, { counted: f.counted }) : null;
   const heroVal = t.todayNet;
   const heroTone = tone(heroVal ?? 0);
@@ -146,7 +146,7 @@ export function betsViewHtml({ chart = '', fresh = '', doc, rawDoc = null, state
     </div>
   </div>`;
   const list = desk ? betTableHtml(rows.slice(0, 300), sort) : `<ul class="blist">${rows.slice(0, 80).map(betRowHtml).join('') || '<li class="empty">No bets match these filters.</li>'}</ul>`;
-  const skipLine = sim ? Object.entries(sim.skipped).filter(([, v]) => v).map(([k, v]) => `${v} ${({ paused: 'paused', cap: 'over the loss cap', maxOpen: 'over max open', tooSmall: 'below one contract' })[k]}`).join(' · ') : '';
+  const skipLine = sim ? Object.entries(sim.skipped).filter(([, v]) => v).map(([k, v]) => `${v} ${({ kill: 'stopped by the kill switch', paused: 'paused', cap: 'over the loss cap', maxOpen: 'over max open', tooSmall: 'below one contract' })[k]}`).join(' · ') : '';
   const simCard = sim ? `<section class="bsim"><div class="row"><b>What-if with your limits</b>${PAPER}</div><p class="note">The newest ${sim.n + Object.values(sim.skipped).reduce((a, v) => a + v, 0)} recorded lines replayed at your buy-ins with your pause, loss cap and max open. Net ${money(sim.net, true)} vs ${money(sim.recorded, true)} recorded at $2. The stake per bot is fixed, so a loss never raises the next bet. Coins scale linearly; real size would slip more. ${skipLine ? 'Skipped: ' + esc(skipLine) + '.' : ''}</p><dl class="bsim-dl"><div><dt>Lines</dt><dd>${sim.n}</dd></div><div><dt>Won</dt><dd>${sim.n ? Math.round((100 * sim.wins) / sim.n) : 0}%</dd></div><div><dt>Fees</dt><dd>${money(sim.fees)}</dd></div><div><dt>Staked</dt><dd>${money(sim.staked)}</dd></div></dl></section>` : '';
   const foot = `<p class="note bfoot">${doc.generatedAt ? `Updated ${esc(doc.generatedAt.slice(11, 16))} UTC · ` : ''}${(doc.recent || []).length} newest settled lines kept · totals use all ${Number(doc.totals?.n || 0).toLocaleString('en-US')}${doc.quoteErrorsSetAside ? ` · ${doc.quoteErrorsSetAside} bad coin quotes set aside` : ''}. Paper only. live_execution off.${demo ? ' Demo view.' : ''}</p>`;
   return `<div class="bets">${desk ? `<div class="bets-top">${hero}${simCard || botBoardHtml(doc, settings)}</div>` : hero + simCard}${chart}${filters}<div class="bcount"><b>${rows.length.toLocaleString('en-US')}</b> bets${rows.length > (desk ? 300 : 80) ? ` · showing ${desk ? 300 : 80}` : ''}</div>${list}${desk && simCard ? botBoardHtml(doc, settings) : ''}${!desk ? botBoardHtml(doc, settings) : ''}${foot}</div>`;
@@ -201,6 +201,7 @@ export function controlsSheetHtml({ settings, doc, picks = [], runner = null, fo
   <h2 id="sheetTitle" class="ctl-h">Buy-ins &amp; limits ${PAPER}</h2>
   <p class="note">Every amount is paper money. The runner keeps recording each line at $2, so the edge test stays the same. Your buy-in re-scales those lines on screen, with the real fee for that size.</p>
   ${demo ? '<p class="ctl-demo">Demo view. Changes are turned off.</p>' : ''}
+  <section class="ctl-sec ctl-kill${s.killSwitch ? ' is-on' : ''}"><div class="ctl-kill-row"><div><h3>Kill switch</h3><p class="note">${s.killSwitch ? '<b>On.</b> No new paper lines open, here or in the runner once settings.json is committed.' : 'One switch that stops every new paper line, before size, the loss cap or max open. Open lines settle as normal.'}</p></div><label class="sw sw-big"><input type="checkbox" role="switch" id="ctlKill" ${s.killSwitch ? 'checked' : ''}${ro}><span class="sr">Kill switch</span><i aria-hidden="true"></i></label></div></section>
   <section class="ctl-sec"><h3>Default buy-in</h3>
     <div class="ctl-big"><b id="ctlDefaultShow">${money(s.defaultBuyIn)}</b><small>per bet, every bot without its own amount</small></div>
     ${stepper('ctlDefault', s.defaultBuyIn, 'default buy-in')}
