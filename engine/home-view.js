@@ -106,9 +106,10 @@ export function heroHtml({ curve, today, brain, openN, now = Date.now() } = {}) 
   const shadow = today?.shadow;
   const spark = sparkSvg(curve?.points || [], { w: 132, h: 52, cls: 'hero-spark', label: `Paper P and L curve, now ${usd(net)}` });
   return `<section class="hero2 is-${tone(net)}" aria-label="Paper profit after fees">
-    <p class="hero2-k">Paper P&amp;L <span>after fees</span></p>
+    <p class="hero2-k">Paper P&amp;L <span>after fees</span>${curve?.sim ? ` <i class="simb" title="Paper simulation at your buy-ins">${esc(curve.label || 'Sim')}</i>` : ''}</p>
     <div class="hero2-row"><b class="hero2-num"${net == null ? '' : ` data-count="${net}" data-count-key="hero-net" data-count-from="0" data-sign="1"`}>${net == null ? '—' : usd(net)}</b>${spark}</div>
     <p class="hero2-sub">${esc(bits.join(' · '))}</p>
+    ${curve?.sim ? `<p class="hero2-sub hero2-rec">Recorded at $2: ${usd(curve.rec)} · re-scaled from every counted line</p>` : ''}
     ${shadow ? `<p class="hero2-practice">Practice today <b class="is-${tone(shadow.pnl)}">${usd(shadow.pnl)}</b> <span>on ${Number(shadow.n || 0).toLocaleString('en-US')}</span></p>` : ''}
   </section>`;
 }
@@ -189,7 +190,7 @@ export function botSheetHtml(s, { focus } = {}) {
   const flag = s.flag === 'decaying' ? '<span class="flag dn">▼ fading</span>' : s.flag === 'improving' ? '<span class="flag up">▲ rising</span>' : '';
   return `<div class="sh-bot" style="--ac:${a.color}">
 <header class="sh-head"><span class="agent-ic sh-ic" aria-hidden="true">${a.icon}</span><span class="sh-id"><h2 id="sheetTitle">${esc(s.id)}</h2><small>${esc(a.name)} · ${esc(st.label)}</small></span>${flag}</header>
-<div class="sh-big"><b class="is-${tone(s.net)}">${usd(s.net)}</b><span>all-time, after fees</span></div>
+<div class="sh-big"><b class="is-${tone(s.net)}">${usd(s.net)}</b><span>all-time, after fees${s.sim ? ` · <i class="simb">Sim</i> recorded at $2: ${usd(s.rec?.net)}` : ''}</span></div>
 <div class="sh-chart">${chart ? `${chart}<span class="sh-chart-k">Last ${Number(s.recentN || 0).toLocaleString('en-US')} bets, running total after fees</span>` : '<p class="sh-note">Not enough bets for a chart yet.</p>'}</div>
 <div class="sh-stats">${stat('Bets', n.toLocaleString('en-US'))}${stat('Avg / bet', usd(s.mean))}${stat('Wins, last 100', win)}${stat('Last 100', s.recentN ? usd(s.recentNet) : '—')}</div>
 ${form}${gate}

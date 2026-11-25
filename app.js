@@ -27,9 +27,10 @@ import { coinWatchHtml, pickSheetHtml } from './engine/coin-watch-view.js';
 import { seenSnapshot, awaySummary, awayHtml, todayStripHtml, clockText } from './engine/away.js';
 import { feedSheetHtml, shareModel, SHARE_URL } from './engine/feed-view.js';
 import { normalizeBetSettings, settingsFileText, readSettingsText, BUYIN_MIN, BUYIN_MAX, RECORDED_STAKE } from './engine/bets.js';
-import { betsViewHtml, betSheetHtml, controlsSheetHtml, viewRows, skelHtml, money as betMoney, PAPER } from './engine/bets-view.js';
+import { betsViewHtml, betSheetHtml, controlsSheetHtml, viewRows, betTotals, skelHtml, money as betMoney, bigMoney, PAPER } from './engine/bets-view.js';
 import { chartSvg, chartCardHtml, inRange, nearestPoint, fmtValue, freshHtml, freshness, RANGE_KEYS } from './engine/chart.js';
 import { pnlSeries } from './engine/bets.js';
+import { isSim, simLabel, decodeLines, simBook, simDoc, simDecay, simCurve } from './engine/sim.js';
 import { layoutFor, isDesk, shortcutFor, sheetMode, SHORTCUTS, NAV_TABS } from './engine/layout.js';
 import { emptyTrainer, placeTrainerCall, settleTrainer, trainerStats, trainerTips, brierVerdict, lessonText, feeBreakEvenTable, feeAskNote, TRAINER_STAKE } from './engine/trainer.js';
 
@@ -76,7 +77,7 @@ function runCounts() {
         el.textContent = (val < 0 ? '−' : '') + '$' + Math.abs(val).toFixed(Math.min(8, Math.max(2, digits)));
       } else if (done && el.dataset.raw != null) {
         el.textContent = '$' + el.dataset.raw;
-      } else el.textContent = money(done ? target : val, el.dataset.sign === '1');
+      } else el.textContent = (el.dataset.big ? bigMoney : money)(done ? target : val, el.dataset.sign === '1');
     };
     const step = (now) => {
       const p = Math.min(1, (now - t0) / 420);
@@ -171,6 +172,7 @@ function toast(e) {
   const copy = e.kind === 'copy';
   el.className = 'toast ' + (copy ? 'copied' : e.side === 'buy' ? 'buy' : e.pnl > 0 ? 'win' : e.pnl < 0 ? 'loss' : '');
   el.setAttribute('role', 'status');
+  if (e.key) { document.querySelectorAll(`#toasts [data-key="${e.key}"]`).forEach((n) => n.remove()); el.dataset.key = e.key; }
   el.textContent = copy ? 'Copied' : (state?.mode === 'replay' ? '[REPLAY] ' : '[PAPER] ') + e.text;
   $('#toasts').prepend(el); setTimeout(() => el.remove(), copy ? 1400 : 5000);
   if (ui.notify && state?.mode !== 'replay' && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
@@ -746,9 +748,80 @@ function loadBets(force) {
     ui.betsDoc = doc || ui.betsDoc || null;
     ui.runnerSettings = conf ? readSettingsText(conf) : null;
     ui.betsState = ui.betsDoc ? 'ready' : 'error';
-    if (['bets', 'home'].includes(ui.tab)) softRender();
+    if (isSim(ui.bets)) loadLines(force && ui.betsDoc?.generatedAt !== ui.linesAt);
+    if (['bets', 'home', 'brain'].includes(ui.tab)) softRender();
     if (ui.sheetKey === 'controls') refreshControls();
   });
+}
+// Every settled line (data/lines.json), loaded only while a buy-in differs
+// from $2. It lets each total, chart and bot number follow the buy-in.
+function loadLines(force) {
+  if (ui.linesState === 'loading') return;
+  if (!force && ui.linesState === 'ready') return;
+  if (ui.linesState === 'error' && !force && Date.now() - (ui.linesErrAt || 0) < 30e3) return;
+  ui.linesState = 'loading';
+  fetch('data/lines.json?v=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((f) => {
+    if (f && f.paper === true && f.generatedAt !== ui.linesAt) { ui.lines = decodeLines(f); ui.linesAt = f.generatedAt; ui.simCache = null; }
+    ui.linesState = ui.lines ? 'ready' : 'error';
+    if (!ui.lines) ui.linesErrAt = Date.now();
+    if (isSim(ui.bets)) softRender();
+  });
+}
+function simBookNow() {
+  if (!isSim(ui.bets) || !ui.lines) return null;
+  const key = JSON.stringify(ui.bets) + '|' + ui.linesAt;
+  if (ui.simCache?.key !== key) ui.simCache = { key, book: simBook(ui.lines, ui.bets, { now: Date.parse(ui.betsDoc?.generatedAt || ui.linesAt) || Date.now() }) };
+  return ui.simCache.book;
+}
+// The bets doc the views read: recorded, or with every rolled-up number at
+// the chosen buy-ins. Rows are re-scaled one by one in the views either way.
+function betsDocView() {
+  const d = ui.betsDoc;
+  if (!d || !isSim(ui.bets)) return d;
+  const book = simBookNow();
+  if (!book) { loadLines(); return { ...d, simPending: simLabel(ui.bets) }; }
+  return simDoc(d, book);
+}
+const decayMemo = new WeakMap();
+function decayView(decay) {
+  if (!isSim(ui.bets) || !Array.isArray(decay)) return decay;
+  if (!ui.lines) { loadLines(); return decay; }
+  const key = JSON.stringify(ui.bets) + '|' + ui.linesAt;
+  const hit = decayMemo.get(decay);
+  if (hit?.key === key) return hit.val;
+  const val = simDecay(decay, ui.lines, ui.bets);
+  decayMemo.set(decay, { key, val });
+  return val;
+}
+function curveView() {
+  if (!isSim(ui.bets)) return ui.allocCurve;
+  if (!ui.lines) { loadLines(); return ui.allocCurve; }
+  const key = JSON.stringify(ui.bets) + '|' + ui.linesAt;
+  if (ui.curveCache?.key !== key) ui.curveCache = { key, curve: { ...simCurve(ui.lines, ui.bets, { now: Date.parse(ui.linesAt) || Date.now() }), label: simLabel(ui.bets) } };
+  return ui.curveCache.curve;
+}
+function todayView() {
+  const t = ui.today;
+  if (!t || !isSim(ui.bets)) return t;
+  const out = { ...t, decay: Array.isArray(t.decay) ? decayView(t.decay) : t.decay };
+  const book = t.shadow ? simBookNow() : null;
+  if (book) out.shadow = { ...t.shadow, pnl: Math.round((book.totals.todayNet - book.totals.countedTodayNet) * 100) / 100 };
+  return out;
+}
+function simBarHtml() {
+  const label = simLabel(ui.bets);
+  if (!label) return '';
+  const pending = !ui.lines;
+  return `<div class="simbar" role="status"><span class="simb">${esc(label)}</span><span class="simbar-t">${pending ? 'Re-scaling every recorded line…' : 'Paper money re-scaled from the recorded $2 lines. The runner still records $2.'}</span>${DEMO ? '' : '<button type="button" class="simbar-btn" data-sim-reset>Reset to $2</button>'}</div>`;
+}
+function resetBuyIns() {
+  if (DEMO) return;
+  setBets({ defaultBuyIn: RECORDED_STAKE, buyIn: {}, coinBuyIn: {} }, true);
+  toast({ text: 'Back to the recorded $2. Limits kept.', key: 'bets' });
+  haptic(10);
+}
+function bindSimReset(root = document) {
+  root.querySelectorAll('[data-sim-reset]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); resetBuyIns(); }));
 }
 function betsLive() {
   const prices = {};
@@ -759,17 +832,19 @@ function betsLive() {
 function betsView() {
   loadBets();
   if (ui.coinsState !== 'ready' && ui.coinsState !== 'error') loadCoins();
-  return betsViewHtml({ chart: ui.betsDoc ? chartCard('bets') : '', fresh: ui.betsDoc ? freshHtml(ui.betsDoc.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot, about every 4 to 5 minutes') + (ui.livePxAt ? freshHtml(ui.livePxAt, { liveMs: 60e3, staleMs: 5 * 60e3 }, 'Coin marks from DexScreener') : '') : '', doc: ui.betsDoc, state: ui.betsState === 'error' ? 'error' : ui.betsDoc ? 'ready' : 'loading', settings: ui.bets, runner: ui.runnerSettings, live: betsLive(), filt: ui.betsFilt, sort: ui.betsSort, now: Date.now(), desk: isDesk(window.innerWidth), demo: DEMO });
+  return betsViewHtml({ chart: ui.betsDoc ? chartCard('bets') : '', fresh: ui.betsDoc ? freshHtml(ui.betsDoc.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot, about every 4 to 5 minutes') + (ui.livePxAt ? freshHtml(ui.livePxAt, { liveMs: 60e3, staleMs: 5 * 60e3 }, 'Coin marks from DexScreener') : '') : '', doc: betsDocView(), rawDoc: ui.betsDoc, state: ui.betsState === 'error' ? 'error' : ui.betsDoc ? 'ready' : 'loading', settings: ui.bets, runner: ui.runnerSettings, live: betsLive(), filt: ui.betsFilt, sort: ui.betsSort, now: Date.now(), desk: isDesk(window.innerWidth), demo: DEMO });
 }
 // Small Bets card for the Desk: open count, exposure, today, one tap in.
 function betsMiniHtml() {
   loadBets();
-  const d = ui.betsDoc;
+  const d = betsDocView();
   if (!d) return `<section class="bmini" aria-busy="true">${skelHtml('table', 2)}</section>`;
   const rows = viewRows(d, ui.bets, betsLive());
-  const open = rows.filter((r) => r.pnl == null);
+  const t = betTotals(rows, d);
   const tone = (x) => (x > 0.004 ? 'up' : x < -0.004 ? 'dn' : 'flat');
-  return `<section class="bmini"><button type="button" class="bmini-btn" data-tabjump="bets"><span class="bmini-k">Bets ${PAPER}${freshHtml(d.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot')}</span><span class="bmini-row"><span><b>${open.length}</b><small>open</small></span><span><b>${betMoney(open.reduce((a, r) => a + (r.book === 'kalshi' ? r.contracts * r.entry : r.view.stake), 0))}</b><small>exposure</small></span><span class="is-${tone(d.totals?.todayNet ?? 0)}"><b>${betMoney(d.totals?.todayNet, true)}</b><small>today</small></span><span><b>${betMoney(ui.bets.defaultBuyIn)}</b><small>buy-in</small></span></span><span class="bmini-go" aria-hidden="true">›</span></button></section>`;
+  const label = d.sim?.label || d.simPending;
+  const today = d.simPending ? null : t.todayNet;
+  return `<section class="bmini"><button type="button" class="bmini-btn" data-tabjump="bets"><span class="bmini-k">Bets ${label ? `<i class="simb">${esc(label)}</i>` : ''}${PAPER}${freshHtml(d.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot')}</span><span class="bmini-row"><span><b>${t.open}</b><small>open</small></span><span><b data-count="${Math.round(t.exposure * 100) / 100}" data-count-key="mini-exp" data-big="1">${bigMoney(t.exposure)}</b><small>exposure</small></span><span class="is-${tone(today ?? 0)}"><b${today == null ? '' : ` data-count="${today}" data-count-key="mini-today" data-big="1" data-sign="1"`}>${today == null ? '…' : bigMoney(today, true)}</b><small>today</small></span><span><b>${betMoney(ui.bets.defaultBuyIn)}</b><small>buy-in</small></span></span><span class="bmini-go" aria-hidden="true">›</span></button></section>`;
 }
 function loadDesk() {
   if (ui.deskState === 'ready' || ui.deskState === 'loading') return;
@@ -828,9 +903,9 @@ function deskTop() {
   const now = Date.now();
   const soon = (state?.kalshiBoard?.markets || []).filter((m) => !m.result && Date.parse(m.closeTime) > now).sort((a, b) => Date.parse(a.closeTime) - Date.parse(b.closeTime))[0];
   const beforeHero = ui.awayShown ? awayHtml(ui.away) : '';
-  const afterHero = todayStripHtml({ today: ui.today, coinWatch: ui.coinWatch, closeAt: soon?.closeTime, now }) + betsMiniHtml();
+  const afterHero = todayStripHtml({ today: todayView(), coinWatch: ui.coinWatch, closeAt: soon?.closeTime, now }) + betsMiniHtml();
   if (!ui.today && ui.morningState !== 'error') return skelHtml('cards', 3);
-  return deskHomeHtml({ state: ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading', today: ui.today, curve: ui.allocCurve, brain: ui.brainDoc, focus: ui.focus, openDoc: ui.journalOpen, alerts: ui.alerts, now, beforeHero, afterHero });
+  return simBarHtml() + deskHomeHtml({ state: ui.today ? 'ready' : ui.morningState === 'error' ? 'error' : 'loading', today: todayView(), curve: curveView(), brain: ui.brainDoc, focus: ui.focus, openDoc: ui.journalOpen, alerts: ui.alerts, now, beforeHero, afterHero });
 }
 function home(st) {
   const r = st.startedAt ? recap(st, Date.now()) : null;
@@ -908,9 +983,9 @@ function botsTop() {
   loadDesk();
   if (!ui.focusState) loadFocus();
   if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
-  const decay = freshDecay(ui.lessons, ui.today);
+  const decay = decayView(freshDecay(ui.lessons, ui.today));
   if (!ui.today && ui.morningState !== 'error') return skelHtml('cards', 2);
-  return `${botChipsHtml(decay)}${agentGridHtml(decay, ui.brainDoc, { top: 8, focus: ui.focus }).replace('Top bots', 'Bots')}`;
+  return `${simBarHtml()}${botChipsHtml(decay)}${agentGridHtml(decay, ui.brainDoc, { top: 8, focus: ui.focus }).replace('Top bots', 'Bots')}`;
 }
 function scoreTop() {
   if (!ui.focusState) loadFocus();
@@ -1661,9 +1736,12 @@ function bindCopy(root) {
     b.setAttribute('aria-expanded', open ? 'false' : 'true');
   }));
 }
-function sheetDecay() {
+function sheetDecayRaw() {
   const fresh = freshDecay(ui.lessons, ui.today);
   return fresh && fresh.length ? fresh : (ui.today?.decay || []);
+}
+function sheetDecay() {
+  return decayView(sheetDecayRaw());
 }
 function openSheet(html, key) {
   const d = $('#sheet');
@@ -1745,7 +1823,7 @@ async function drawShareCard(m) {
   return new Promise((ok) => c.toBlob(ok, 'image/png'));
 }
 async function shareCard(kind, id, btn) {
-  const src = kind === 'bot' ? sheetDecay().find((s) => s && s.id === id) : (ui.coinWatch?.picks || []).find((p) => p?.ca === id);
+  const src = kind === 'bot' ? sheetDecayRaw().find((s) => s && s.id === id) : (ui.coinWatch?.picks || []).find((p) => p?.ca === id);
   const m = shareModel(kind, src);
   if (!m) { toast({ text: 'Nothing real to share yet.' }); return; }
   haptic(10);
@@ -1765,7 +1843,7 @@ async function shareCard(kind, id, btn) {
 }
 function openBotSheet(id) {
   const s = sheetDecay().find((x) => x && x.id === id);
-  if (s) { openSheet(botSheetHtml(s, { focus: ui.focus }) + chartCard('bot:' + id) + shareBtn('bot', id), 'bot:' + id); bindCharts($('#sheetBody')); }
+  if (s) { openSheet(botSheetHtml(s, { focus: ui.focus }) + chartCard('bot:' + id) + shareBtn('bot', id) + (s.sim ? '<p class="sh-note">The share card shows the recorded $2 result, not the sim.</p>' : ''), 'bot:' + id); bindCharts($('#sheetBody')); }
 }
 // Practice buy-in on a coin pick: the forward record of past picks
 // (net after 1.25% each way and slippage) times the owner's practice amount.
@@ -1847,9 +1925,11 @@ function chartModel(id) {
     if (!ui.betsDoc) { loadBets(); return { state: 'loading', detailed, range }; }
     const f = ui.betsFilt || {};
     const bot = kind === 'bot' ? id.slice(4) : f.bot && f.bot !== 'all' ? f.bot : null;
-    const s = pnlSeries(ui.betsDoc, { bot, range, now: Date.parse(ui.betsDoc.generatedAt) || now, counted: kind === 'bets' ? f.counted || 'all' : 'all' });
+    const vd = betsDocView();
+    const sd = vd.simPending ? ui.betsDoc : vd;
+    const s = pnlSeries(sd, { bot, range, now: Date.parse(ui.betsDoc.generatedAt) || now, counted: kind === 'bets' ? f.counted || 'all' : 'all' });
     const title = kind === 'bot' ? 'P&amp;L after fees' : `${bot ? esc(bot) : 'All bots'} · P&amp;L after fees`;
-    const sub = `${s.resolution === 'line' ? 'every settled line' : 'hourly totals'} · recorded $2 lines · ${PAPER}`;
+    const sub = `${s.resolution === 'line' ? 'every settled line' : 'hourly totals'} · ${sd.sim ? `<b class="simb">${esc(sd.sim.label)}</b> re-scaled lines` : 'recorded $2 lines'} · ${PAPER}`;
     return { state: 'ready', detailed, range, kind: 'pnl', points: s.points, gapMs: Infinity, title, sub, fresh: freshHtml(ui.betsDoc.generatedAt, { liveMs: 6 * 60e3, staleMs: 20 * 60e3 }, 'Runner snapshot') };
   }
   const c = loadCandles(id, range);
@@ -2003,7 +2083,7 @@ function bindBetLinks(root) {
   root.querySelectorAll('[data-ctl-bot]').forEach((b) => (b.onclick = () => openControls(b.dataset.ctlBot)));
 }
 function controlsHtml(focusBot) {
-  return controlsSheetHtml({ settings: ui.bets, doc: ui.betsDoc, picks: (ui.coinWatch?.picks || []).filter((p) => p?.ca), runner: ui.runnerSettings, focusBot, demo: DEMO });
+  return controlsSheetHtml({ settings: ui.bets, doc: ui.betsDoc, picks: (ui.coinWatch?.picks || []).filter((p) => p?.ca), runner: ui.runnerSettings, focusBot, demo: DEMO }).replace('<section class="ctl-sec"><h3>Default buy-in</h3>', ctlSimTag() + '<section class="ctl-sec"><h3>Default buy-in</h3>');
 }
 function openControls(focusBot = null) {
   loadBets();
@@ -2029,24 +2109,57 @@ function refreshControls() {
     el?.focus({ preventScroll: true });
   }
 }
-function setBets(patch, quiet) {
+function setBets(patch, quiet, { typing = false } = {}) {
   if (DEMO) { toast({ text: 'Demo view. Changes are off.' }); return; }
+  const before = JSON.stringify(ui.bets);
   ui.bets = normalizeBetSettings({ ...ui.bets, ...patch });
+  if (JSON.stringify(ui.bets) === before) return;
   saveBetSettings();
-  refreshControls();
-  if (['bets', 'home'].includes(ui.tab)) render();
-  if (!quiet) haptic(8);
+  if (isSim(ui.bets)) loadLines();
+  if (typing) syncControlsLight(); else refreshControls();
+  if (['bets', 'home', 'brain'].includes(ui.tab)) render();
+  else if (ui.tab === 'coins') softRender();
+  const label = simLabel(ui.bets);
+  if (!quiet) {
+    haptic(8);
+    toast({ text: label ? `Saved. ${label}: every number re-scaled on this device.` : 'Saved. Showing the recorded $2 lines.', key: 'bets' });
+  }
+}
+// While a field is being typed in, update the sheet's own read-outs without
+// replacing the input under the cursor.
+function syncControlsLight() {
+  const body = $('#sheetBody');
+  if (!body || ui.sheetKey !== 'controls') return;
+  const show = body.querySelector('#ctlDefaultShow');
+  if (show) show.textContent = betMoney(ui.bets.defaultBuyIn);
+  body.querySelectorAll('[data-preset]').forEach((b) => b.classList.toggle('on', Number(b.dataset.preset) === ui.bets.defaultBuyIn));
+  body.querySelectorAll('[data-bot-buyin],[data-coin-buyin]').forEach((el) => { if (el !== document.activeElement) el.placeholder = String(ui.bets.defaultBuyIn); });
+  const tag = body.querySelector('[data-ctl-sim]');
+  if (tag) tag.outerHTML = ctlSimTag();
+}
+function ctlSimTag() {
+  const label = simLabel(ui.bets);
+  return `<p class="ctl-simtag" data-ctl-sim role="status">${label ? `<span class="simb">${esc(label)}</span> Every total, chart and bot card now uses these amounts. ${DEMO ? '' : '<button type="button" class="linkbtn" data-sim-reset>Reset to $2</button>'}` : 'Showing the recorded $2 lines.'}</p>`;
 }
 function bindControls() {
   const body = $('#sheetBody');
   if (!body) return;
   const num = (v) => (v === '' || v == null ? null : Number(v));
-  const def = body.querySelector('#ctlDefault');
-  if (def) def.onchange = () => setBets({ defaultBuyIn: num(def.value) ?? 2 });
-  const cap = body.querySelector('#ctlCap');
-  if (cap) cap.onchange = () => setBets({ dailyLossCap: num(cap.value) });
-  const mo = body.querySelector('#ctlMaxOpen');
-  if (mo) mo.onchange = () => setBets({ maxOpen: num(mo.value) });
+  // Save as you type (short pause), and again on change/blur. Phones often
+  // close the sheet without a change event; nothing typed is lost.
+  // A change (blur) only writes the cleaned value back into the field; it
+  // never rebuilds the sheet, so tapping the next field keeps its focus.
+  const live = (el, fn, shown) => {
+    if (!el) return;
+    el.oninput = () => { clearTimeout(ui.ctlTyping); ui.ctlTyping = setTimeout(() => { const v = num(el.value); if (v != null && Number.isFinite(v) && v > 0) fn(v); }, 450); };
+    el.onchange = () => { clearTimeout(ui.ctlTyping); fn(num(el.value)); const v = shown(); if (el.value !== String(v ?? '')) el.value = v ?? ''; };
+    el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } };
+  };
+  const typing = { typing: true };
+  live(body.querySelector('#ctlDefault'), (v) => setBets({ defaultBuyIn: v ?? 2 }, false, typing), () => ui.bets.defaultBuyIn);
+  live(body.querySelector('#ctlCap'), (v) => setBets({ dailyLossCap: v }, false, typing), () => ui.bets.dailyLossCap);
+  live(body.querySelector('#ctlMaxOpen'), (v) => setBets({ maxOpen: v }, false, typing), () => ui.bets.maxOpen);
+  bindSimReset(body);
   body.querySelectorAll('[data-stepper]').forEach((w) => w.querySelectorAll('[data-step]').forEach((b) => (b.onclick = () => {
     const input = w.querySelector('input');
     const dir = Number(b.dataset.step);
@@ -2058,18 +2171,16 @@ function bindControls() {
   })));
   if (DEMO) body.querySelectorAll('input,[data-step]').forEach((el) => { el.disabled = true; });
   body.querySelectorAll('[data-preset]').forEach((b) => (b.onclick = () => setBets({ defaultBuyIn: Number(b.dataset.preset) })));
-  body.querySelectorAll('[data-bot-buyin]').forEach((el) => (el.onchange = () => {
+  body.querySelectorAll('[data-bot-buyin]').forEach((el) => live(el, (v) => {
     const buyIn = { ...ui.bets.buyIn };
-    const v = num(el.value);
-    if (v == null || v === ui.bets.defaultBuyIn) delete buyIn[el.dataset.botBuyin]; else buyIn[el.dataset.botBuyin] = v;
-    setBets({ buyIn });
-  }));
-  body.querySelectorAll('[data-coin-buyin]').forEach((el) => (el.onchange = () => {
+    if (v == null) delete buyIn[el.dataset.botBuyin]; else buyIn[el.dataset.botBuyin] = v;
+    setBets({ buyIn }, false, typing);
+  }, () => ui.bets.buyIn[el.dataset.botBuyin]));
+  body.querySelectorAll('[data-coin-buyin]').forEach((el) => live(el, (v) => {
     const coinBuyIn = { ...ui.bets.coinBuyIn };
-    const v = num(el.value);
-    if (v == null || v === ui.bets.defaultBuyIn) delete coinBuyIn[el.dataset.coinBuyin]; else coinBuyIn[el.dataset.coinBuyin] = v;
-    setBets({ coinBuyIn });
-  }));
+    if (v == null) delete coinBuyIn[el.dataset.coinBuyin]; else coinBuyIn[el.dataset.coinBuyin] = v;
+    setBets({ coinBuyIn }, false, typing);
+  }, () => ui.bets.coinBuyIn[el.dataset.coinBuyin]));
   body.querySelectorAll('[data-bot-on]').forEach((el) => (el.onchange = () => {
     const set = new Set(ui.bets.paused);
     if (el.checked) set.delete(el.dataset.botOn); else set.add(el.dataset.botOn);
@@ -2293,6 +2404,7 @@ function bind() {
     if (row) downloadCallCard(row);
   }));
   bindBets();
+  bindSimReset(document);
   bindCharts(document);
   runCounts();
   fillXp();
@@ -2456,13 +2568,34 @@ function dismissSplash() {
   const q = new URLSearchParams(location.search);
   if (q.get('shot')) ui.shotLock = true;
   if (!ui.shotLock) refreshKalshi();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+  if ('serviceWorker' in navigator) {
+    // New versions install in the background (the worker skips waiting).
+    // When one takes over an open page, offer a one-tap reload instead of
+    // asking for a hard refresh. Checks on focus and every 15 minutes.
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) showUpdateBar(); });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+      const check = () => { if (!document.hidden) reg.update().catch(() => {}); };
+      setInterval(check, 15 * 60e3);
+      document.addEventListener('visibilitychange', check);
+    }).catch(() => {});
+  }
   if (q.get('replay') === '1') startReplay();
   if (q.get('tab')) { const btn = document.querySelector(`.tabs [data-tab="${q.get('tab')}"]`); if (btn) btn.click(); else { ui.tab = q.get('tab'); render(); } }
   if (q.get('shot')) applyShot(q.get('shot'));
   else if (!DEMO) showIntro();
   if (q.get('controls') === '1') { const tryOpen = (n) => { if (ui.betsDoc) openControls(); else if (n > 0) setTimeout(() => tryOpen(n - 1), 300); }; loadBets(); tryOpen(20); }
 })();
+function showUpdateBar() {
+  if (document.querySelector('.update-bar') || ui.shotLock) return;
+  const bar = document.createElement('div');
+  bar.className = 'update-bar';
+  bar.setAttribute('role', 'status');
+  bar.innerHTML = '<span>New version ready</span><button type="button" data-upd="go">Tap to reload</button><button type="button" class="ghost" data-upd="later" aria-label="Later">Later</button>';
+  bar.querySelector('[data-upd="go"]').onclick = () => location.reload();
+  bar.querySelector('[data-upd="later"]').onclick = () => bar.remove();
+  document.body.appendChild(bar);
+}
 function setInert(on) {
   for (const sel of ['header.top', 'main', 'nav.tabs', '#ticker', '#linkState', '#ptr']) {
     const node = document.querySelector(sel);

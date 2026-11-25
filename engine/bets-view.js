@@ -1,11 +1,12 @@
 // Bets tab and the buy-in controls sheet. Display only: every amount here is
 // paper money, after fees, from data/bets.json or a re-scale of it.
 import { FAMILY, familyOf } from './home-view.js';
-import { buyInFor, coinBuyInFor, isPaused, rescale, markOpen, filterBets, sortBets, timeToSettle, betStatus, simulate, fromHist, BUYIN_MIN, BUYIN_MAX, RECORDED_STAKE, settingsDiff } from './bets.js';
+import { buyInFor, lineStake, isPaused, rescale, markOpen, filterBets, sortBets, timeToSettle, betStatus, simulate, fromHist, BUYIN_MIN, BUYIN_MAX, RECORDED_STAKE, settingsDiff } from './bets.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 export const money = (x, sign) => (x == null || !Number.isFinite(Number(x)) ? '–' : (sign && x > 0.004 ? '+' : x < -0.004 ? '−' : '') + '$' + Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const tone = (x) => (x > 0.004 ? 'up' : x < -0.004 ? 'dn' : 'flat');
+const round2v = (x) => Math.round((Number(x) || 0) * 100) / 100;
 export const bigMoney = (x, sign) => (Number.isFinite(Number(x)) && Math.abs(x) >= 1000 ? (sign && x > 0 ? '+' : x < 0 ? '−' : '') + '$' + Math.round(Math.abs(x)).toLocaleString('en-US') : money(x, sign));
 export const PAPER = '<i class="pm" title="Paper money. Not real dollars.">PAPER $</i>';
 
@@ -22,7 +23,7 @@ export const priceText = (b, p) => (b.book === 'kalshi' ? cents(p) : coinPx(p));
 export function viewRows(doc, settings, live = {}, now = Date.now()) {
   const rows = [...(doc?.open || []), ...(doc?.recent || [])];
   return rows.map((b) => {
-    const stake = b.book === 'coin' && b.ca ? coinBuyInFor(settings, b.ca) : buyInFor(settings, b.bot);
+    const stake = lineStake(settings, b.bot, b.book === 'coin' ? b.ca : null);
     const sc = rescale(b, stake);
     const m = b.pnl == null ? markOpen(b, live, stake) : null;
     return { ...b, view: { stake, fees: m ? m.fees : sc?.fees ?? b.fees, pnl: b.pnl == null ? (m ? m.pnl : null) : sc?.pnl ?? b.pnl, mark: m?.mark ?? null, tooSmall: !!sc?.tooSmall, paused: isPaused(settings, b.bot) }, left: b.pnl == null ? timeToSettle(b.closeAt, now) : null };
@@ -106,31 +107,35 @@ export function betTableHtml(rows, sort = { key: 'time', dir: 'desc' }) {
   return `<div class="btable-wrap" role="region" aria-label="Bets table" tabindex="0"><table class="btable"><caption>Paper money. P&amp;L is after fees${rows.some((r) => r.view.stake !== RECORDED_STAKE) ? ', re-scaled from the recorded $2 lines' : ''}.</caption><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${COLS.length}" class="empty">No bets match these filters.</td></tr>`}</tbody></table></div>`;
 }
 
-export function betsViewHtml({ chart = '', fresh = '', doc, state = 'ready', settings, runner = null, live = {}, filt = {}, sort = { key: 'time', dir: 'desc' }, now = Date.now(), desk = false, demo = false } = {}) {
+export function betsViewHtml({ chart = '', fresh = '', doc, rawDoc = null, state = 'ready', settings, runner = null, live = {}, filt = {}, sort = { key: 'time', dir: 'desc' }, now = Date.now(), desk = false, demo = false } = {}) {
   if (state === 'loading' && !doc) return skelHtml('cards', 4);
   if (!doc) return `<section class="card"><h2>Bets</h2><p class="note">The bets list did not load. It is written by the runner after each snapshot.</p><button type="button" class="btn wide" id="betsRetry">Try again</button></section>`;
   const all = viewRows(doc, settings, live, now);
   const f = { bot: 'all', market: 'all', status: 'all', counted: 'all', q: '', ...filt };
   const rows = sortBets(filterBets(all, f), sort.key === 'side' || sort.key === 'mark' ? 'time' : sort.key, sort.dir);
   const t = betTotals(all, doc);
-  const isScaled = scaled(settings);
-  const sim = isScaled || settings?.paused?.length || settings?.dailyLossCap || settings?.maxOpen ? whatIf(doc, settings, { counted: f.counted }) : null;
-  const heroVal = sim ? sim.net : t.todayNet;
+  const simOn = !!doc.sim || !!doc.simPending;
+  const simTag = doc.sim?.label || doc.simPending || null;
+  const limits = settings?.paused?.length || settings?.dailyLossCap || settings?.maxOpen;
+  const sim = limits ? whatIf(rawDoc || doc, settings, { counted: f.counted }) : null;
+  const heroVal = t.todayNet;
   const heroTone = tone(heroVal ?? 0);
   const bots = Object.keys(doc.bots || {});
   const markets = [...new Set(all.map((r) => r.market))].sort();
   const diff = runner ? settingsDiff(settings, runner) : null;
   const sync = !runner ? 'Runner file not loaded' : diff.length ? 'Not sent to the runner yet' : 'Runner has these limits';
-  const hero = `<section class="bhero is-${heroTone}">
-    <div class="bhero-fresh">${fresh}</div><div class="bhero-top"><p class="hero2-k">${sim ? 'What-if at your buy-ins' : 'Today, after fees'} <span>${sim ? `last ${sim.n.toLocaleString('en-US')} recorded lines` : `${t.todayN.toLocaleString('en-US')} lines, counted + practice`}</span></p>${PAPER}</div>
-    <b class="bhero-num is-${heroTone}">${money(heroVal, true)}</b>
-    ${sim ? `<p class="hero2-sub">Recorded at $2: ${money(sim.recorded, true)} · simulation, not a result</p>` : ''}
+  const count = (v, key, sign) => (Number.isFinite(Number(v)) ? ` data-count="${v}" data-count-key="${key}" data-big="1"${sign ? ' data-sign="1"' : ''}` : '');
+  const recLine = doc.sim ? `<p class="hero2-sub bsim-rec">Recorded at $2: today ${money(doc.sim.rec.todayNet, true)} · all-time ${bigMoney(doc.sim.rec.net, true)}. A paper re-scale of every recorded line, not a result.${doc.sim.tooSmall ? ` ${doc.sim.tooSmall.toLocaleString('en-US')} lines buy no contract at this size and count as $0.` : ''}</p>` : doc.simPending ? '<p class="hero2-sub bsim-rec" aria-live="polite">Re-scaling every recorded line to your buy-ins…</p>' : '';
+  const hero = `<section class="bhero is-${heroTone}${simOn ? ' is-sim' : ''}">
+    <div class="bhero-fresh">${fresh}</div><div class="bhero-top"><p class="hero2-k">Today, after fees <span>${t.todayN.toLocaleString('en-US')} lines, counted + practice</span></p>${simTag ? `<span class="simb" title="Paper simulation at your buy-ins">${esc(simTag)}</span>` : ''}${PAPER}</div>
+    <b class="bhero-num is-${heroTone}"${doc.simPending ? '' : count(heroVal, 'bets-today', true)}>${doc.simPending ? '…' : money(heroVal, true)}</b>
+    ${recLine}
     <div class="btiles">
       <div class="btile"><small>Open now</small><b>${t.open}</b></div>
-      <div class="btile"><small>Exposure</small><b>${bigMoney(t.exposure)}</b></div>
-      <div class="btile is-${tone(t.net ?? 0)}"><small>All-time</small><b>${bigMoney(t.net, true)}</b></div>
+      <div class="btile"><small>Exposure</small><b${count(round2v(t.exposure), 'bets-exp')}>${bigMoney(t.exposure)}</b></div>
+      <div class="btile is-${tone(t.net ?? 0)}"><small>All-time</small><b${doc.simPending ? '' : count(t.net, 'bets-all', true)}>${doc.simPending ? '…' : bigMoney(t.net, true)}</b></div>
     </div>
-    <button type="button" class="bctl" id="openControls" aria-haspopup="dialog"><span aria-hidden="true">⚙</span><span><b>Buy-ins &amp; limits</b><small>Default ${money(settings?.defaultBuyIn ?? 2)} · ${settings?.paused?.length ? `${settings.paused.length} paused · ` : ''}${esc(sync)}</small></span><span class="bctl-go" aria-hidden="true">›</span></button>
+    <div class="bctl-row"><button type="button" class="bctl" id="openControls" aria-haspopup="dialog"><span aria-hidden="true">⚙</span><span><b>Buy-ins &amp; limits</b><small>Default ${money(settings?.defaultBuyIn ?? 2)} · ${settings?.paused?.length ? `${settings.paused.length} paused · ` : ''}${esc(sync)}</small></span><span class="bctl-go" aria-hidden="true">›</span></button>${simOn && !demo ? '<button type="button" class="btn bsim-reset" data-sim-reset>Reset to $2</button>' : ''}</div>
   </section>`;
   const filters = `<div class="bfilters">
     <div class="bsegs">${seg('status', f.status, [['all', 'All'], ['open', 'Open'], ['settled', 'Settled']])}${seg('counted', f.counted, [['all', 'Both'], ['counted', 'Counted'], ['practice', 'Practice']])}</div>
@@ -142,7 +147,7 @@ export function betsViewHtml({ chart = '', fresh = '', doc, state = 'ready', set
   </div>`;
   const list = desk ? betTableHtml(rows.slice(0, 300), sort) : `<ul class="blist">${rows.slice(0, 80).map(betRowHtml).join('') || '<li class="empty">No bets match these filters.</li>'}</ul>`;
   const skipLine = sim ? Object.entries(sim.skipped).filter(([, v]) => v).map(([k, v]) => `${v} ${({ paused: 'paused', cap: 'over the loss cap', maxOpen: 'over max open', tooSmall: 'below one contract' })[k]}`).join(' · ') : '';
-  const simCard = sim ? `<section class="bsim"><div class="row"><b>What-if</b>${PAPER}</div><p class="note">Recorded lines replayed at your buy-ins and limits. The stake per bot is fixed, so a loss never raises the next bet. Coins scale linearly; real size would slip more. ${skipLine ? 'Skipped: ' + esc(skipLine) + '.' : ''}</p><dl class="bsim-dl"><div><dt>Lines</dt><dd>${sim.n}</dd></div><div><dt>Won</dt><dd>${sim.n ? Math.round((100 * sim.wins) / sim.n) : 0}%</dd></div><div><dt>Fees</dt><dd>${money(sim.fees)}</dd></div><div><dt>Staked</dt><dd>${money(sim.staked)}</dd></div></dl></section>` : '';
+  const simCard = sim ? `<section class="bsim"><div class="row"><b>What-if with your limits</b>${PAPER}</div><p class="note">The newest ${sim.n + Object.values(sim.skipped).reduce((a, v) => a + v, 0)} recorded lines replayed at your buy-ins with your pause, loss cap and max open. Net ${money(sim.net, true)} vs ${money(sim.recorded, true)} recorded at $2. The stake per bot is fixed, so a loss never raises the next bet. Coins scale linearly; real size would slip more. ${skipLine ? 'Skipped: ' + esc(skipLine) + '.' : ''}</p><dl class="bsim-dl"><div><dt>Lines</dt><dd>${sim.n}</dd></div><div><dt>Won</dt><dd>${sim.n ? Math.round((100 * sim.wins) / sim.n) : 0}%</dd></div><div><dt>Fees</dt><dd>${money(sim.fees)}</dd></div><div><dt>Staked</dt><dd>${money(sim.staked)}</dd></div></dl></section>` : '';
   const foot = `<p class="note bfoot">${doc.generatedAt ? `Updated ${esc(doc.generatedAt.slice(11, 16))} UTC · ` : ''}${(doc.recent || []).length} newest settled lines kept · totals use all ${Number(doc.totals?.n || 0).toLocaleString('en-US')}${doc.quoteErrorsSetAside ? ` · ${doc.quoteErrorsSetAside} bad coin quotes set aside` : ''}. Paper only. live_execution off.${demo ? ' Demo view.' : ''}</p>`;
   return `<div class="bets">${desk ? `<div class="bets-top">${hero}${simCard || botBoardHtml(doc, settings)}</div>` : hero + simCard}${chart}${filters}<div class="bcount"><b>${rows.length.toLocaleString('en-US')}</b> bets${rows.length > (desk ? 300 : 80) ? ` · showing ${desk ? 300 : 80}` : ''}</div>${list}${desk && simCard ? botBoardHtml(doc, settings) : ''}${!desk ? botBoardHtml(doc, settings) : ''}${foot}</div>`;
 }
@@ -150,7 +155,7 @@ export function betsViewHtml({ chart = '', fresh = '', doc, state = 'ready', set
 export function botBoardHtml(doc, settings) {
   const bots = Object.values(doc?.bots || {}).sort((a, b) => (b.todayN - a.todayN) || (b.n - a.n));
   if (!bots.length) return '';
-  return `<section class="bboard"><div class="sec-row"><h2 class="sec">By bot</h2><span class="sec-note">recorded $2 lines</span></div><ul class="bboard-grid">${bots.map((b, i) => {
+  return `<section class="bboard"><div class="sec-row"><h2 class="sec">By bot</h2><span class="sec-note">${doc?.sim ? esc(doc.sim.label) + ' · all lines re-scaled' : 'recorded $2 lines'}</span></div><ul class="bboard-grid">${bots.map((b, i) => {
     const f = famFor(b.id, b.book);
     const paused = isPaused(settings, b.id);
     return `<li><button type="button" class="bbot${paused ? ' is-paused' : ''}" data-bot-filter="${esc(b.id)}" style="--ac:${f.color};--i:${Math.min(i, 12)}"><span class="agent-ic" aria-hidden="true">${f.icon}</span><span class="bbot-name">${esc(b.id)}</span><b class="is-${tone(b.net)}">${money(b.net, true)}</b><small>${b.n.toLocaleString('en-US')} lines · today ${money(b.todayNet, true)}${b.open ? ` · ${b.open} open` : ''}</small><em>${paused ? 'Paused' : money(buyInFor(settings, b.id))}</em></button></li>`;
