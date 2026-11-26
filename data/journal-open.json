@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-26T18:37:29.852Z",
+  "updatedAt": "2026-11-26T18:42:34.418Z",
   "entries": [
     {
       "id": "late:KXCRYPTOLEAD15M-26NOV260045-ETH",
@@ -3081,6 +3081,61 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.904, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "mom-strict:KXHYPE15M-26NOV261345-45",
+      "family": "mom",
+      "variant": "mom-strict",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXHYPE15M-26NOV261345-45",
+      "series": "KXHYPE15M",
+      "title": "HYPE price up in next 15 mins?",
+      "side": "no",
+      "ask": 0.83,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.02,
+      "openedAt": "2026-11-26T18:42:34.418Z",
+      "closeTime": "2026-11-26T18:45:00Z",
+      "exit": null,
+      "price": 0.83,
+      "secondsLeft": 146,
+      "spread": 0.02,
+      "momentum": -0.31,
+      "volatility": 0.15821925715074425,
+      "strategy": "mom-strict",
+      "market": "KXHYPE15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXHYPE15M-26NOV261345-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.83 with 146s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.83, fee included"
         }
       ],
       "skipped": false,
