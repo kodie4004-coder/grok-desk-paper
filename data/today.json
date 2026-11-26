@@ -2,7 +2,7 @@
   "paper": true,
   "liveExecution": false,
   "day": "2026-11-26",
-  "generatedAt": "2026-11-26T01:38:46.104Z",
+  "generatedAt": "2026-11-26T01:43:05.286Z",
   "kalshiFetchedAt": "2026-11-26T01:37:13.054Z",
   "memeFetchedAt": "2026-11-26T01:37:15.044Z",
   "allocated": {
@@ -11,15 +11,15 @@
     "fees": 0
   },
   "shadow": {
-    "n": 364,
-    "pnl": -83.61,
-    "fees": 19.43
+    "n": 366,
+    "pnl": -84.4,
+    "fees": 19.52
   },
   "repair": {
     "pass": false,
-    "n": 109,
+    "n": 111,
     "need": 20,
-    "mean": -0.05468205599961389,
+    "mean": -0.06081877952850391,
     "wins": 46,
     "sizeUsd": 2,
     "benched": true,
@@ -91,7 +91,7 @@
       "text": "pairs-lag's prices were less accurate than Kalshi's own (Brier 0.248 vs 0.202). It expected 286.4 wins, Kalshi's asks implied 205.3, and it won 211 of 393. Mean -$0.06 per $2 line after fees. Lower Brier is better."
     }
   ],
-  "calibrationAt": "2026-11-26T01:38:46.104Z",
+  "calibrationAt": "2026-11-26T01:43:05.286Z",
   "decay": [
     {
       "id": "mom-settle",
@@ -1004,6 +1004,47 @@
       "text": "scalp-tight: last 100 trades -$0.14 a trade after fees, win rate 72%, vs -$0.39 on the 34 trades before. All-time -$0.21 a trade on 134."
     },
     {
+      "id": "meme-safety",
+      "book": "meme",
+      "family": "meme",
+      "n": 97,
+      "net": -7.64,
+      "mean": -0.08,
+      "recentN": 97,
+      "recentNet": -7.64,
+      "recentMean": -0.08,
+      "recentWinRate": 0.402,
+      "recentFrom": "2026-11-19T23:34:25.146Z",
+      "beforeN": 0,
+      "beforeMean": null,
+      "small": false,
+      "brier": null,
+      "spark": [
+        -2.45,
+        -3.96,
+        -4.62,
+        -5.11,
+        -6.29,
+        -6.38,
+        -5.7,
+        -5.95,
+        -5.79,
+        -3.48,
+        -6.24,
+        -6.09,
+        -6.9,
+        -7.32,
+        -8.47,
+        -10.29,
+        -8.04,
+        -8.64,
+        -6.6,
+        -7.64
+      ],
+      "flag": null,
+      "text": "meme-safety: all 97 trades -$0.08 a trade after fees, win rate 40%. No earlier trades to compare yet."
+    },
+    {
       "id": "early-exit-fast",
       "book": "meme",
       "family": "meme",
@@ -1043,47 +1084,6 @@
       ],
       "flag": null,
       "text": "early-exit-fast: all 96 trades -$0.29 a trade after fees, win rate 7%. No earlier trades to compare yet."
-    },
-    {
-      "id": "meme-safety",
-      "book": "meme",
-      "family": "meme",
-      "n": 96,
-      "net": -7.24,
-      "mean": -0.08,
-      "recentN": 96,
-      "recentNet": -7.24,
-      "recentMean": -0.08,
-      "recentWinRate": 0.406,
-      "recentFrom": "2026-11-19T23:34:25.146Z",
-      "beforeN": 0,
-      "beforeMean": null,
-      "small": false,
-      "brier": null,
-      "spark": [
-        -2.45,
-        -3.96,
-        -4.62,
-        -5.11,
-        -6.77,
-        -5.89,
-        -5.7,
-        -5.95,
-        -5.79,
-        -2.77,
-        -5.49,
-        -6.49,
-        -6.5,
-        -7.32,
-        -9.07,
-        -10.44,
-        -7.92,
-        -8.22,
-        -7.13,
-        -7.24
-      ],
-      "flag": null,
-      "text": "meme-safety: all 96 trades -$0.08 a trade after fees, win rate 41%. No earlier trades to compare yet."
     },
     {
       "id": "early-exit-half",
@@ -1171,13 +1171,13 @@
       "id": "lonely-entry",
       "book": "meme",
       "family": "meme",
-      "n": 27,
-      "net": -0.95,
-      "mean": -0.04,
-      "recentN": 27,
-      "recentNet": -0.95,
-      "recentMean": -0.04,
-      "recentWinRate": 0.481,
+      "n": 28,
+      "net": -1.34,
+      "mean": -0.05,
+      "recentN": 28,
+      "recentNet": -1.34,
+      "recentMean": -0.05,
+      "recentWinRate": 0.464,
       "recentFrom": "2026-11-22T11:14:14.906Z",
       "beforeN": 0,
       "beforeMean": null,
@@ -1191,22 +1191,22 @@
         -0.83,
         -1.57,
         -0.96,
-        -0.42,
+        -1.72,
         -3.39,
         -3.24,
-        -2.83,
+        -1.95,
         -1.27,
-        -0.87,
         -0.99,
+        -0.94,
         -1.34,
-        -1.1,
         -1.17,
-        -0.95,
+        -1.59,
         -1.41,
-        -0.95
+        -0.95,
+        -1.34
       ],
       "flag": null,
-      "text": "lonely-entry: all 27 trades -$0.04 a trade after fees, win rate 48%. No earlier trades to compare yet. Small sample."
+      "text": "lonely-entry: all 28 trades -$0.05 a trade after fees, win rate 46%. No earlier trades to compare yet. Small sample."
     },
     {
       "id": "trend-rotate",
@@ -1267,5 +1267,5 @@
       "text": "late-fair: all 5 trades +$0.16 a trade after fees, win rate 100%. No earlier trades to compare yet. Recent Brier 0.002 vs Kalshi's ask 0.009, lower is better. Small sample."
     }
   ],
-  "decayAt": "2026-11-26T01:38:46.104Z"
+  "decayAt": "2026-11-26T01:43:05.286Z"
 }
