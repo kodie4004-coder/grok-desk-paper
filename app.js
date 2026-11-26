@@ -15,6 +15,7 @@ import { createLiveSource, createReplaySource } from './engine/data.js';
 import { newState, startSession, endSession, tick, mark, recap, equityNow, serialize, fmtP, short } from './engine/engine.js';
 import { memeBooks, watchHealth, watchHealthLine } from './engine/meme.js';
 import { upgradeLines, challengerRows } from './engine/upgrades.js';
+import { guardChallengersHtml } from './engine/guard-view.js';
 import { diagnoseMeme, repairGate, REPAIR_MIN_N, REPAIR_SIZE_USD } from './engine/repair.js';
 import { focusCardHtml } from './engine/focus-view.js';
 import { setRollingBench } from './engine/focus-plan.js';
@@ -1000,7 +1001,7 @@ function botsTop() {
   if (ui.morningState !== 'ready' && ui.morningState !== 'error') loadMorning();
   const decay = decayView(freshDecay(ui.lessons, ui.today));
   if (!ui.today && ui.morningState !== 'error') return skelHtml('cards', 2);
-  return `${simBarHtml()}${botChipsHtml(decay)}${agentGridHtml(decay, ui.brainDoc, { top: 8, focus: ui.focus }).replace('Top bots', 'Bots')}`;
+  return `${simBarHtml()}${botChipsHtml(decay)}${guardChallengersHtml(ui.lessons?.guard)}${agentGridHtml(decay, ui.brainDoc, { top: 8, focus: ui.focus }).replace('Top bots', 'Bots')}`;
 }
 function scoreTop() {
   if (!ui.focusState) loadFocus();
