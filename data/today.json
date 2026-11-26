@@ -2,18 +2,18 @@
   "paper": true,
   "liveExecution": false,
   "day": "2026-11-26",
-  "generatedAt": "2026-11-26T02:51:07.290Z",
-  "kalshiFetchedAt": "2026-11-26T02:47:03.752Z",
-  "memeFetchedAt": "2026-11-26T02:47:07.012Z",
+  "generatedAt": "2026-11-26T02:51:54.229Z",
+  "kalshiFetchedAt": "2026-11-26T02:51:51.744Z",
+  "memeFetchedAt": "2026-11-26T02:51:54.229Z",
   "allocated": {
     "n": 0,
     "pnl": 0,
     "fees": 0
   },
   "shadow": {
-    "n": 605,
-    "pnl": -100.16,
-    "fees": 32.36
+    "n": 610,
+    "pnl": -91.98,
+    "fees": 32.7
   },
   "repair": {
     "pass": false,
@@ -91,7 +91,7 @@
       "text": "pairs-lag's prices were less accurate than Kalshi's own (Brier 0.248 vs 0.202). It expected 286.4 wins, Kalshi's asks implied 205.3, and it won 211 of 393. Mean -$0.06 per $2 line after fees. Lower Brier is better."
     }
   ],
-  "calibrationAt": "2026-11-26T02:51:07.290Z",
+  "calibrationAt": "2026-11-26T02:51:54.229Z",
   "decay": [
     {
       "id": "mom-settle",
@@ -221,6 +221,47 @@
       "text": "pairs-lag: last 100 trades -$0.32 a trade after fees, win rate 49%, vs +$0.04 on the 293 trades before. All-time -$0.06 a trade on 393. Flagged as decaying."
     },
     {
+      "id": "flip",
+      "book": "kalshi",
+      "family": "flip",
+      "n": 10993,
+      "net": -1456.39,
+      "mean": -0.13,
+      "recentN": 100,
+      "recentNet": 2.02,
+      "recentMean": 0.02,
+      "recentWinRate": 0.48,
+      "recentFrom": "2026-11-26T01:47:30.704Z",
+      "beforeN": 10893,
+      "beforeMean": -0.13,
+      "small": false,
+      "brier": null,
+      "spark": [
+        2.24,
+        0.5,
+        3.46,
+        -5.71,
+        4.2,
+        5.51,
+        6.79,
+        5.87,
+        -0.56,
+        0.61,
+        -7.24,
+        -6.08,
+        -11.41,
+        -20.83,
+        -14.46,
+        -15.59,
+        -8.8,
+        -12.2,
+        -6.16,
+        2.02
+      ],
+      "flag": "improving",
+      "text": "flip: last 100 trades +$0.02 a trade after fees, win rate 48%, vs -$0.13 on the 10893 trades before. All-time -$0.13 a trade on 10993. Flagged as improving."
+    },
+    {
       "id": "late-loose",
       "book": "kalshi",
       "family": "late",
@@ -260,47 +301,6 @@
       ],
       "flag": "improving",
       "text": "late-loose: last 100 trades +$0.03 a trade after fees, win rate 97%, vs -$0.01 on the 2723 trades before. All-time -$0.01 a trade on 2823. Flagged as improving."
-    },
-    {
-      "id": "flip",
-      "book": "kalshi",
-      "family": "flip",
-      "n": 10988,
-      "net": -1464.57,
-      "mean": -0.13,
-      "recentN": 100,
-      "recentNet": -2.03,
-      "recentMean": -0.02,
-      "recentWinRate": 0.5,
-      "recentFrom": "2026-11-26T01:47:30.704Z",
-      "beforeN": 10888,
-      "beforeMean": -0.13,
-      "small": false,
-      "brier": null,
-      "spark": [
-        4.13,
-        6.37,
-        4.63,
-        7.59,
-        -1.58,
-        8.33,
-        9.64,
-        10.92,
-        10,
-        3.57,
-        4.74,
-        -3.11,
-        -1.95,
-        -7.28,
-        -16.7,
-        -10.33,
-        -11.46,
-        -4.67,
-        -8.07,
-        -2.03
-      ],
-      "flag": null,
-      "text": "flip: last 100 trades -$0.02 a trade after fees, win rate 50%, vs -$0.13 on the 10888 trades before. All-time -$0.13 a trade on 10988."
     },
     {
       "id": "mom-strict",
@@ -1267,5 +1267,5 @@
       "text": "late-fair: all 5 trades +$0.16 a trade after fees, win rate 100%. No earlier trades to compare yet. Recent Brier 0.002 vs Kalshi's ask 0.009, lower is better. Small sample."
     }
   ],
-  "decayAt": "2026-11-26T02:51:07.290Z"
+  "decayAt": "2026-11-26T02:51:54.229Z"
 }
