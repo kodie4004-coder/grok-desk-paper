@@ -31,3 +31,4 @@ fs.writeFileSync('data/lessons.json', JSON.stringify(doc, null, 2));
 fs.writeFileSync('LESSONS.md', lessonsMarkdown(doc));
 fs.writeFileSync('data/morning.json', JSON.stringify(morningReport(rows, reviewed, doc.summary, now, doc.decay), null, 2));
 console.log('lessons', doc.lessons.length, 'frozen', doc.frozen.length);
+for (const row of doc.guard?.pairs || []) console.log('guard', row.id, 'n', row.n, 'mean', row.mean, 'parent', row.parent, 'n', row.parentN, 'mean', row.parentMean);

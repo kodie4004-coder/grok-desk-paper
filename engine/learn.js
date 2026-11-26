@@ -31,6 +31,25 @@ export const FEE_AWARE_ADDED_AT = '2026-11-20T23:20:00.000Z';
 // Rows on or before this UTC day are not a forward sample.
 export const SCALP95_ADDED_AT = '2026-11-21T07:10:00.000Z';
 
+// Cheap-late guard. Written down 2026-11-26 after data/lessons.json
+// (generated 2026-11-26T00:03Z) showed in-sample after-fee losses for buys
+// under 0.60 with 2 to 10 minutes left. Because the evidence is in-sample, no
+// champion rule changes. Each guard is a $0 shadow copy of its parent that skips
+// those entries. Only rows after this UTC day count (eligibleRows), so the days
+// that produced the lesson cannot promote it. Weight stays 0 (pinZero).
+export const GUARD_ADDED_AT = '2026-11-26T14:30:00.000Z';
+export const GUARD_MAX_ASK = 0.60;
+export const GUARD_MIN_LEFT = 120;
+export const GUARD_MAX_LEFT = 600;
+
+// True when the guard skips: ask under 0.60 and 2 to 10 minutes left.
+export function cheapLateSkip(ask, secondsLeft) {
+  const a = Number(ask);
+  const s = Number(secondsLeft);
+  if (ask == null || secondsLeft == null || !(a > 0) || !Number.isFinite(s)) return false;
+  return a < GUARD_MAX_ASK && s >= GUARD_MIN_LEFT && s <= GUARD_MAX_LEFT;
+}
+
 export const VARIANTS = [
   { id: 'late', family: 'late', label: 'Late favorite', role: 'champion', minAsk: 0.85, minLeft: 180, maxLeft: 300 },
   { id: 'late-loose', family: 'late', label: 'Late favorite, looser ask', role: 'challenger', minAsk: 0.80, minLeft: 180, maxLeft: 300 },
@@ -59,6 +78,10 @@ export const VARIANTS = [
   { id: 'fair-spot-v2', family: 'fair', label: 'Spot fair value, same-venue anchor', role: 'challenger', kind: 'fair2', minLeft: FAIR_MIN_LEFT, maxLeft: FAIR_MAX_LEFT, feeMargin: FAIR_V2_MARGIN, pinZero: true, addedAt: FAIR_V2_ADDED_AT },
   // Late favorite checked against fair-spot-v2's model. Rules are in engine/fair.js.
   { id: 'late-fair', family: 'fair', label: 'Late favorite, spot-checked', role: 'challenger', kind: 'latefair', minAsk: 0.85, minLeft: 180, maxLeft: 300, feeMargin: FAIR_V2_MARGIN, pinZero: true, addedAt: LATE_FAIR_ADDED_AT },
+  // Cheap-late guards: parent rules plus cheapLateSkip(). Shadow only, $2 size.
+  { id: 'scalp-guard', family: 'scalp', label: 'Scalp, cheap-late guard', role: 'challenger', kind: 'scalp', minJump: 0.04, maxSpread: 0.03, minLeft: 120, guard: 'cheap-late', parent: 'scalp', pinZero: true, addedAt: GUARD_ADDED_AT },
+  { id: 'fair-guard', family: 'fair', label: 'Spot fair value, cheap-late guard', role: 'challenger', kind: 'fair', minLeft: FAIR_MIN_LEFT, maxLeft: FAIR_MAX_LEFT, feeMargin: FAIR_MARGIN, guard: 'cheap-late', parent: 'fair-spot', pinZero: true, addedAt: GUARD_ADDED_AT },
+  { id: 'maker-guard', family: 'maker', label: 'Resting maker, cheap-late guard', role: 'challenger', kind: 'maker', minLeft: 120, maxLeft: 600, guard: 'cheap-late', parent: 'rest-maker', pinZero: true, addedAt: GUARD_ADDED_AT },
   { id: 'pairs-lag', family: 'pairs', label: 'BTC/ETH/SOL quote lag', role: 'challenger', kind: 'pairs', minLeft: PAIRS_MIN_LEFT, maxLeft: PAIRS_MAX_LEFT, feeMargin: PAIRS_MARGIN, pinZero: true, addedAt: PAIRS_ADDED_AT },
 ];
 
@@ -192,6 +215,7 @@ export function signal(variant, market, now, ctx = {}) {
     picked = lateFairPick(market, ctx.spots, variant.minAsk);
   }
   if (!picked || (variant.minBuy && picked.ask < variant.minBuy)) return null;
+  if (variant.guard === 'cheap-late' && cheapLateSkip(picked.ask, left)) return null;
   if (variant.feeAware) {
     const contracts = Math.floor(LEARN_SIZE / picked.ask);
     const pEst = sideWinProb(market, picked.side);
@@ -906,6 +930,40 @@ export function variantAddedAt() {
   return Object.fromEntries(VARIANTS.filter((v) => v.addedAt).map((v) => [v.id, v.addedAt]));
 }
 
+function plainMean(list) {
+  return list.length ? list.reduce((sum, row) => sum + row.pnl, 0) / list.length : null;
+}
+
+// Guard vs parent, after fees, forward rows only: both sides count settled,
+// non-skipped rows after GUARD_ADDED_AT's UTC day. Diagnostic only. Promotion
+// still goes through reviewBrain's holdout rule; nothing here moves a weight.
+export function guardReport(rows, need = HOLD_MIN) {
+  const done = (list) => list.filter((row) => Number.isFinite(row.pnl) && row.skipped !== true);
+  const pairs = VARIANTS.filter((v) => v.guard === 'cheap-late' && !v.retired).map((variant) => {
+    const mine = done(eligibleRows(variant, rows));
+    const parent = done(eligibleRows({ id: variant.parent, addedAt: variant.addedAt }, rows));
+    const row = {
+      id: variant.id,
+      label: variant.label,
+      parent: variant.parent,
+      parentBenched: isFocusBenched(variant.parent),
+      n: mine.length,
+      mean: plainMean(mine),
+      parentN: parent.length,
+      parentMean: plainMean(parent),
+    };
+    row.text = `${variant.id} vs ${variant.parent}, forward only: guard n ${row.n}, mean ${usd(row.mean)} after fees; parent n ${row.parentN}, mean ${usd(row.parentMean)}${row.parentBenched ? ' (parent benched, no new lines)' : ''}. Promotion only through the holdout rule.`;
+    return row;
+  });
+  return {
+    paper: true,
+    experimentSince: GUARD_ADDED_AT,
+    need,
+    rule: { maxAsk: GUARD_MAX_ASK, minLeft: GUARD_MIN_LEFT, maxLeft: GUARD_MAX_LEFT },
+    pairs,
+  };
+}
+
 // memeRows is optional; it only feeds the recent-form (edge decay) list.
 export function lessonsDocument(rows, prior, brain, now, memeRows = []) {
   const lessons = featureLessons(rows);
@@ -923,6 +981,7 @@ export function lessonsDocument(rows, prior, brain, now, memeRows = []) {
     bots,
     calibration: modelCalibration(rows, variantAddedAt()),
     decay: recentForm({ kalshiRows: rows, memeRows }),
+    guard: guardReport(rows),
     decisions: brain?.decisions || [],
     holdout: brain?.holdout || null,
     experimentSince: brain?.experimentSince || null,
@@ -948,6 +1007,11 @@ export function lessonsMarkdown(doc) {
   if (!(doc.decay || []).length) lines.push('No settled paper trades yet.', '');
   else if (!flagged.length) lines.push(`No bot's last ${DECAY_RECENT_N} trades flipped sign against the trades before them.`, '');
   for (const row of flagged) lines.push(`- ${row.text}`, '');
+  if (doc.guard) {
+    lines.push('## Cheap-late guard', '');
+    lines.push(`Shadow challengers that skip asks under ${doc.guard.rule.maxAsk.toFixed(2)} with ${doc.guard.rule.minLeft / 60} to ${doc.guard.rule.maxLeft / 60} minutes left. Rows count after ${String(doc.guard.experimentSince).slice(0, 10)} only.`, '');
+    for (const row of doc.guard.pairs || []) lines.push(`- ${row.text}`, '');
+  }
   lines.push('## Frozen studies', '');
   for (const lesson of doc.frozen) lines.push(`- ${lesson.text}`, '');
   lines.push('## Champion check', '');
