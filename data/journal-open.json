@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-27T06:38:17.473Z",
+  "updatedAt": "2026-11-27T06:42:59.197Z",
   "entries": [
     {
       "id": "late:KXCRYPTOLEAD15M-26NOV260045-ETH",
@@ -2121,8 +2121,8 @@
       "market": "KXDOGE15M",
       "paper": true,
       "maker": true,
-      "resting": true,
-      "filled": false,
+      "resting": false,
+      "filled": true,
       "limit": 0.63,
       "roles": [
         {
@@ -2864,6 +2864,117 @@
           "role": "executor",
           "action": "shadow",
           "reason": "executor: paper shadow at ask 0.97, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "fair-spot:KXETH15M-26NOV270145-45",
+      "family": "fair",
+      "variant": "fair-spot",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXETH15M-26NOV270145-45",
+      "series": "KXETH15M",
+      "title": "ETH price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.012,
+      "contracts": 166,
+      "sizeUsd": 2,
+      "fee": 0.14,
+      "openedAt": "2026-11-27T06:42:59.197Z",
+      "closeTime": "2026-11-27T06:45:00Z",
+      "exit": null,
+      "price": 0.012,
+      "secondsLeft": 121,
+      "spread": 0.001,
+      "momentum": -0.248,
+      "volatility": 0.23905647868233984,
+      "strategy": "fair-spot",
+      "market": "KXETH15M",
+      "pEst": 0.0384052143061715,
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXETH15M-26NOV270145-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.012 with 121s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.012, fee included"
+        }
+      ],
+      "skipped": false,
+      "skipReason": null
+    },
+    {
+      "id": "scalp-guard:KXPLATINUM15M-26NOV270145-45",
+      "family": "scalp",
+      "variant": "scalp-guard",
+      "role": "shadow",
+      "allocated": false,
+      "ticker": "KXPLATINUM15M-26NOV270145-45",
+      "series": "KXPLATINUM15M",
+      "title": "Platinum price up in next 15 mins?",
+      "side": "yes",
+      "ask": 0.78,
+      "contracts": 2,
+      "sizeUsd": 2,
+      "fee": 0.03,
+      "openedAt": "2026-11-27T06:42:59.197Z",
+      "closeTime": "2026-11-27T06:45:00Z",
+      "exit": null,
+      "price": 0.78,
+      "secondsLeft": 121,
+      "spread": 0.01,
+      "momentum": 0.44,
+      "volatility": 0.22605309110914631,
+      "strategy": "scalp-guard",
+      "market": "KXPLATINUM15M",
+      "paper": true,
+      "roles": [
+        {
+          "role": "scanner",
+          "action": "pass",
+          "reason": "scanner: KXPLATINUM15M-26NOV270145-45 is still open"
+        },
+        {
+          "role": "analyst",
+          "action": "score",
+          "reason": "analyst: ask 0.78 with 121s left"
+        },
+        {
+          "role": "brain",
+          "action": "shadow",
+          "reason": "brain: $0 shadow. Size is not raised."
+        },
+        {
+          "role": "risk",
+          "action": "pass",
+          "reason": "risk: no veto"
+        },
+        {
+          "role": "executor",
+          "action": "shadow",
+          "reason": "executor: paper shadow at ask 0.78, fee included"
         }
       ],
       "skipped": false,
