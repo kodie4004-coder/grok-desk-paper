@@ -1,45 +1,39 @@
 {
   "paper": true,
   "day": "2026-11-27",
-  "generatedAt": "2026-11-27T00:13:55.047Z",
-  "trades": 53,
-  "net": 10.466000000000012,
+  "generatedAt": "2026-11-28T00:00:05.310Z",
+  "trades": 5495,
+  "net": -244.1510000000012,
   "best": {
-    "id": "flip",
-    "n": 27,
-    "pnl": 20.580000000000005,
-    "mean": 0.7622222222222225
+    "id": "late-fair",
+    "n": 2,
+    "pnl": 0.3959999999999999,
+    "mean": 0.19799999999999995
   },
   "worst": {
-    "id": "fair-spot-v2",
-    "n": 1,
-    "pnl": -1.77,
-    "mean": -1.77
+    "id": "maker-guard",
+    "n": 40,
+    "pnl": -48.494,
+    "mean": -1.21235
   },
   "lessons": [
-    "fair-spot-v2: last 100 trades -$0.46 a trade after fees, win rate 30%, vs +$0.01 on the 688 trades before. All-time -$0.05 a trade on 788. Recent Brier 0.197 vs Kalshi's ask 0.172, lower is better. Flagged as decaying.",
     "pairs-lag: last 100 trades -$0.32 a trade after fees, win rate 49%, vs +$0.04 on the 293 trades before. All-time -$0.06 a trade on 393. Flagged as decaying.",
-    "flip: last 100 trades +$0.59 a trade after fees, win rate 59%, vs -$0.14 on the 12261 trades before. All-time -$0.13 a trade on 12361. Flagged as improving.",
-    "mom-strict: last 100 trades +$0.05 a trade after fees, win rate 84%, vs -$0.01 on the 4035 trades before. All-time -$0.01 a trade on 4135. Flagged as improving.",
-    "late-loose: last 100 trades +$0.07 a trade after fees, win rate 95%, vs -$0.01 on the 3271 trades before. All-time -$0.01 a trade on 3371. Flagged as improving.",
-    "All settled lines: n 41689, win rate 65%, net −$3051.71 after fees, mean −$0.07, 90% interval −$0.10 to −$0.04.",
+    "flip: last 100 trades +$0.24 a trade after fees, win rate 54%, vs -$0.13 on the 14112 trades before. All-time -$0.13 a trade on 14212. Flagged as improving.",
+    "All settled lines: n 47131, win rate 65%, net −$3306.33 after fees, mean −$0.07, 90% interval −$0.10 to −$0.04.",
     "Allocated $2 picks: n 376, net −$39.33, mean −$0.10, 90% interval −$0.32 to +$0.10. uncertain. Shadows are logged and are not a second bet.",
     "Mean revert: n 4811, win rate 34%, mean −$0.07, 90% interval −$0.20 to +$0.07. uncertain."
   ],
   "recentForm": [
-    "fair-spot-v2: last 100 trades -$0.46 a trade after fees, win rate 30%, vs +$0.01 on the 688 trades before. All-time -$0.05 a trade on 788. Recent Brier 0.197 vs Kalshi's ask 0.172, lower is better. Flagged as decaying.",
     "pairs-lag: last 100 trades -$0.32 a trade after fees, win rate 49%, vs +$0.04 on the 293 trades before. All-time -$0.06 a trade on 393. Flagged as decaying.",
-    "flip: last 100 trades +$0.59 a trade after fees, win rate 59%, vs -$0.14 on the 12261 trades before. All-time -$0.13 a trade on 12361. Flagged as improving.",
-    "mom-strict: last 100 trades +$0.05 a trade after fees, win rate 84%, vs -$0.01 on the 4035 trades before. All-time -$0.01 a trade on 4135. Flagged as improving.",
-    "late-loose: last 100 trades +$0.07 a trade after fees, win rate 95%, vs -$0.01 on the 3271 trades before. All-time -$0.01 a trade on 3371. Flagged as improving."
+    "flip: last 100 trades +$0.24 a trade after fees, win rate 54%, vs -$0.13 on the 14112 trades before. All-time -$0.13 a trade on 14212. Flagged as improving."
   ],
   "changed": [
-    "Late favorite keeps late-tight. The 2026-11-26 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Momentum vs target keeps mom-strict. The 2026-11-26 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Mean revert keeps revert. The 2026-11-26 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Scalp, cheap-late guard was added on 2026-11-26. 2026-11-26 is not after that day, so it cannot promote this challenger.",
-    "Intra-window scalp keeps scalp. The 2026-11-26 holdout did not clear n 20 for both bots with a higher after-fee mean.",
-    "Resting maker has no champion. A challenger stays at the starter weight until the holdout can compare it."
+    "Late favorite keeps late-tight. The 2026-11-27 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Momentum, 60-second average replaces mom-strict on the 2026-11-27 holdout. n 851, mean +$0.04 after fees, against the champion's −$0.03.",
+    "Mean revert keeps revert. The 2026-11-27 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Intra-window scalp keeps scalp. The 2026-11-27 holdout did not clear n 20 for both bots with a higher after-fee mean.",
+    "Resting maker has no champion. A challenger stays at the starter weight until the holdout can compare it.",
+    "late is in shadow after its own paper loss. Other bots keep the $2 bets. It can come back on a later train day."
   ],
   "shadow": [
     "late",
@@ -59,8 +53,8 @@
     "rest-maker",
     "mom-settle",
     "scalp-95",
-    "fair-spot",
     "pairs-lag",
+    "fair-spot",
     "fair-spot-v2",
     "late-fee",
     "scalp-fee",
@@ -70,10 +64,10 @@
     "maker-guard"
   ],
   "modelVsMarket": [
-    "fair-guard's prices were less accurate than Kalshi's own (Brier 0.201 vs 0.186). It expected 26.1 wins, Kalshi's asks implied 23.1, and it won 22 of 40. Mean -$0.27 per $2 line after fees. Lower Brier is better.",
-    "fair-spot's prices were less accurate than Kalshi's own (Brier 0.181 vs 0.175). It expected 452.4 wins, Kalshi's asks implied 379.2, and it won 379 of 972. Mean -$0.14 per $2 line after fees. Lower Brier is better.",
-    "fair-spot-v2's prices were less accurate than Kalshi's own (Brier 0.178 vs 0.175). It expected 360.6 wins, Kalshi's asks implied 292.4, and it won 315 of 787. Mean -$0.04 per $2 line after fees. Lower Brier is better.",
-    "late-fair's prices were more accurate than Kalshi's own (Brier 0.003 vs 0.011). It expected 8.6 wins, Kalshi's asks implied 8.1, and it won 9 of 9. Mean $0.18 per $2 line after fees. Small sample. Lower Brier is better.",
+    "fair-guard's prices were less accurate than Kalshi's own (Brier 0.187 vs 0.181). It expected 48.6 wins, Kalshi's asks implied 42.6, and it won 43 of 84. Mean -$0.24 per $2 line after fees. Lower Brier is better.",
+    "fair-spot's prices were less accurate than Kalshi's own (Brier 0.181 vs 0.175). It expected 558.8 wins, Kalshi's asks implied 468.2, and it won 470 of 1189. Mean -$0.12 per $2 line after fees. Lower Brier is better.",
+    "fair-spot-v2's prices were less accurate than Kalshi's own (Brier 0.178 vs 0.174). It expected 373.0 wins, Kalshi's asks implied 301.8, and it won 324 of 817. Mean -$0.06 per $2 line after fees. Lower Brier is better.",
+    "late-fair's prices were more accurate than Kalshi's own (Brier 0.003 vs 0.011). It expected 10.5 wins, Kalshi's asks implied 9.9, and it won 11 of 11. Mean $0.19 per $2 line after fees. Small sample. Lower Brier is better.",
     "pairs-lag's prices were less accurate than Kalshi's own (Brier 0.248 vs 0.202). It expected 286.4 wins, Kalshi's asks implied 205.3, and it won 211 of 393. Mean -$0.06 per $2 line after fees. Lower Brier is better."
   ]
 }
