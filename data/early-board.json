@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-11-28T11:16:47.107Z",
+  "fetchedAt": "2026-11-28T11:22:12.018Z",
   "paper": true,
   "liveExecution": false,
   "sources": [
@@ -31,16 +31,16 @@
   ],
   "coins": [
     {
-      "ca": "3rVr2RBzEXXKf1cVvZ6HBvFg2XmBK4iMgZv9q9q4pump",
-      "symbol": "RICE",
-      "name": "Ricecoin has massively outperformed Bitcoin, up 90% while Bitcoin is down 30%",
-      "priceUsd": 0.00001984,
-      "liq": 9727.45,
-      "ageMin": 429.76845,
+      "ca": "EwUVBpdM5vw1CJHRMSLywzVjyQSJZpy6qboxEPBKpump",
+      "symbol": "PumpMas",
+      "name": "The official Christmas coin for @Pumpfun",
+      "priceUsd": 0.0002467,
+      "liq": 36272.24,
+      "ageMin": 19582.233633333333,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/382jzmn7ijo5csjmlz8cvk3dwfqqhctiylp6ulaivgh8",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/8zaTAfrfyk5YbVtC?width=800&height=800&quality=95&format=auto",
-      "h1": 8.13,
+      "dexUrl": "https://dexscreener.com/solana/b1mjhdyip3t6uqyhoipj1hza1g3yxjbvfysnjucb5cgd",
+      "imageUrl": "https://cdn.dexscreener.com/cms/images/TjESd9TNidpILheQ?width=800&height=800&quality=95&format=auto",
+      "h1": 9.15,
       "sources": [
         "dex"
       ],
@@ -48,7 +48,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$9727"
+          "detail": "$36272"
         },
         {
           "name": "expectancy",
@@ -62,53 +62,97 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 430 min"
+      "reason": "not early, 19582 min"
     },
     {
-      "ca": "A6tuVRQaWWkXoPzE7SQry3YK995tJVt4NdgduQuBpump",
-      "symbol": "SANTA",
-      "name": "Coca-Cola created Santa Claus!\n\nWe created $SANTA, paired with Coca-Cola!\n\nHold ",
-      "priceUsd": 0.00005391,
-      "liq": 18548.66,
-      "ageMin": 12316.901783333333,
-      "quote": "KOX",
-      "dexUrl": "https://dexscreener.com/solana/3cjfqxctydumu4tekay7rkdoftiyta2sgfdu9tkze8ma",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/bZlV_bwWt5tNP7So?width=800&height=800&quality=95&format=auto",
-      "h1": 29.8,
+      "ca": "3rVr2RBzEXXKf1cVvZ6HBvFg2XmBK4iMgZv9q9q4pump",
+      "symbol": "RICE",
+      "name": "Ricecoin has massively outperformed Bitcoin, up 90% while Bitcoin is down 30%",
+      "priceUsd": 0.00002054,
+      "liq": 9925.35,
+      "ageMin": 435.1836333333333,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/382jzmn7ijo5csjmlz8cvk3dwfqqhctiylp6ulaivgh8",
+      "imageUrl": "https://cdn.dexscreener.com/cms/images/8zaTAfrfyk5YbVtC?width=800&height=800&quality=95&format=auto",
+      "h1": 23.16,
       "sources": [
         "dex"
       ],
       "checks": [
         {
-          "name": "quote",
-          "action": "kill",
-          "detail": "KOX"
-        },
-        {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$18549"
+          "detail": "$9925"
         },
         {
           "name": "expectancy",
           "action": "ok",
           "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        }
+      ],
+      "action": "pass",
+      "reason": "not early, 435 min"
+    },
+    {
+      "ca": "A6tuVRQaWWkXoPzE7SQry3YK995tJVt4NdgduQuBpump",
+      "symbol": "?",
+      "name": "Coca-Cola created Santa Claus!\n\nWe created $SANTA, paired with Coca-Cola!\n\nHold ",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/A6tuVRQaWWkXoPzE7SQry3YK995tJVt4NdgduQuBpump",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
       "action": "kill",
-      "reason": "quote: KOX"
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
       "ca": "DtcicPCKTKeAh7TDEzTym3hXeoHAoMiBdYJhMYxZpump",
       "symbol": "CBUCKS",
       "name": "Someone asked AI to build a game the entire crypto space would love. So it recre",
-      "priceUsd": 0.006643,
-      "liq": 291535.58,
-      "ageMin": 75886.90178333333,
+      "priceUsd": 0.006317,
+      "liq": 284262.29,
+      "ageMin": 75892.31696666667,
       "quote": "USDC",
       "dexUrl": "https://dexscreener.com/solana/b4cp45pgifvm5faxfh6aev8qz3eunqnqgbw7kuc7mhnb",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/2bajn2a05AdQGV-4?width=800&height=800&quality=95&format=auto",
-      "h1": -1.26,
+      "h1": -6.14,
       "sources": [
         "dex"
       ],
@@ -116,7 +160,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$291536"
+          "detail": "$284262"
         },
         {
           "name": "expectancy",
@@ -130,15 +174,15 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 75887 min"
+      "reason": "not early, 75892 min"
     },
     {
       "ca": "9Pq7aLAbhDG2tTnS22cm6kuysZVcZpLFE368HWuypump",
       "symbol": "JOB",
       "name": "IT'S\nLITERALLY\nJUST A DOG\nWIF A JOB.",
-      "priceUsd": 0.00313,
-      "liq": 190356.35,
-      "ageMin": 45603.31845,
+      "priceUsd": 0.003099,
+      "liq": 189447.78,
+      "ageMin": 45608.73363333334,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/hauvbmnthcfmg9srxmvz1gaxnpu955hkpdsasc2cx4c8",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/x8ZkXi9L1J38qoCZ?width=800&height=800&quality=95&format=auto",
@@ -150,7 +194,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$190356"
+          "detail": "$189448"
         },
         {
           "name": "expectancy",
@@ -164,19 +208,19 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 45603 min"
+      "reason": "not early, 45609 min"
     },
     {
       "ca": "A6BBHdxCNFmpLqCzEzdoZ2wVPLVcr6jcxFn7oEeMpump",
       "symbol": "LEND",
       "name": "LEND Utility (LEND) is the utility token of CARDLEND , a Solana game where you m",
-      "priceUsd": 0.000005255,
+      "priceUsd": 0.000005306,
       "liq": null,
-      "ageMin": 275.68511666666666,
+      "ageMin": 281.1003,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/9aqwgtxohyvc5yjpturt7r4drmodz83tivh8qxaxyqy6",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/OvZzUo3NA1tNjnyX?width=800&height=800&quality=95&format=auto",
-      "h1": 18.85,
+      "h1": -25.95,
       "sources": [
         "dex"
       ],
@@ -204,13 +248,13 @@
       "ca": "J25aXtTx91Eg3MNe6P2bP4Qyvu7yYDeEFmRyw3UTpump",
       "symbol": "FLOKIMAS",
       "name": "Santa season is coming!\n\nElon Musk already posted about it, and now $FLOKIMAS is",
-      "priceUsd": 0.00002402,
+      "priceUsd": 0.0000241,
       "liq": null,
-      "ageMin": 2539.7017833333334,
+      "ageMin": 2545.1169666666665,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/54dbdazoabhzwn4ma5rjnpidh2fchu8flvkyrl5ciwtf",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/uhnzpwQ5vgNImgBW?width=800&height=800&quality=95&format=auto",
-      "h1": 1.28,
+      "h1": -1.88,
       "sources": [
         "dex"
       ],
@@ -238,13 +282,13 @@
       "ca": "6W3H5nEzuLUpTbcMrhRfMiDPCZ4QuBmZPBkeAMzypump",
       "symbol": "wizardcat",
       "name": "Wizardcat Cto!",
-      "priceUsd": 0.00005364,
-      "liq": 15949.32,
-      "ageMin": 5244.66845,
+      "priceUsd": 0.00005447,
+      "liq": 16085.53,
+      "ageMin": 5250.083633333334,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/3nndu4sniu59zopc1jebz2spdxcxzea5ffg5nwkzdach",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/W1Zpa3SXwiSAyF9M?width=800&height=800&quality=95&format=auto",
-      "h1": -9.2,
+      "h1": -8.18,
       "sources": [
         "dex"
       ],
@@ -252,7 +296,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$15949"
+          "detail": "$16086"
         },
         {
           "name": "expectancy",
@@ -266,7 +310,7 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 5245 min"
+      "reason": "not early, 5250 min"
     },
     {
       "ca": "ASQAXq3M6N7WKJHdKNFUJMPfRcBCfpjR6qXFRnNjHPAY",
@@ -274,7 +318,7 @@
       "name": "**HOSTPAY ($HPAY)** is the native ecosystem token powering HOSTPAY, a Solana-bas",
       "priceUsd": 0.00001308,
       "liq": null,
-      "ageMin": 2826.11845,
+      "ageMin": 2831.5336333333335,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/j1ofxa8d3nuzdkptzvx71ztfwcgdkuglbr1fbkstmsmn",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/S_8VGz4HxjOb8SID?width=800&height=800&quality=95&format=auto",
@@ -308,11 +352,11 @@
       "name": "Borrow against your NFTs, split a piece into shares and watch every position. On",
       "priceUsd": 0.000001995,
       "liq": 2079.78,
-      "ageMin": 307.0017833333333,
+      "ageMin": 312.41696666666667,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/d7yg57fpbwjyzmijqye4kmizuoz8sesvtbqmmcsxu9pu",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/3Bmj4efFv2T0Hr1v?width=800&height=800&quality=95&format=auto",
-      "h1": -4.47,
+      "h1": -2.5,
       "sources": [
         "dex"
       ],
@@ -334,19 +378,19 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 307 min"
+      "reason": "not early, 312 min"
     },
     {
       "ca": "7XSYaJygcuNe6Q3kPvwsJpg4ZrFL1AEUFb8kCuzppump",
       "symbol": "Kibo",
       "name": "キボウ",
-      "priceUsd": 0.00003751,
-      "liq": 14067.65,
-      "ageMin": 1785.3017833333333,
+      "priceUsd": 0.00003606,
+      "liq": 13799.94,
+      "ageMin": 1790.7169666666666,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/hj4afisw1oo8hvmyxl2qjjnav4y25nthse2lcpcreqtu",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/XAWchsF-FR9q7_WL?width=800&height=800&quality=95&format=auto",
-      "h1": 2.27,
+      "h1": -4.42,
       "sources": [
         "dex"
       ],
@@ -354,7 +398,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$14068"
+          "detail": "$13800"
         },
         {
           "name": "expectancy",
@@ -368,19 +412,19 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 1785 min"
+      "reason": "not early, 1791 min"
     },
     {
       "ca": "FK7bc3fR8UL8uogN2u8J9yEpEbQJKR7yKsp3G8rvpump",
       "symbol": "hacked",
       "name": "hacked",
-      "priceUsd": 0.00004982,
-      "liq": 15547.51,
-      "ageMin": 4152.76845,
+      "priceUsd": 0.00005174,
+      "liq": 15874.01,
+      "ageMin": 4158.183633333333,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/bznokmzvg8n6ra3ja22zbhytau6sjavc6tbvqkhq4gs8",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/G085r-Nhyhkv-tmN?width=800&height=800&quality=95&format=auto",
-      "h1": 4.35,
+      "h1": 8.37,
       "sources": [
         "dex"
       ],
@@ -388,7 +432,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$15548"
+          "detail": "$15874"
         },
         {
           "name": "expectancy",
@@ -402,19 +446,19 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 4153 min"
+      "reason": "not early, 4158 min"
     },
     {
       "ca": "ATbAsdCwrhhVg23DRnWpjqx6kx7ivoK5o8ysNmu1pump",
       "symbol": "BITCOINU",
       "name": "Deep in the cave, Bitcoin Inu is mining the future—one glowing block at a time. ",
-      "priceUsd": 0.00112,
-      "liq": 76707.8,
-      "ageMin": 389.51845,
+      "priceUsd": 0.001078,
+      "liq": 75246.4,
+      "ageMin": 394.9336333333333,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/g57cfxedfwpusmyurzzsjyckzykxrmu6csxfzaojgot7",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/IgFeqFmdAF82WDWd?width=800&height=800&quality=95&format=auto",
-      "h1": -11.96,
+      "h1": -9.76,
       "sources": [
         "dex"
       ],
@@ -422,7 +466,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$76708"
+          "detail": "$75246"
         },
         {
           "name": "expectancy",
@@ -436,19 +480,19 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 390 min"
+      "reason": "not early, 395 min"
     },
     {
       "ca": "E8UGPD9dx8Ezzt83Xi37Eh4HHzPWn2WPqfbg21NNpump",
       "symbol": "MACH",
       "name": "MACH WAVE ($MACH): a live multiplayer jet dogfight game with real aerodynamic ph",
-      "priceUsd": 0.00001103,
+      "priceUsd": 0.00001099,
       "liq": null,
-      "ageMin": 529.21845,
+      "ageMin": 534.6336333333334,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/fxpqqrimkm9uvdzspungpfb8mprbg8apfus662svvqhl",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/lvYY1_7W71AE5XLs?width=800&height=800&quality=95&format=auto",
-      "h1": 0.45,
+      "h1": -6.52,
       "sources": [
         "dex"
       ],
@@ -478,7 +522,7 @@
       "name": "Kitty Porn\n$KTYPRN\nExpose the truth Protect the children\n\n\n​ For too long, power",
       "priceUsd": 0.000006615,
       "liq": null,
-      "ageMin": 624.7851166666667,
+      "ageMin": 630.2003,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/7lysx9mobffdympl4gviezxeahxhj49s6fjn7qtq9nws",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/IPjNjqRiOzrQl4Kz?width=800&height=800&quality=95&format=auto",
@@ -508,37 +552,47 @@
     },
     {
       "ca": "8N6WF11pLUUeUu8b1HbnDJHTzyL4bbr8YRdPS6Znpump",
-      "symbol": "PRISMEICE",
+      "symbol": "?",
       "name": "PrismeIce works like a prism for your crypto. Your deposit keeps earning, and a ",
-      "priceUsd": 0.000001797,
-      "liq": 1881.62,
-      "ageMin": 474.7517833333333,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/6zxqjn9jczxb7hnwyxijds72jenspseubo7bkl2k4jeb",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/q__xuzx7-UrmrwX8?width=800&height=800&quality=95&format=auto",
-      "h1": -0.78,
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/8N6WF11pLUUeUu8b1HbnDJHTzyL4bbr8YRdPS6Znpump",
+      "imageUrl": null,
+      "h1": null,
       "sources": [
         "dex"
       ],
       "checks": [
         {
           "name": "liquidity",
-          "action": "ok",
-          "detail": "$1882"
+          "action": "kill",
+          "detail": "missing"
         },
         {
           "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
         },
         {
           "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
-      "action": "pass",
-      "reason": "not early, 475 min"
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
       "ca": "3WsqUNArNSh5pYt6eTKbQ7uUJDgkPtFEA2XFvdEWpump",
@@ -546,7 +600,7 @@
       "name": "Every legend starts at zero.",
       "priceUsd": 0.000002127,
       "liq": 2136.12,
-      "ageMin": 877.4351166666667,
+      "ageMin": 882.8503,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/3tfrhruefajbj1iah2alyye7xe89wzqm8ix32d63bgyz",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/aAF7g3v73SlKGBDR?width=800&height=800&quality=95&format=auto",
@@ -572,19 +626,19 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 877 min"
+      "reason": "not early, 883 min"
     },
     {
       "ca": "6C9r2gzu8Pr54hTevHo3x5gSj9JqtpApj7obJnrtpump",
       "symbol": "ROCKET",
       "name": "The raccoon who steals the show in Avengers: Doomsday. $ROCKET 🚀",
-      "priceUsd": 0.0007604,
-      "liq": 83044.91,
-      "ageMin": 10055.651783333333,
+      "priceUsd": 0.0007412,
+      "liq": 81965.23,
+      "ageMin": 10061.066966666667,
       "quote": "AMC",
       "dexUrl": "https://dexscreener.com/solana/9nlfujwrhgqyxkw2jukka1gjvtibxaty2ad4qrysckke",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/oY4S_0r45qmHZ0gq?width=800&height=800&quality=95&format=auto",
-      "h1": 0.01,
+      "h1": -0.06,
       "sources": [
         "dex"
       ],
@@ -597,7 +651,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$83045"
+          "detail": "$81965"
         },
         {
           "name": "expectancy",
@@ -612,13 +666,13 @@
       "ca": "9TKbd3VFaMSXsEAicD9JVQWpWwAoLi4fSgWmZL2cpump",
       "symbol": "Snowball",
       "name": "A different kind of Snowball. Increasing demand for the coin instead of reducing",
-      "priceUsd": 0.000224,
-      "liq": 38581.3,
-      "ageMin": 3894.635116666667,
+      "priceUsd": 0.0002371,
+      "liq": 39755.98,
+      "ageMin": 3900.0503,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/aircdeu4yl6hjuina65mtwakzmex7stkzsinmyzhzkt2",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/CyJnSbwj0Ek1OvKu?width=800&height=800&quality=95&format=auto",
-      "h1": -2.76,
+      "h1": 5.41,
       "sources": [
         "dex"
       ],
@@ -626,7 +680,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$38581"
+          "detail": "$39756"
         },
         {
           "name": "expectancy",
@@ -640,7 +694,7 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 3895 min"
+      "reason": "not early, 3900 min"
     },
     {
       "ca": "2g3NFpebwCV6Abz7AhmVC4xmsaczQXbqxHV4Khy4pump",
@@ -690,13 +744,13 @@
       "ca": "856eo2Q9FRC5Wb9GxAFpUR4SdaHiod3bP6Z6bGbopump",
       "symbol": "SANTA",
       "name": "SANTA FACTORY is a Solana launchpad designed to create an interconnected token e",
-      "priceUsd": 0.00001491,
+      "priceUsd": 0.0000175,
       "liq": null,
-      "ageMin": 739.9851166666666,
+      "ageMin": 745.4003,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/fjqpf6k75gewfhzfe2ivnb3ygxn97haxecanxn9wemwb",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/cecvsanGxq32p3HL?width=800&height=800&quality=95&format=auto",
-      "h1": 9.58,
+      "h1": 28.64,
       "sources": [
         "dex"
       ],
@@ -726,7 +780,7 @@
       "name": "ViceGame — a free-to-play 80s neon open-world crime game set in Neon Bay.\nDrive,",
       "priceUsd": 0.000002984,
       "liq": null,
-      "ageMin": 19660.651783333335,
+      "ageMin": 19666.066966666665,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/9lwewxkdqrwghm1vmseyxxsnatvi2ih6cnqd8gbhpdkc",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/tgAVYbM0HyXOP6u_?width=800&height=800&quality=95&format=auto",
@@ -804,11 +858,11 @@
       "name": "bob says",
       "priceUsd": 0.000002236,
       "liq": null,
-      "ageMin": 909.8351166666666,
+      "ageMin": 915.2503,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/91gfqvtujr9az4lf2y8bvnnxy9yhmzbzbk34e3qpbgku",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/AHKRySXc92jj78lY?width=800&height=800&quality=95&format=auto",
-      "h1": -1.07,
+      "h1": null,
       "sources": [
         "dex"
       ],
@@ -836,13 +890,13 @@
       "ca": "B9wbjDJ4FbHMsZmoXAkJSTAwuePaJUKbySvnK5zApump",
       "symbol": "Fireball",
       "name": "Fireball",
-      "priceUsd": 0.0005879,
-      "liq": 56933.51,
-      "ageMin": 1267.5851166666666,
+      "priceUsd": 0.000556,
+      "liq": 55359.02,
+      "ageMin": 1273.0003,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/dnxt5j7r1atknh23rsbwyuuc9neixsxbgfrlbmbnmks2",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/9Bp-wqKc6e2-0csr?width=800&height=800&quality=95&format=auto",
-      "h1": 12.72,
+      "h1": 7.02,
       "sources": [
         "dex"
       ],
@@ -850,7 +904,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$56934"
+          "detail": "$55359"
         },
         {
           "name": "expectancy",
@@ -864,19 +918,19 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 1268 min"
+      "reason": "not early, 1273 min"
     },
     {
       "ca": "85cQsFgbi8mBZxiPppbpPXuV7j1hA8tBwhjF4gKW6mHg",
       "symbol": "Rizzmas",
       "name": "Rizzmas is more than a memecoin, it’s a year-round celebration tied to global cu",
-      "priceUsd": 0.00000132,
-      "liq": 221902.06,
-      "ageMin": 1540390.5851166667,
+      "priceUsd": 0.000001337,
+      "liq": 223467.28,
+      "ageMin": 1540396.0003,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/hgrvezf83hm2x5hovx9ec2cbiajtmwfhk6vcuplh4ydy",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/aED9sBUnbeVjSCON?width=800&height=800&quality=95&format=auto",
-      "h1": 0.1,
+      "h1": 1.34,
       "sources": [
         "dex"
       ],
@@ -884,7 +938,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$221902"
+          "detail": "$223467"
         },
         {
           "name": "expectancy",
@@ -898,53 +952,63 @@
         }
       ],
       "action": "pass",
-      "reason": "not early, 1540391 min"
+      "reason": "not early, 1540396 min"
     },
     {
-      "ca": "RecRFwNXRbTuDwDnvokNv5h4hLQubaDZMJwKfshpump",
-      "symbol": "MOSTO",
-      "name": "Official community coin of MOSTO, the memecoin terminal built by meme traders, f",
-      "priceUsd": 0.00002105,
-      "liq": 9028.75,
-      "ageMin": 1639.11845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/6mbvqnyjf3unm3wsl2ncjna9ijre7tfrct6yhdmd7qvr",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/_lS5QiwWS7K94A3p?width=800&height=800&quality=95&format=auto",
-      "h1": -14.72,
+      "ca": "DT5hmUppUXvcziVxoAkLk6sjNJU8G9fqyXmGPx75pump",
+      "symbol": "?",
+      "name": "Unknown",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/DT5hmUppUXvcziVxoAkLk6sjNJU8G9fqyXmGPx75pump",
+      "imageUrl": null,
+      "h1": null,
       "sources": [
         "dex"
       ],
       "checks": [
         {
           "name": "liquidity",
-          "action": "ok",
-          "detail": "$9029"
+          "action": "kill",
+          "detail": "missing"
         },
         {
           "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
         },
         {
           "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
-      "action": "pass",
-      "reason": "not early, 1639 min"
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
       "ca": "155ENqUMyzFwCnPYLpPqydUtddq9cocPkiah8WeF2dp",
       "symbol": "2DEEP",
       "name": "Set your own floor. Launch anonymously without exposing your wallet. Most platfo",
-      "priceUsd": 0.000007881,
+      "priceUsd": 0.000007019,
       "liq": null,
-      "ageMin": 84.18511666666667,
+      "ageMin": 89.6003,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/c1cpwimlyvrphwycbpd27pjkoj4uzwsufhrcccsjbqn9",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/Y4w4s2hh1uKN9s5E?width=800&height=800&quality=95&format=auto",
-      "h1": 41.94,
+      "h1": 26.43,
       "sources": [
         "dex"
       ],
@@ -972,13 +1036,13 @@
       "ca": "GhgALX7p6wNbxBsyrWiyN4UEw4mddux85fSzLdpJpump",
       "symbol": "RECRUIT",
       "name": "Recruiting new people to @pumpfun live on stream. 100% of creator rewards fund o",
-      "priceUsd": 0.00001097,
+      "priceUsd": 0.00001113,
       "liq": null,
-      "ageMin": 238.98511666666667,
+      "ageMin": 244.4003,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/9wmnb1rjper6eufm6adl2mhn8knuuzklisgj7pdbfnj",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/M6TocvDnYOlgRhK2?width=800&height=800&quality=95&format=auto",
-      "h1": 7.26,
+      "h1": 6.24,
       "sources": [
         "dex"
       ],
@@ -1006,13 +1070,13 @@
       "ca": "5zhdK5tA8Fz4L74YgYeSAVjjZ2NGTfSmWNYAiWN2pump",
       "symbol": "cheng",
       "name": "cheng divine",
-      "priceUsd": 0.00001503,
+      "priceUsd": 0.00001707,
       "liq": null,
-      "ageMin": 84.53511666666667,
+      "ageMin": 89.9503,
       "quote": "SOL",
       "dexUrl": "https://dexscreener.com/solana/75ldooptxrd9cg7sn189svkoqsn37dryfdpyymsacvi",
       "imageUrl": "https://cdn.dexscreener.com/cms/images/n1ZzOk4QgzQ7RSJM?width=800&height=800&quality=95&format=auto",
-      "h1": 44.29,
+      "h1": 106,
       "sources": [
         "dex"
       ],
@@ -1038,48 +1102,14 @@
     },
     {
       "ca": "57uooyjwYX2kpSGN3QnBLWAwk4KMZYbkp5e8f7i7pump",
-      "symbol": "EDITOR",
+      "symbol": "?",
       "name": "The vamp killer.\n\nEditor, edit tokens name, ticker, and image while the token co",
-      "priceUsd": 0.000009399,
+      "priceUsd": null,
       "liq": null,
-      "ageMin": 88.53511666666667,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/26ypjvttef1v449vqvq6pbrp3hk5w9cqnvx5mg2xa1on",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/uwfa6WpRwzR7gv7a?width=800&height=800&quality=95&format=auto",
-      "h1": 66.76,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "kill",
-          "detail": "missing"
-        },
-        {
-          "name": "expectancy",
-          "action": "kill",
-          "detail": "no liquidity to model a $2 fill"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "kill",
-      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill"
-    },
-    {
-      "ca": "4newt1R5fGEoCKdf9XBgiR6B43iacmnVAR2d4Wt8pump",
-      "symbol": "Mojave",
-      "name": "Mojave The Tortoise",
-      "priceUsd": 0.00003126,
-      "liq": 11447.01,
-      "ageMin": 67.86845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/armqz5kmqecjv18c8jcjvmwvkbtrrpnliuachkwaarih",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/PvYE6wgXw-uDB2Rc?width=800&height=800&quality=95&format=auto",
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/57uooyjwYX2kpSGN3QnBLWAwk4KMZYbkp5e8f7i7pump",
+      "imageUrl": null,
       "h1": null,
       "sources": [
         "dex"
@@ -1087,68 +1117,44 @@
       "checks": [
         {
           "name": "liquidity",
-          "action": "ok",
-          "detail": "$11447"
+          "action": "kill",
+          "detail": "missing"
         },
         {
           "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
         },
         {
           "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "pass",
-      "reason": "not early, 68 min"
-    },
-    {
-      "ca": "2n5tTb5UXKABFXYRxDEjtDpWFh5ZFk7oRcNLDML5pump",
-      "symbol": "SMOOTH",
-      "name": "design your own token. You choose how to launch it, which features it has, and h",
-      "priceUsd": 0.000009307,
-      "liq": 5595.63,
-      "ageMin": 77.00178333333334,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/uu9w42ydrvmpsaqonmnha8opdoaj8x3vpjglhjzarkc",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/tbybtE0PXRXTPyCz?width=800&height=800&quality=95&format=auto",
-      "h1": -51.66,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$5596"
+          "action": "kill",
+          "detail": "missing"
         },
         {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
         },
         {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
-      "action": "pass",
-      "reason": "not early, 77 min"
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
-      "ca": "FVi5fXEPruYmkGu5jsY5wAsPGCr3sy1p6jZkZ3z9pump",
-      "symbol": "MEMEPAY",
-      "name": "Bringing the memes back to crypto, one paid view at a time",
-      "priceUsd": 0.000002352,
+      "ca": "4newt1R5fGEoCKdf9XBgiR6B43iacmnVAR2d4Wt8pump",
+      "symbol": "?",
+      "name": "Unknown",
+      "priceUsd": null,
       "liq": null,
-      "ageMin": 102.05178333333333,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/43et6rnybbfug8bczzqcegkjfgxn3627qpjry2zjt4td",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/T92SyHz4BlWMy2Nt?width=800&height=800&quality=95&format=auto",
-      "h1": -77.1,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/4newt1R5fGEoCKdf9XBgiR6B43iacmnVAR2d4Wt8pump",
+      "imageUrl": null,
+      "h1": null,
       "sources": [
         "dex"
       ],
@@ -1165,46 +1171,154 @@
         },
         {
           "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
       "action": "kill",
-      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill"
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
-      "ca": "4cZsB6UgdUBTi13JMusBap9r2qGW1MPrdaSVAYkSpump",
-      "symbol": "HPD",
-      "name": "The Pumpfun Bull",
-      "priceUsd": 0.000003339,
-      "liq": 2844.92,
-      "ageMin": 106.61845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/5hq3k2shhyejdjestnd2q8jgfo5trqg1k56bwpbqxsq1",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/57CPRBHbHxEf36Jz?width=800&height=800&quality=95&format=auto",
-      "h1": -77.33,
+      "ca": "2n5tTb5UXKABFXYRxDEjtDpWFh5ZFk7oRcNLDML5pump",
+      "symbol": "?",
+      "name": "design your own token. You choose how to launch it, which features it has, and h",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/2n5tTb5UXKABFXYRxDEjtDpWFh5ZFk7oRcNLDML5pump",
+      "imageUrl": null,
+      "h1": null,
       "sources": [
         "dex"
       ],
       "checks": [
         {
           "name": "liquidity",
-          "action": "ok",
-          "detail": "$2845"
+          "action": "kill",
+          "detail": "missing"
         },
         {
           "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
         },
         {
           "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
-      "action": "pass",
-      "reason": "not early, 107 min"
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "FVi5fXEPruYmkGu5jsY5wAsPGCr3sy1p6jZkZ3z9pump",
+      "symbol": "?",
+      "name": "Bringing the memes back to crypto, one paid view at a time",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/FVi5fXEPruYmkGu5jsY5wAsPGCr3sy1p6jZkZ3z9pump",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "4cZsB6UgdUBTi13JMusBap9r2qGW1MPrdaSVAYkSpump",
+      "symbol": "?",
+      "name": "Unknown",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/4cZsB6UgdUBTi13JMusBap9r2qGW1MPrdaSVAYkSpump",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
       "ca": "GggaHk9atb7LYq16S2X6FwjQdZT8D8YQ6vydeosgFGtg",
@@ -1252,49 +1366,15 @@
     },
     {
       "ca": "EqaMtkdjUAHubn2Xn3vMrCCtjz8XQZ5xVDHPn4phpump",
-      "symbol": "REP",
+      "symbol": "?",
       "name": "Replicants are AI creatures that live on your computer. Each one is born with it",
-      "priceUsd": 0.00006861,
-      "liq": 17328.66,
-      "ageMin": 2877.3517833333335,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/c6pjrcbeic7yt5i6kacamvpeqcdpjjvxsyfwgn4xntem",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/G-Fx_SSDxrG-jLMS?width=800&height=800&quality=95&format=auto",
-      "h1": null,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$17329"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "pass",
-      "reason": "not early, 2877 min"
-    },
-    {
-      "ca": "A7xhY12G388pXGsBuweS6NkyZyv53ogH1dNfEkCMpump",
-      "symbol": "ascend",
-      "name": "ascend",
-      "priceUsd": 0.000002865,
+      "priceUsd": null,
       "liq": null,
-      "ageMin": 172.38511666666668,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/6tsimz6out9rr5zrbk1rhyhgsy3bchzy6gcyazemxi4r",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/nOvs4OTd2o17IrPA?width=800&height=800&quality=95&format=auto",
-      "h1": -1.03,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/EqaMtkdjUAHubn2Xn3vMrCCtjz8XQZ5xVDHPn4phpump",
+      "imageUrl": null,
+      "h1": null,
       "sources": [
         "dex"
       ],
@@ -1311,12 +1391,66 @@
         },
         {
           "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
       "action": "kill",
-      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill"
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "A7xhY12G388pXGsBuweS6NkyZyv53ogH1dNfEkCMpump",
+      "symbol": "?",
+      "name": "Unknown",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/A7xhY12G388pXGsBuweS6NkyZyv53ogH1dNfEkCMpump",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
       "ca": "Ab4YRbH4bPwsi4EykXZL2nzo4SiZXtgpPDdDVcPLpump",
@@ -1364,49 +1498,15 @@
     },
     {
       "ca": "8i2ssMZBaS3HShu5hoDEV4tVLf5RGXeNJnK3LNTHTH9e",
-      "symbol": "COMM",
+      "symbol": "?",
       "name": "Launch coins on Raydium LaunchLab, each paired to a real commodity. 1% of every ",
-      "priceUsd": 0.00003169,
-      "liq": 13051.01,
-      "ageMin": 168.28511666666665,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/d68dez4zyi5agvsitfgex6jsbpkmvsctsp63uluixj5y",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/85eYqunXo_O5rJKp?width=800&height=800&quality=95&format=auto",
-      "h1": 22.93,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$13051"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "pass",
-      "reason": "not early, 168 min"
-    },
-    {
-      "ca": "DXLE6M12GsJW23aTU2VpZeJcgQ8rwTwQbzmDKvMSpump",
-      "symbol": "USD2",
-      "name": "USD2\n\nThe New Stablecoin",
-      "priceUsd": 0.000007893,
+      "priceUsd": null,
       "liq": null,
-      "ageMin": 258.30178333333333,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/iectpuj6bmb5zbldvdvbpsux23ujkzetcru9zkywfjv",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/4az5hqKMmvJzc_YZ?width=800&height=800&quality=95&format=auto",
-      "h1": -10.01,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/8i2ssMZBaS3HShu5hoDEV4tVLf5RGXeNJnK3LNTHTH9e",
+      "imageUrl": null,
+      "h1": null,
       "sources": [
         "dex"
       ],
@@ -1423,12 +1523,66 @@
         },
         {
           "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
         }
       ],
       "action": "kill",
-      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill"
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "DXLE6M12GsJW23aTU2VpZeJcgQ8rwTwQbzmDKvMSpump",
+      "symbol": "?",
+      "name": "USD2\n\nThe New Stablecoin",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/DXLE6M12GsJW23aTU2VpZeJcgQ8rwTwQbzmDKvMSpump",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
       "ca": "8Y24KBnY9gaNWDaxohxtEU1gxESvfwdYeGFuHJKpump",
@@ -1476,183 +1630,13 @@
     },
     {
       "ca": "9sogyryhrdDKjZvizHPsevJ4GEGzN76Y2bGpF5WEpump",
-      "symbol": "online",
-      "name": "apeonfone is cool but with new charity we can finally apeonline\n\nBeing $online i",
-      "priceUsd": 0.000002009,
-      "liq": null,
-      "ageMin": 233.96845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/rzgw1kt2uxjtbb3eyeda4r2unvjktfc1zrjcc4xrvyu",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/bk62IwC3YU7kzU19?width=800&height=800&quality=95&format=auto",
-      "h1": null,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "kill",
-          "detail": "missing"
-        },
-        {
-          "name": "expectancy",
-          "action": "kill",
-          "detail": "no liquidity to model a $2 fill"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "kill",
-      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill"
-    },
-    {
-      "ca": "B29od4bd54VAVAqJFToRKkKJadUGK5v8pkAVb5uvpump",
-      "symbol": "USD1",
-      "name": "Useless Shitty Dollar 1",
-      "priceUsd": 0.00001663,
-      "liq": 10624.3,
-      "ageMin": 251.08511666666666,
-      "quote": "USDC",
-      "dexUrl": "https://dexscreener.com/solana/8nkg3gpacjfvtexj3zr737dorgjecb4fgesci2pdo4ca",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/pHvpCoDPPhtzuo82?width=800&height=800&quality=95&format=auto",
-      "h1": -22.52,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$10624"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "USDC"
-        }
-      ],
-      "action": "pass",
-      "reason": "not early, 251 min"
-    },
-    {
-      "ca": "HmGQsYJyeiWrV6jABUY2Cb3bEmVxwk6LzVxCchsCpump",
-      "symbol": "WLFI",
-      "name": "We Literally Fuck Investors",
-      "priceUsd": 0.0003203,
-      "liq": 43546.36,
-      "ageMin": 391.61845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/46973pyxhltcjizytmzaqtyqji6yaxhthqhqoc74vwcb",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/F4_gGGkyRLIyJqbY?width=800&height=800&quality=95&format=auto",
-      "h1": 9.15,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$43546"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "pass",
-      "reason": "not early, 392 min"
-    },
-    {
-      "ca": "ArrsHWAybe2qPLwMFpmcxf5GaT19ZQJ7bnPSyKhJFsEt",
-      "symbol": "gondola",
-      "name": "gondola",
-      "priceUsd": 0.000003209,
-      "liq": null,
-      "ageMin": 272.61845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/31se94br3aokevfx3go6rcz1gz9xlcfcjhviuru7yz63",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/mzZC07XxwJYiNYbi?width=800&height=800&quality=95&format=auto",
-      "h1": -1.06,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "kill",
-          "detail": "missing"
-        },
-        {
-          "name": "expectancy",
-          "action": "kill",
-          "detail": "no liquidity to model a $2 fill"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "kill",
-      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill"
-    },
-    {
-      "ca": "EjdrRG2si1FQ3Bme5g6WSYNHJDrsKUrbGB4Z5xaopump",
-      "symbol": "SPSC",
-      "name": "You can literally sell shit in a can, wrapped in piss, covered in human skin, fo",
-      "priceUsd": 0.0001668,
-      "liq": 28978.45,
-      "ageMin": 317.5351166666667,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/8yy1cwhtwyqsmncj1v6hthafsbpzpuzwb9fwhrpl5x1f",
-      "imageUrl": "https://cdn.dexscreener.com/cms/images/4cdtcy8Uz4srqt-9?width=800&height=800&quality=95&format=auto",
-      "h1": 50.92,
-      "sources": [
-        "dex"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$28978"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        }
-      ],
-      "action": "pass",
-      "reason": "not early, 318 min"
-    },
-    {
-      "ca": "ACP9Kkvh3ShCawmVcEJQ7mr93uNF1uvTP1yvvivApump",
       "symbol": "?",
-      "name": "Unknown",
+      "name": "apeonfone is cool but with new charity we can finally apeonline\n\nBeing $online i",
       "priceUsd": null,
       "liq": null,
       "ageMin": null,
       "quote": "",
-      "dexUrl": "https://dexscreener.com/solana/ACP9Kkvh3ShCawmVcEJQ7mr93uNF1uvTP1yvvivApump",
+      "dexUrl": "https://dexscreener.com/solana/9sogyryhrdDKjZvizHPsevJ4GEGzN76Y2bGpF5WEpump",
       "imageUrl": null,
       "h1": null,
       "sources": [
@@ -1689,16 +1673,192 @@
       "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
     },
     {
-      "ca": "5g68fn25n7icq8VNUpej9heonwuZ8HLEgcsR2dChkpMw",
-      "symbol": "GTA 6",
-      "name": "GTA 6",
-      "priceUsd": 0.000005848884616488741,
-      "liq": 3556.78067410756,
-      "ageMin": 1.0017833333333332,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/7ps6xjjm78ruxld4ysepr2zfhblpolgavpkuqkgnol33",
+      "ca": "B29od4bd54VAVAqJFToRKkKJadUGK5v8pkAVb5uvpump",
+      "symbol": "?",
+      "name": "Useless Shitty Dollar 1",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/B29od4bd54VAVAqJFToRKkKJadUGK5v8pkAVb5uvpump",
       "imageUrl": null,
-      "h1": 0,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "HmGQsYJyeiWrV6jABUY2Cb3bEmVxwk6LzVxCchsCpump",
+      "symbol": "?",
+      "name": "Unknown",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/HmGQsYJyeiWrV6jABUY2Cb3bEmVxwk6LzVxCchsCpump",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "ArrsHWAybe2qPLwMFpmcxf5GaT19ZQJ7bnPSyKhJFsEt",
+      "symbol": "?",
+      "name": "Unknown",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/ArrsHWAybe2qPLwMFpmcxf5GaT19ZQJ7bnPSyKhJFsEt",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "EjdrRG2si1FQ3Bme5g6WSYNHJDrsKUrbGB4Z5xaopump",
+      "symbol": "?",
+      "name": "You can literally sell shit in a can, wrapped in piss, covered in human skin, fo",
+      "priceUsd": null,
+      "liq": null,
+      "ageMin": null,
+      "quote": "",
+      "dexUrl": "https://dexscreener.com/solana/EjdrRG2si1FQ3Bme5g6WSYNHJDrsKUrbGB4Z5xaopump",
+      "imageUrl": null,
+      "h1": null,
+      "sources": [
+        "dex"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "expectancy",
+          "action": "kill",
+          "detail": "no liquidity to model a $2 fill"
+        },
+        {
+          "name": "quote",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "price",
+          "action": "kill",
+          "detail": "missing"
+        },
+        {
+          "name": "age",
+          "action": "kill",
+          "detail": "missing"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: missing; expectancy: no liquidity to model a $2 fill; quote: missing; price: missing; age: missing"
+    },
+    {
+      "ca": "HG482PfbABHxVN4byAvZtv6YRGKxKXDynXKRf9aipump",
+      "symbol": "$CCOW",
+      "name": "$CCOW",
+      "priceUsd": 0.0000037655683888514706,
+      "liq": 2955.9605,
+      "ageMin": 0.8669666666666667,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/HG482PfbABHxVN4byAvZtv6YRGKxKXDynXKRf9aipump",
+      "imageUrl": null,
+      "h1": 88.404,
       "sources": [
         "gecko-new"
       ],
@@ -1706,7 +1866,7 @@
         {
           "name": "top 10 holders",
           "action": "kill",
-          "detail": "lookup failed: HTTP 429"
+          "detail": "lookup failed: timed out"
         },
         {
           "name": "mint authority",
@@ -1726,7 +1886,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$3557"
+          "detail": "$2956"
         },
         {
           "name": "expectancy",
@@ -1745,17 +1905,17 @@
         }
       ],
       "action": "kill",
-      "reason": "top 10 holders: lookup failed: HTTP 429"
+      "reason": "top 10 holders: lookup failed: timed out"
     },
     {
-      "ca": "86g3hWpeTSjeL3X1U1cz3P2RA3seBzubJFMeCtN1v6z7",
-      "symbol": "SID",
-      "name": "SID",
-      "priceUsd": 0.000496539896575092,
-      "liq": 0.00495546788148141,
-      "ageMin": 1.0517833333333333,
+      "ca": "4PsgFHAybY3Y3EPDJ484SBCUtGnaBz56sfzoMKDVpump",
+      "symbol": "cheng",
+      "name": "cheng",
+      "priceUsd": 0.0000020106024950046876,
+      "liq": 1594.5547,
+      "ageMin": 0.9669666666666666,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/86g3hWpeTSjeL3X1U1cz3P2RA3seBzubJFMeCtN1v6z7",
+      "dexUrl": "https://dexscreener.com/solana/4PsgFHAybY3Y3EPDJ484SBCUtGnaBz56sfzoMKDVpump",
       "imageUrl": null,
       "h1": 0,
       "sources": [
@@ -1763,48 +1923,9 @@
       ],
       "checks": [
         {
-          "name": "liquidity",
-          "action": "kill",
-          "detail": "$0"
-        },
-        {
-          "name": "expectancy",
-          "action": "kill",
-          "detail": "$2 slip 90.0% does not clear the take-profit"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "liquidity: $0; expectancy: $2 slip 90.0% does not clear the take-profit"
-    },
-    {
-      "ca": "3nYMhnRCoCjA4moFpoKiZdGWgK84MZoCpw6EugEVpump",
-      "symbol": "BRIGADEB",
-      "name": "BRIGADEB",
-      "priceUsd": 0.0000023030341562759473,
-      "liq": 1725.70680772063,
-      "ageMin": 1.1017833333333333,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/dxr5vpgufbgcfqnmouwizyqkndcm5tn6brjf9garmfff",
-      "imageUrl": null,
-      "h1": 6.525,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
           "name": "top 10 holders",
           "action": "kill",
-          "detail": "lookup failed: HTTP 429"
+          "detail": "lookup failed: timed out"
         },
         {
           "name": "mint authority",
@@ -1819,12 +1940,12 @@
         {
           "name": "lp",
           "action": "unknown",
-          "detail": "request failed"
+          "detail": "HTTP 400"
         },
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$1726"
+          "detail": "$1595"
         },
         {
           "name": "expectancy",
@@ -1843,431 +1964,19 @@
         }
       ],
       "action": "kill",
-      "reason": "top 10 holders: lookup failed: HTTP 429"
+      "reason": "top 10 holders: lookup failed: timed out"
     },
     {
-      "ca": "C7AFmWZTcPq35snmZhedVD7pb44maiKDQTk7Uj63YFZP",
+      "ca": "2J4kuUXtiXQ9oAHfvumtUjvSS6gaDKiYW6TMmDbfu4jW",
       "symbol": "TripleH",
       "name": "TripleH",
-      "priceUsd": 0.000003311869845744275,
-      "liq": 2871.7496,
-      "ageMin": 1.16845,
-      "quote": "GOOGLX",
-      "dexUrl": "https://dexscreener.com/solana/auceg7tzbjp4iyzq9alxujbbt2km6zwjgzvtktdrzssb",
-      "imageUrl": null,
-      "h1": -3.696,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "quote",
-          "action": "kill",
-          "detail": "GOOGLX"
-        },
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$2872"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "quote: GOOGLX"
-    },
-    {
-      "ca": "4BChNABrrKjQ7dVyTN1xZZJQAXaVHPwj7HVRi8Hwpump",
-      "symbol": "SWAGNT",
-      "name": "SWAGNT",
-      "priceUsd": 0.01085791083686227,
-      "liq": 85149.4619,
-      "ageMin": 1.1851166666666666,
+      "priceUsd": 0.0000019785910107356183,
+      "liq": 2078.7005,
+      "ageMin": 0.9836333333333334,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/4BChNABrrKjQ7dVyTN1xZZJQAXaVHPwj7HVRi8Hwpump",
+      "dexUrl": "https://dexscreener.com/solana/2J4kuUXtiXQ9oAHfvumtUjvSS6gaDKiYW6TMmDbfu4jW",
       "imageUrl": null,
-      "h1": 2.781,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "top 10 holders",
-          "action": "kill",
-          "detail": "lookup failed: HTTP 429"
-        },
-        {
-          "name": "mint authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "freeze authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "lp",
-          "action": "unknown",
-          "detail": "HTTP 400"
-        },
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$85149"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "top 10 holders: lookup failed: HTTP 429"
-    },
-    {
-      "ca": "8eWGM7oxMnhFACZSW3Q7HJs9WzcHJmpc8jG8yKB61sH9",
-      "symbol": "SID",
-      "name": "SID",
-      "priceUsd": 0.00000199080243732702,
-      "liq": 1979.9495,
-      "ageMin": 1.2851166666666667,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/f7qfrrvtjkdkkto9czvsn9dhladmnpvmzkpdv37owfeq",
-      "imageUrl": null,
-      "h1": 3.894,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "top 10 holders",
-          "action": "kill",
-          "detail": "lookup failed: HTTP 429"
-        },
-        {
-          "name": "mint authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "freeze authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "lp",
-          "action": "unknown",
-          "detail": "request failed"
-        },
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$1980"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "top 10 holders: lookup failed: HTTP 429"
-    },
-    {
-      "ca": "HyCwiKK3oiUFShgbZnYWTUBiBKt5S3MhyaNQE23opump",
-      "symbol": "Hilbert",
-      "name": "Hilbert",
-      "priceUsd": 0.000003931045882378383,
-      "liq": 3250.6827,
-      "ageMin": 1.3017833333333333,
-      "quote": "GOOGLX",
-      "dexUrl": "https://dexscreener.com/solana/ide2hrucwveypybgcpnnpppvdavvkdye1suxb5wsdas",
-      "imageUrl": null,
-      "h1": -0.664,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "quote",
-          "action": "kill",
-          "detail": "GOOGLX"
-        },
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$3251"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "quote: GOOGLX"
-    },
-    {
-      "ca": "8ZacPonBbRTPmANJdCQbkmUMk5ddtGmfN62hfim1pump",
-      "symbol": "USMS",
-      "name": "USMS",
-      "priceUsd": 6.529859501974531e-7,
-      "liq": 776.9208,
-      "ageMin": 1.31845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/8ZacPonBbRTPmANJdCQbkmUMk5ddtGmfN62hfim1pump",
-      "imageUrl": null,
-      "h1": -67.095,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "kill",
-          "detail": "$777"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "liquidity: $777"
-    },
-    {
-      "ca": "7DZVo3w9rCxNKsFRzDQJWMc6JBjhNxDJvpZY3Y9Epump",
-      "symbol": "GTA",
-      "name": "GTA",
-      "priceUsd": 0.0000014597274746880003,
-      "liq": 1250.7139,
-      "ageMin": 1.31845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/7DZVo3w9rCxNKsFRzDQJWMc6JBjhNxDJvpZY3Y9Epump",
-      "imageUrl": null,
-      "h1": -20.191,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "top 10 holders",
-          "action": "kill",
-          "detail": "lookup failed: HTTP 429"
-        },
-        {
-          "name": "mint authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "freeze authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "lp",
-          "action": "unknown",
-          "detail": "HTTP 400"
-        },
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$1251"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "top 10 holders: lookup failed: HTTP 429"
-    },
-    {
-      "ca": "95FA8k2XCN3dQL9jmWVaSbvp3fnLUKZVBSM8PCUBpump",
-      "symbol": "HACKER",
-      "name": "HACKER",
-      "priceUsd": 0.000002054254281772592,
-      "liq": 1628.5135,
-      "ageMin": 1.31845,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/95FA8k2XCN3dQL9jmWVaSbvp3fnLUKZVBSM8PCUBpump",
-      "imageUrl": null,
-      "h1": 2.057,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "top 10 holders",
-          "action": "kill",
-          "detail": "lookup failed: HTTP 429"
-        },
-        {
-          "name": "mint authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "freeze authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "lp",
-          "action": "unknown",
-          "detail": "HTTP 400"
-        },
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$1629"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "top 10 holders: lookup failed: HTTP 429"
-    },
-    {
-      "ca": "Hg9ABgqPs5YHkynEXLDiuTXeCPU88GQPGsMkftotpump",
-      "symbol": "发射",
-      "name": "发射",
-      "priceUsd": 0.0000015262829806713282,
-      "liq": 2706.9686,
-      "ageMin": 1.3851166666666668,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/Hg9ABgqPs5YHkynEXLDiuTXeCPU88GQPGsMkftotpump",
-      "imageUrl": null,
-      "h1": -21.118,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "top 10 holders",
-          "action": "kill",
-          "detail": "lookup failed: HTTP 429"
-        },
-        {
-          "name": "mint authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "freeze authority",
-          "action": "ok",
-          "detail": "revoked"
-        },
-        {
-          "name": "lp",
-          "action": "ok",
-          "detail": "locked 100.0%"
-        },
-        {
-          "name": "liquidity",
-          "action": "ok",
-          "detail": "$2707"
-        },
-        {
-          "name": "expectancy",
-          "action": "ok",
-          "detail": "slip 1.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "1 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "top 10 holders: lookup failed: HTTP 429"
-    },
-    {
-      "ca": "3ibvKsMFCvwA8327489j4fcBmhYYH9FfuFdxgxVxpump",
-      "symbol": "gAIpepe",
-      "name": "gAIpepe",
-      "priceUsd": 0.000001865002989190626,
-      "liq": 2111.1157,
-      "ageMin": 1.4351166666666666,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/3ibvKsMFCvwA8327489j4fcBmhYYH9FfuFdxgxVxpump",
-      "imageUrl": null,
-      "h1": -25.086,
+      "h1": -3.212,
       "sources": [
         "gecko-new"
       ],
@@ -2295,7 +2004,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$2111"
+          "detail": "$2079"
         },
         {
           "name": "expectancy",
@@ -2317,16 +2026,428 @@
       "reason": "top 10 holders: lookup failed: timed out"
     },
     {
-      "ca": "BWAFrj3KsvZTn89KvdvyszK1ANkSkCUHn2KT9KHRpump",
-      "symbol": "Huss",
-      "name": "Huss",
-      "priceUsd": 0.0000019913485413625967,
-      "liq": 1579.3199,
-      "ageMin": 1.4517833333333334,
+      "ca": "E1UNUVtfqDMjKMs5oUgTCCcAKWoTH3Zp4jVh55oUpump",
+      "symbol": "BPCATE",
+      "name": "BPCATE",
+      "priceUsd": 6.100652236806397e-7,
+      "liq": 441.2471,
+      "ageMin": 0.9836333333333334,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/BWAFrj3KsvZTn89KvdvyszK1ANkSkCUHn2KT9KHRpump",
+      "dexUrl": "https://dexscreener.com/solana/E1UNUVtfqDMjKMs5oUgTCCcAKWoTH3Zp4jVh55oUpump",
       "imageUrl": null,
-      "h1": 0.382,
+      "h1": -69.407,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "$441"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: $441"
+    },
+    {
+      "ca": "28GwKiWo1jspumF9kNujvy2QW2WgKDgTJeTRov9npump",
+      "symbol": "1",
+      "name": "1",
+      "priceUsd": 1.271855642215583e-7,
+      "liq": 160.0158,
+      "ageMin": 1.0669666666666666,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/28GwKiWo1jspumF9kNujvy2QW2WgKDgTJeTRov9npump",
+      "imageUrl": null,
+      "h1": -95.497,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "$160"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 2.5%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: $160"
+    },
+    {
+      "ca": "Ev5jmvzfiVUVvdtkMBbfPtcGxy85HHyx36dbDicppump",
+      "symbol": "发射",
+      "name": "发射",
+      "priceUsd": 5.971363969049436e-7,
+      "liq": 477.7693,
+      "ageMin": 1.0836333333333332,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/Ev5jmvzfiVUVvdtkMBbfPtcGxy85HHyx36dbDicppump",
+      "imageUrl": null,
+      "h1": -70.007,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "$478"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "liquidity: $478"
+    },
+    {
+      "ca": "8tnpn2FiXZFdgLbC8fkk3HchLfDsk9rVVBJa5VqHpump",
+      "symbol": "STENKS",
+      "name": "STENKS",
+      "priceUsd": 0.0000016503574745630885,
+      "liq": 2486.8158,
+      "ageMin": 1.1836333333333333,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/8tnpn2FiXZFdgLbC8fkk3HchLfDsk9rVVBJa5VqHpump",
+      "imageUrl": null,
+      "h1": 33.503,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "top 10 holders",
+          "action": "kill",
+          "detail": "lookup failed: timed out"
+        },
+        {
+          "name": "mint authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "freeze authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "lp",
+          "action": "unknown",
+          "detail": "request failed"
+        },
+        {
+          "name": "liquidity",
+          "action": "ok",
+          "detail": "$2487"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "top 10 holders: lookup failed: timed out"
+    },
+    {
+      "ca": "Byjifg64TXm5pMzfn1qsQiK4wazaebS1gB8cydMNV83f",
+      "symbol": "again",
+      "name": "again",
+      "priceUsd": 0.000002215759720165107,
+      "liq": 1870.5675,
+      "ageMin": 1.1836333333333333,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/Byjifg64TXm5pMzfn1qsQiK4wazaebS1gB8cydMNV83f",
+      "imageUrl": null,
+      "h1": -18.197,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "top 10 holders",
+          "action": "kill",
+          "detail": "lookup failed: timed out"
+        },
+        {
+          "name": "mint authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "freeze authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "lp",
+          "action": "unknown",
+          "detail": "request failed"
+        },
+        {
+          "name": "liquidity",
+          "action": "ok",
+          "detail": "$1871"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "top 10 holders: lookup failed: timed out"
+    },
+    {
+      "ca": "2mPvWCQEYUpBqFDnrQpWgxr7tqApFenZY2KADXfy373T",
+      "symbol": "Hilbert",
+      "name": "Hilbert",
+      "priceUsd": 0.0000025237707889117477,
+      "liq": 1966.0154,
+      "ageMin": 1.1836333333333333,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/2mPvWCQEYUpBqFDnrQpWgxr7tqApFenZY2KADXfy373T",
+      "imageUrl": null,
+      "h1": -25.867,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "top 10 holders",
+          "action": "kill",
+          "detail": "lookup failed: timed out"
+        },
+        {
+          "name": "mint authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "freeze authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "lp",
+          "action": "unknown",
+          "detail": "request failed"
+        },
+        {
+          "name": "liquidity",
+          "action": "ok",
+          "detail": "$1966"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "top 10 holders: lookup failed: timed out"
+    },
+    {
+      "ca": "GofPoNibZidB37TmX3Tj8Dw5Ej9EssxJgJos8C1Cpump",
+      "symbol": "cap",
+      "name": "cap",
+      "priceUsd": 0.0000022367244144299496,
+      "liq": 1771.0586,
+      "ageMin": 1.2003,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/GofPoNibZidB37TmX3Tj8Dw5Ej9EssxJgJos8C1Cpump",
+      "imageUrl": null,
+      "h1": 12.857,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "top 10 holders",
+          "action": "kill",
+          "detail": "lookup failed: timed out"
+        },
+        {
+          "name": "mint authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "freeze authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "lp",
+          "action": "ok",
+          "detail": "locked 100.0%"
+        },
+        {
+          "name": "liquidity",
+          "action": "ok",
+          "detail": "$1771"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "top 10 holders: lookup failed: timed out"
+    },
+    {
+      "ca": "6gPkgBopqpK4PCvAg9ZmHkVPbCNjcroHyPK1xLmipump",
+      "symbol": "GTA",
+      "name": "GTA",
+      "priceUsd": 0.0000038988045676359456,
+      "liq": 3035.245,
+      "ageMin": 1.2169666666666668,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/6gPkgBopqpK4PCvAg9ZmHkVPbCNjcroHyPK1xLmipump",
+      "imageUrl": null,
+      "h1": 96.183,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "top 10 holders",
+          "action": "kill",
+          "detail": "lookup failed: timed out"
+        },
+        {
+          "name": "mint authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "freeze authority",
+          "action": "ok",
+          "detail": "revoked"
+        },
+        {
+          "name": "lp",
+          "action": "unknown",
+          "detail": "request failed"
+        },
+        {
+          "name": "liquidity",
+          "action": "ok",
+          "detail": "$3035"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "kill",
+      "reason": "top 10 holders: lookup failed: timed out"
+    },
+    {
+      "ca": "2g6fFWby34Qhq6PWk5WH1eWTsSLRL5ggidgBM3Qypump",
+      "symbol": "COMM",
+      "name": "COMM",
+      "priceUsd": 0.000006087549412194174,
+      "liq": 3636.5426,
+      "ageMin": 1.2169666666666668,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/2g6fFWby34Qhq6PWk5WH1eWTsSLRL5ggidgBM3Qypump",
+      "imageUrl": null,
+      "h1": 2.034,
       "sources": [
         "gecko-new"
       ],
@@ -2334,7 +2455,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$1579"
+          "detail": "$3637"
         },
         {
           "name": "expectancy",
@@ -2356,16 +2477,16 @@
       "reason": "safety lookup did not finish"
     },
     {
-      "ca": "32yTKtm8Zo3dWEPpbXeEe987515cvQ3dnWajgkYfpump",
-      "symbol": "SID",
-      "name": "SID",
-      "priceUsd": 0.0000022242259755611137,
-      "liq": 1815.681,
-      "ageMin": 1.6351166666666668,
+      "ca": "5Ckkmy4gefoXvt5C4JdYuNhNDXXxWfoo3WWnQk5aAuwb",
+      "symbol": "POLO",
+      "name": "POLO",
+      "priceUsd": 0.00001457142703783211,
+      "liq": 28648.2991,
+      "ageMin": 1.2503,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/32yTKtm8Zo3dWEPpbXeEe987515cvQ3dnWajgkYfpump",
+      "dexUrl": "https://dexscreener.com/solana/5Ckkmy4gefoXvt5C4JdYuNhNDXXxWfoo3WWnQk5aAuwb",
       "imageUrl": null,
-      "h1": -1.717,
+      "h1": 3.178,
       "sources": [
         "gecko-new"
       ],
@@ -2373,7 +2494,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$1816"
+          "detail": "$28648"
         },
         {
           "name": "expectancy",
@@ -2388,23 +2509,23 @@
         {
           "name": "age",
           "action": "ok",
-          "detail": "2 min"
+          "detail": "1 min"
         }
       ],
       "action": "pass",
       "reason": "safety lookup did not finish"
     },
     {
-      "ca": "AU7EYvuHoSDYwALCwUpsEzkuiMk3Gi1U9jYiAmbSvVYW",
-      "symbol": "J7TEST",
-      "name": "J7TEST",
-      "priceUsd": 0.0000019798564732860844,
-      "liq": 1570.2276,
-      "ageMin": 1.66845,
+      "ca": "Dm2Xmut8HbJm8DFZjkFeo1JrbKxeKpuZwbrpzWSFgXae",
+      "symbol": "EU",
+      "name": "EU",
+      "priceUsd": 0.0000026582508791786674,
+      "liq": 2055.4336,
+      "ageMin": 1.2503,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/AU7EYvuHoSDYwALCwUpsEzkuiMk3Gi1U9jYiAmbSvVYW",
+      "dexUrl": "https://dexscreener.com/solana/Dm2Xmut8HbJm8DFZjkFeo1JrbKxeKpuZwbrpzWSFgXae",
       "imageUrl": null,
-      "h1": -0.001,
+      "h1": -10.067,
       "sources": [
         "gecko-new"
       ],
@@ -2412,7 +2533,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$1570"
+          "detail": "$2055"
         },
         {
           "name": "expectancy",
@@ -2427,23 +2548,23 @@
         {
           "name": "age",
           "action": "ok",
-          "detail": "2 min"
+          "detail": "1 min"
         }
       ],
       "action": "pass",
       "reason": "safety lookup did not finish"
     },
     {
-      "ca": "4g4Guq5pDsTXAXFJsDessmVfs9q8NDNpXxGXuc9npump",
-      "symbol": "Dog Think",
-      "name": "Dog Think",
-      "priceUsd": 0.0000019843962042172316,
-      "liq": 1573.8574,
-      "ageMin": 1.7017833333333334,
+      "ca": "pBuan6fki4KFeMBJxUX1rVq2SNkTq5LLArsNdQ9pump",
+      "symbol": "GETPAID",
+      "name": "GETPAID",
+      "priceUsd": 0.000003329275521778051,
+      "liq": 2511.0901,
+      "ageMin": 1.2503,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/4g4Guq5pDsTXAXFJsDessmVfs9q8NDNpXxGXuc9npump",
+      "dexUrl": "https://dexscreener.com/solana/pBuan6fki4KFeMBJxUX1rVq2SNkTq5LLArsNdQ9pump",
       "imageUrl": null,
-      "h1": 0.059,
+      "h1": 58.06,
       "sources": [
         "gecko-new"
       ],
@@ -2451,7 +2572,7 @@
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$1574"
+          "detail": "$2511"
         },
         {
           "name": "expectancy",
@@ -2466,23 +2587,23 @@
         {
           "name": "age",
           "action": "ok",
-          "detail": "2 min"
+          "detail": "1 min"
         }
       ],
       "action": "pass",
       "reason": "safety lookup did not finish"
     },
     {
-      "ca": "9EvxLiucBfDC24YjH1Whs4dP52dk8K1nzYGL42VnYkYW",
-      "symbol": "MANDY",
-      "name": "MANDY",
-      "priceUsd": 0.0000017045351774762307,
-      "liq": 1742.1496,
-      "ageMin": 1.7017833333333334,
-      "quote": "VICEWIRE",
-      "dexUrl": "https://dexscreener.com/solana/9EvxLiucBfDC24YjH1Whs4dP52dk8K1nzYGL42VnYkYW",
+      "ca": "94eJaXMs4hEgSWZAivBbHr4RoELf7EYpUxKDXTBWaMna",
+      "symbol": "again",
+      "name": "again",
+      "priceUsd": 0.0000031226924933468036,
+      "liq": 2476.5445,
+      "ageMin": 1.2669666666666666,
+      "quote": "TTWO",
+      "dexUrl": "https://dexscreener.com/solana/94eJaXMs4hEgSWZAivBbHr4RoELf7EYpUxKDXTBWaMna",
       "imageUrl": null,
-      "h1": -43.16,
+      "h1": -2.459,
       "sources": [
         "gecko-new"
       ],
@@ -2490,12 +2611,12 @@
         {
           "name": "quote",
           "action": "kill",
-          "detail": "VICEWIRE"
+          "detail": "TTWO"
         },
         {
           "name": "liquidity",
           "action": "ok",
-          "detail": "$1742"
+          "detail": "$2477"
         },
         {
           "name": "expectancy",
@@ -2505,70 +2626,31 @@
         {
           "name": "age",
           "action": "ok",
-          "detail": "2 min"
+          "detail": "1 min"
         }
       ],
       "action": "kill",
-      "reason": "quote: VICEWIRE"
+      "reason": "quote: TTWO"
     },
     {
-      "ca": "pf4x4KpBjrLaKLFWcT6yBeWVnR6gLjp4GyQ4qu1pump",
-      "symbol": "SOOTS",
-      "name": "SOOTS",
-      "priceUsd": 7.8053562845478e-8,
-      "liq": 132.6391,
-      "ageMin": 1.7851166666666667,
+      "ca": "5nDXa2EdSyGppWjVvtMdbhNgN7CkiHEpPwTxAMcipump",
+      "symbol": "VIP",
+      "name": "VIP",
+      "priceUsd": 0.0000013370281806368276,
+      "liq": 1081.2004,
+      "ageMin": 1.3003,
       "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/pf4x4KpBjrLaKLFWcT6yBeWVnR6gLjp4GyQ4qu1pump",
+      "dexUrl": "https://dexscreener.com/solana/5nDXa2EdSyGppWjVvtMdbhNgN7CkiHEpPwTxAMcipump",
       "imageUrl": null,
-      "h1": -96.962,
+      "h1": -32.583,
       "sources": [
         "gecko-new"
       ],
       "checks": [
         {
           "name": "liquidity",
-          "action": "kill",
-          "detail": "$133"
-        },
-        {
-          "name": "expectancy",
           "action": "ok",
-          "detail": "slip 3.0%"
-        },
-        {
-          "name": "quote",
-          "action": "ok",
-          "detail": "SOL"
-        },
-        {
-          "name": "age",
-          "action": "ok",
-          "detail": "2 min"
-        }
-      ],
-      "action": "kill",
-      "reason": "liquidity: $133"
-    },
-    {
-      "ca": "3QFXDLpxCHTVhqfDqH7SjJagT4VhxKKY9Vgdw3fWpump",
-      "symbol": "发射",
-      "name": "发射",
-      "priceUsd": 0.0000010904086655661314,
-      "liq": 979.4262,
-      "ageMin": 1.8517833333333333,
-      "quote": "SOL",
-      "dexUrl": "https://dexscreener.com/solana/3QFXDLpxCHTVhqfDqH7SjJagT4VhxKKY9Vgdw3fWpump",
-      "imageUrl": null,
-      "h1": -45.158,
-      "sources": [
-        "gecko-new"
-      ],
-      "checks": [
-        {
-          "name": "liquidity",
-          "action": "kill",
-          "detail": "$979"
+          "detail": "$1081"
         },
         {
           "name": "expectancy",
@@ -2583,11 +2665,128 @@
         {
           "name": "age",
           "action": "ok",
-          "detail": "2 min"
+          "detail": "1 min"
+        }
+      ],
+      "action": "pass",
+      "reason": "safety lookup did not finish"
+    },
+    {
+      "ca": "8yYAvJ9NsPeEcLTncTmmwKaK3uoskHnkuBKiYBnLpump",
+      "symbol": "smallDwif",
+      "name": "smallDwif",
+      "priceUsd": 0.0000012474669002384598,
+      "liq": 990.956,
+      "ageMin": 1.3336333333333332,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/8yYAvJ9NsPeEcLTncTmmwKaK3uoskHnkuBKiYBnLpump",
+      "imageUrl": null,
+      "h1": -37.141,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "kill",
+          "detail": "$991"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
         }
       ],
       "action": "kill",
-      "reason": "liquidity: $979"
+      "reason": "liquidity: $991"
+    },
+    {
+      "ca": "8mwoqnLekgkNX5Bzx7oqbGhRqX2R2HFCCyT7GPGzSuea",
+      "symbol": "fishcoin",
+      "name": "fishcoin",
+      "priceUsd": 0.000002024944212610671,
+      "liq": 1616.767,
+      "ageMin": 1.3669666666666667,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/8mwoqnLekgkNX5Bzx7oqbGhRqX2R2HFCCyT7GPGzSuea",
+      "imageUrl": null,
+      "h1": -46.921,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "ok",
+          "detail": "$1617"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "pass",
+      "reason": "safety lookup did not finish"
+    },
+    {
+      "ca": "GxhC2ZE7EyWpRrYiYep43kV9SNKv2y8urtJJwuDUpump",
+      "symbol": "DOOROC",
+      "name": "DOOROC",
+      "priceUsd": 0.0000031432992392416415,
+      "liq": 2084.2614,
+      "ageMin": 1.4003,
+      "quote": "SOL",
+      "dexUrl": "https://dexscreener.com/solana/GxhC2ZE7EyWpRrYiYep43kV9SNKv2y8urtJJwuDUpump",
+      "imageUrl": null,
+      "h1": 57.784,
+      "sources": [
+        "gecko-new"
+      ],
+      "checks": [
+        {
+          "name": "liquidity",
+          "action": "ok",
+          "detail": "$2084"
+        },
+        {
+          "name": "expectancy",
+          "action": "ok",
+          "detail": "slip 1.0%"
+        },
+        {
+          "name": "quote",
+          "action": "ok",
+          "detail": "SOL"
+        },
+        {
+          "name": "age",
+          "action": "ok",
+          "detail": "1 min"
+        }
+      ],
+      "action": "pass",
+      "reason": "safety lookup did not finish"
     }
   ]
 }
